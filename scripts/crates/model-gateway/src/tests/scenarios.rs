@@ -459,6 +459,22 @@ impl Replay {
     }
 }
 
+/// One step as a golden holds it: its exit code, output and files, the files in the order the old golden had them
+/// (a new file goes last), so a rewrite changes only what changed.
+fn golden_step(got: &Outcome, golden: &Value, index: usize) -> Value {
+    let old: Vec<&str> = match field(golden, "steps") {
+        Some(Value::Arr(steps)) => match steps.get(index).and_then(|step| field(step, "files")) {
+            Some(Value::Obj(files)) => files.entries().into_iter().map(|(path, _)| path).collect(),
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    };
+    let mut paths: Vec<&str> = old.into_iter().filter(|path| got.files.contains_key(*path)).collect();
+    paths.extend(got.files.keys().map(String::as_str).filter(|path| !paths.contains(path)).collect::<Vec<_>>());
+    let files = paths.into_iter().map(|path| (path, got.files[path].as_deref().map_or(Value::Null, Value::str))).collect();
+    crate::json::object(vec![("exit", Value::Num(got.exit as f64)), ("stdout", Value::str(&got.stdout)), ("stderr", Value::str(&got.stderr)), ("files", crate::json::object(files))])
+}
+
 /// The golden of one step: its exit code, output and files.
 pub fn expected(golden: &Value, index: usize) -> Outcome {
     let step = match field(golden, "steps") {
@@ -530,15 +546,21 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     assert!(names.len() >= 14, "the fixture scenarios are missing: {names:?}");
     // Every mismatch is collected, so one run shows all of them; SCENARIO=<name> replays one scenario.
     let only = std::env::var("SCENARIO").ok();
+    // BLESS=1 rewrites the goldens of the replayed scenarios from what they give now; review the diff before committing it.
+    let bless = std::env::var("BLESS").is_ok();
     let mut mismatches: Vec<String> = Vec::new();
     for name in names.iter().filter(|name| is_wanted(name, only.as_deref())) {
         let replay = Replay::new(name);
         let golden = read_json(&replay.dir.join("expected.json"));
         let steps = list(&replay.scenario, "steps");
         assert!(!steps.is_empty(), "{name} has no steps");
+        let mut blessed: Vec<Value> = Vec::new();
         for (index, step) in steps.iter().enumerate() {
             let want = expected(&golden, index);
             let got = replay.step(step);
+            if bless {
+                blessed.push(golden_step(&got, &golden, index));
+            }
             let label = format!("{name} step {index} {:?}", list(step, "argv"));
             if got.stdout != want.stdout {
                 mismatches.push(format!("{label}: stdout\n--- want\n{}\n--- got\n{}", want.stdout, got.stdout));
@@ -555,6 +577,10 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
                 let detail: Vec<String> = changed.iter().map(|path| format!("{path}\n--- want {:?}\n--- got {:?}", want.files.get(*path), got.files.get(*path))).collect();
                 mismatches.push(format!("{label}: files differ\n{}", detail.join("\n")));
             }
+        }
+        if bless {
+            let text = format!("{}\n", crate::json::pretty(&crate::json::object(vec![("steps", Value::Arr(blessed))])));
+            std::fs::write(replay.dir.join("expected.json"), text).expect("write the golden");
         }
     }
     let shown: Vec<&String> = mismatches.iter().take(6).collect();

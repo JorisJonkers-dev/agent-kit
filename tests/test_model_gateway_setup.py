@@ -94,6 +94,10 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "pi-public": ("pi", "subsidised", "live"),
         "pi-openrouter": ("pi", "subsidised", "live"),
         "pi-free": ("pi", "subsidised", "live"),
+        "pi-tier-vibe": ("pi", "subsidised", "live"),
+        "pi-tier-go-cheap": ("pi", "subsidised", "live"),
+        "pi-tier-strong-open": ("pi", "subsidised", "live"),
+        "pi-tier-review": ("pi", "subsidised", "live"),
         "opencode-free": ("opencode", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
@@ -122,6 +126,11 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("agy", "gemini-3.8-flash-high", "google", "hard"),
         ("agy", "gemini-3.8-flash-medium", "google", "routine"),
         ("agy", "gemini-3.8-flash-low", "google", "trivial"),
+        ("pi-free", "tier-free", "litellm-tier", "routine"),
+        ("pi-tier-vibe", "tier-vibe", "litellm-tier", "routine"),
+        ("pi-tier-go-cheap", "tier-go-cheap", "litellm-tier", "routine"),
+        ("pi-tier-strong-open", "tier-strong-open", "litellm-tier", "hard"),
+        ("pi-tier-review", "tier-review", "litellm-tier", "hard"),
         ("opencode-free", "opencode/glm-5.3-flash-free", "zhipu", "routine"),
         ("opencode-free", "opencode/deepseek-v4.1-flash-free", "deepseek", "routine"),
         ("opencode-free", "opencode/hy4-flash-free", "tencent", "routine"),
@@ -153,6 +162,31 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("pi", "opencode-go-free/beam-1.0-501b-a23b", "reflection", "routine"),
         ("pi", "public/gemini-3.6-flash", "google", "routine"),
         ("pi", "public/gemini-3.5-flash-lite", "google", "trivial"),
+        ("pi", "groq/gpt-oss-120b", "openai", "routine"),
+        ("pi", "groq/gpt-oss-20b", "openai", "trivial"),
+        ("pi", "groq/qwen3.8-27b", "alibaba", "routine"),
+        ("pi", "zai/glm-4.7-flash", "zhipu", "routine"),
+        ("pi", "zai/glm-4.5-flash", "zhipu", "trivial"),
+        ("pi", "zai/glm-4.6v-flash", "zhipu", "trivial"),
+        ("pi", "nvidia/nemotron-3-ultra-550b-a55b", "nvidia", "routine"),
+        ("pi", "nvidia/gemma-4-31b-it", "google", "hard"),
+        ("pi", "nvidia/glm-5.3-flash", "zhipu", "routine"),
+        ("pi", "nvidia/kimi-k3.1-pro", "moonshot", "hard"),
+        ("pi", "nvidia/minimax-m3.1-flash", "minimax", "routine"),
+        ("pi", "kilo/gemma-4-31b-it", "google", "hard"),
+        ("pi", "kilo/nemotron-3-ultra-550b-a55b", "nvidia", "routine"),
+        ("pi", "requesty/gemma-4-31b-it", "google", "hard"),
+        ("pi", "requesty/laguna-xs-2.1", "poolside", "trivial"),
+        ("pi", "naga/inkling-2-small", "thinkingmachines", "hard"),
+        ("pi", "naga/ling-3.2-flash", "inclusionai", "trivial"),
+        ("pi", "naga/particle-1", "particle", "trivial"),
+        ("pi", "routeway/deepseek-v4.1-flash", "deepseek", "routine"),
+        ("pi", "routeway/minimax-m3.1-flash", "minimax", "routine"),
+        ("pi", "ovh/gemma-4-26b-a4b", "google", "hard"),
+        ("pi", "ovh/deepseek-v4.1-flash", "deepseek", "routine"),
+        ("pi", "ovh/qwen3.6-35b-a3b", "alibaba", "routine"),
+        ("pi", "ovh/laguna-xs-2.1", "poolside", "trivial"),
+        ("pi", "ovh/nemotron3-nano-30b", "nvidia", "trivial"),
     ]
     assert all(m["notes"].strip() for m in models)
 
@@ -297,7 +331,9 @@ def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_on
     routes = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())["routes"]
     clients = json.loads(DEFAULTS.read_text())["clients"]
     shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
-    assert set(shipped) == {route["agent"] for route in routes}
+    agents = {route["agent"] for route in routes}
+    # A tier no workstation key calls (tier-strong-open, an escalation key) has a client and no route.
+    assert set(shipped) - agents == {"tier-strong-open"} and agents <= set(shipped)
     for route in routes:
         client = shipped.get(route["agent"])
         if client is not None:

@@ -1207,7 +1207,7 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     # The free routes (openrouter, local) reach nothing paid: no cap; public is small.
     assert caps == {
         "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "openrouter": None, "local": None, "public": 5,
-        "free": None,
+        "free": None, "tier-vibe": None, "tier-go-cheap": None, "tier-review": None,
     }
     # A key holds access groups of canonical models, not a provider wildcard each. The free local
     # route alone adds its own wildcard, so local/<id> answers before the catalogue deploys it.
@@ -1219,7 +1219,11 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         "local": ["canonical", "local/*"],
         "public": ["google-free-public", "canonical"],
         # Every free model of every provider, no paid fallback: never canonical.
-        "free": ["free"],
+        "free": ["free", "tier-free"],
+        # The tier keys hold the tier's name beside the groups its chain needs (litellm key_models).
+        "tier-vibe": ["tier-vibe", "vibe-tier", "opencode-go-tier"],
+        "tier-go-cheap": ["tier-go-cheap", "opencode-go-tier"],
+        "tier-review": ["free", "tier-review", "vibe-tier", "opencode-go-tier"],
     }
     for route in table["routes"]:
         wildcards = [model for model in route["models"] if "*" in model or "/" in model]
@@ -1278,7 +1282,26 @@ def test_every_public_only_group_is_held_by_public_keys_only() -> None:
     for route in routes:
         holds_public = bool(set(route["models"]) & set(render_registry.LITELLM_PUBLIC_GROUPS))
         assert holds_public == (route["data_scope"] == "public"), route["agent"]
-    assert sorted(r["agent"] for r in routes if r["data_scope"] == "public") == ["free", "openrouter", "public"]
+    public = sorted(r["agent"] for r in routes if r["data_scope"] == "public")
+    assert public == ["free", "openrouter", "public", "tier-review"]
+
+
+def test_every_free_only_route_group_is_a_public_only_group() -> None:
+    expected = {f"{route}-free-public" for route in render_registry.LITELLM_FREE_ROUTES}
+    assert expected == {
+        "groq-free-public", "cloudflare-free-public", "nvidia-free-public", "zai-free-public",
+        "kilo-free-public", "ovh-free-public", "requesty-free-public", "axforge-free-public",
+        "naga-free-public", "routeway-free-public", "inferbase-free-public",
+    }
+    assert expected <= set(render_registry.LITELLM_PUBLIC_GROUPS)
+
+
+@pytest.mark.parametrize("route", render_registry.LITELLM_FREE_ROUTES)
+def test_a_public_key_may_hold_a_new_free_route_group(route: str) -> None:
+    data = copy.deepcopy(_registry())
+    public = next(r for r in data["litellm"]["routes"] if r["agent"] == "free")
+    public["models"] = ["free", f"{route}-free-public"]
+    render_registry.validate(data)
 
 
 def test_the_free_route_key_is_minted_unexported() -> None:
@@ -1346,6 +1369,13 @@ def test_the_admin_token_script_makes_a_one_hour_management_key_and_no_agent_key
         (
             lambda d: d["litellm"]["routes"][1].update(models=["openrouter-free-public"]),
             "only a data_scope: public key",
+        ),
+        *(
+            (
+                lambda d, group=f"{route}-free-public": d["litellm"]["routes"][0].update(models=["canonical", group]),
+                "only a data_scope: public key",
+            )
+            for route in render_registry.LITELLM_FREE_ROUTES
         ),
         (lambda d: d["litellm"]["routes"][5].update(models=["canonical"]), "must hold a public-only group"),
         (lambda d: d["litellm"]["routes"][0].update(data_scope="public"), "must hold a public-only group"),

@@ -162,6 +162,45 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   A client that is neither is refused as before.
   `scripts/crates/model-gateway/src/harness.rs` holds the choice; the
   `run-roles` scenario holds the goldens.
+- **Tiers are profiles too, rendered from litellm (#905).** A LiteLLM tier
+  (`tier-free`, `tier-vibe`, `tier-go-cheap`, `tier-strong-open`, `tier-review`) is
+  a model name the proxy serves, with a cost ceiling and an ordered chain that
+  litellm owns (`catalog/routing.json`, key `tier_groups`). agent-kit holds a
+  snapshot, `registry/litellm-tiers.json` (`ci-helpers
+  litellm-tiers --write --ref REF` refreshes it, `--check --upstream REF` finds drift), and
+  `render_registry.py` renders one profile per tier into `defaults.json`, plus
+  the key list and Pi provider of each tier's route, refusing a route whose models
+  differ from the tier's `key_models`. `run --tier T` (or `tier` in the input)
+  is `--profile T --harness pi`: Pi sends the tier's name as the model, with the
+  key of the route that holds it (`tier-free` uses the `free` key). An unknown
+  tier is `unknown-tier`, never a default, and a tier is not combined with a
+  profile, harness, client or model. `tier-strong-open` is an escalation tier
+  with no workstation key, so a run on it is refused with `tier-key-missing`, naming the provider and the key models it needs, until a key is provisioned.
+  The `run-tier` scenario holds the goldens.
+- **Every run writes its routing (#906).** The run's one ledger line carries
+  `tier` (the LiteLLM tier its profile is, else `null`), `harness` (the client's
+  program: `pi`, `claude`, ...), the serving model (`litellm_model_id` from
+  `x-litellm-model-id`, `served_model` from the response body), `attempted_fallbacks`
+  (from `x-litellm-attempted-fallbacks`), `fallback_fired` (`attempted_fallbacks >= 1`),
+  the cost (`cost_usd`) and `routing_capture`, which says how much the gateway saw:
+  `recorded` (it read LiteLLM's response headers), `no-litellm-headers` (it saw answers, none carrying a LiteLLM header), `no-request` (it stood in front of
+  the client and no request was answered), `hidden` (the client talks to LiteLLM
+  itself and shows the gateway no headers: the fields are `null`) or `not-litellm`
+  (Claude Code, Codex, Antigravity and OpenCode's own models never call LiteLLM; their
+  fields are `null` and the cost and harness still count). Pi hides the headers, so a
+  **tier run on Pi** goes through a recording proxy (`routing.rs`): the gateway binds
+  `127.0.0.1:<port>`, gives the run a copy of Pi's home whose provider has that address
+  as its base URL (the confinement then allows exactly that port), forwards each
+  request to the real proxy with `curl` (the run's home holds a random per-run token,
+  not the key: the proxy answers 401 without it and adds the real key itself, from a
+  private curl config and never a command line; only `Content-Type` and `Accept` of the
+  client's headers are passed on, and a request head with a control byte is refused;
+  `x-litellm-attempted-fallbacks` is an integer count, and an unreadable one is `null`,
+  never 0; LiteLLM rewrites the body's model to the requested name unless a fallback
+  fired, so `served_model` is then the tier name) and relays the answer as it arrives, noting the headers. Other
+  Pi runs and the other LiteLLM clients (Vibe, OpenCode, Hermes) are `hidden` until
+  they are put behind the same proxy. The `routing` tests hold a stub LiteLLM that
+  forces a fallback (`attempted_fallbacks >= 1`); they need `curl` on `PATH`.
 - **`matrix` proves them (#856).** `model-gateway matrix` runs each role on each
   harness once and judges the cells against `docs/model-gateway/harness-matrix.json`;
   the stub proof is the `matrix-stub` scenario in CI, `{"live": true}` is the owner's

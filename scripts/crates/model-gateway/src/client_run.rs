@@ -238,6 +238,10 @@ impl ClientRun<'_> {
             reads.push(agents_skills);
         }
         let mut writes = home.writes.clone();
+        // A home beside the export directory (no run directory) is writable too; one under it already is.
+        if !home.dir.starts_with(crate::launchers::report_dir(&request.paths)) {
+            writes.push(home.dir.clone());
+        }
         writes.extend(own);
         // Antigravity serves itself on a loopback port chosen at run time, like OpenCode: loopback at any port, the rest
         // of the network at 443 only.

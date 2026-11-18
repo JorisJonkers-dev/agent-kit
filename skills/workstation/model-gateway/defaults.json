@@ -14,6 +14,10 @@
     "pi-public":      {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
     "pi-openrouter":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
     "pi-free":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
+    "pi-tier-vibe":   {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-tier-go-cheap": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-tier-strong-open": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
+    "pi-tier-review": {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
     "opencode-free":  {"binary": "opencode", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"}
   },
   "models": [
@@ -30,6 +34,11 @@
     {"client": "agy",    "model": "gemini-3.8-flash-high", "family": "google", "tier": "hard",    "notes": "Long context; reading large codebases and documents."},
     {"client": "agy",    "model": "gemini-3.8-flash-medium", "family": "google", "tier": "routine", "notes": "Fast long-context reader; summaries and well-specified edits."},
     {"client": "agy",    "model": "gemini-3.8-flash-low", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries, classification and lookups."},
+    {"client": "pi-free", "model": "tier-free", "family": "litellm-tier", "tier": "routine", "notes": "LiteLLM tier tier-free: free models only, in the order litellm states (registry/litellm-tiers.json). Public work only."},
+    {"client": "pi-tier-vibe", "model": "tier-vibe", "family": "litellm-tier", "tier": "routine", "notes": "LiteLLM tier tier-vibe: Vibe Flash models, then the Go tier. The chain is litellm's."},
+    {"client": "pi-tier-go-cheap", "model": "tier-go-cheap", "family": "litellm-tier", "tier": "routine", "notes": "LiteLLM tier tier-go-cheap: OpenCode Go Flash models. The chain is litellm's."},
+    {"client": "pi-tier-strong-open", "model": "tier-strong-open", "family": "litellm-tier", "tier": "hard", "notes": "LiteLLM tier tier-strong-open: an escalation tier with no workstation key, so a run on it is refused until a key is provisioned."},
+    {"client": "pi-tier-review", "model": "tier-review", "family": "litellm-tier", "tier": "hard", "notes": "LiteLLM tier tier-review: free models of several labs, then Vibe, then Go. Public work only."},
     {"client": "opencode-free", "model": "opencode/glm-5.3-flash-free", "family": "zhipu", "tier": "routine", "notes": "OpenCode's free GLM 5.3 Flash; zero retention, no training. Public work only."},
     {"client": "opencode-free", "model": "opencode/deepseek-v4.1-flash-free", "family": "deepseek", "tier": "routine", "notes": "OpenCode's free DeepSeek V4.1 Flash; zero retention, no training. Public work only."},
     {"client": "opencode-free", "model": "opencode/hy4-flash-free", "family": "tencent", "tier": "routine", "notes": "OpenCode's free Hy4 Flash; zero retention. Public work only."},
@@ -60,7 +69,32 @@
     {"client": "pi", "model": "minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "Fast MiniMax; routine edits and summaries."},
     {"client": "pi", "model": "opencode-go-free/beam-1.0-501b-a23b", "family": "reflection", "tier": "routine", "notes": "OpenCode Go's free Beam; public material only (its provider may train on the prompt)."},
     {"client": "pi", "model": "public/gemini-3.6-flash", "family": "google", "tier": "routine", "notes": "Fast long-context reader; public material only."},
-    {"client": "pi", "model": "public/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries and lookups; public material only."}
+    {"client": "pi", "model": "public/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries and lookups; public material only."},
+    {"client": "pi", "model": "groq/gpt-oss-120b", "family": "openai", "tier": "routine", "notes": "Groq free plan; 8K tokens a minute, so a long prompt can fail. Public material only."},
+    {"client": "pi", "model": "groq/gpt-oss-20b", "family": "openai", "tier": "trivial", "notes": "Groq free plan; short summaries and lookups, 8K tokens a minute. Public material only."},
+    {"client": "pi", "model": "groq/qwen3.8-27b", "family": "alibaba", "tier": "routine", "notes": "Groq free plan; routine edits and summaries, 8K tokens a minute. Public material only."},
+    {"client": "pi", "model": "zai/glm-4.7-flash", "family": "zhipu", "tier": "routine", "notes": "Z.ai free tier; one request at a time, reasons by default. Public material only."},
+    {"client": "pi", "model": "zai/glm-4.5-flash", "family": "zhipu", "tier": "trivial", "notes": "Z.ai free tier; short summaries and lookups, one request at a time. Public material only."},
+    {"client": "pi", "model": "zai/glm-4.6v-flash", "family": "zhipu", "tier": "trivial", "notes": "Z.ai free tier; the vision model, for reading screenshots. Public material only."},
+    {"client": "pi", "model": "nvidia/nemotron-3-ultra-550b-a55b", "family": "nvidia", "tier": "routine", "notes": "NVIDIA trial endpoint, use is logged to improve NVIDIA products; fallback, availability is uneven. Public material only."},
+    {"client": "pi", "model": "nvidia/gemma-4-31b-it", "family": "google", "tier": "hard", "notes": "NVIDIA trial endpoint, use is logged; fallback, availability is uneven. Public material only."},
+    {"client": "pi", "model": "nvidia/glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "NVIDIA trial endpoint, use is logged; fallback, availability is uneven. Public material only."},
+    {"client": "pi", "model": "nvidia/kimi-k3.1-pro", "family": "moonshot", "tier": "hard", "notes": "NVIDIA trial endpoint, use is logged; untried as a delegate. Public material only."},
+    {"client": "pi", "model": "nvidia/minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "NVIDIA trial endpoint, use is logged; fallback, availability is uneven. Public material only."},
+    {"client": "pi", "model": "kilo/gemma-4-31b-it", "family": "google", "tier": "hard", "notes": "Kilo's anonymous free gateway, 200 requests an hour shared by the whole proxy. Public material only."},
+    {"client": "pi", "model": "kilo/nemotron-3-ultra-550b-a55b", "family": "nvidia", "tier": "routine", "notes": "Kilo's anonymous free gateway, 200 requests an hour shared by the whole proxy. Public material only."},
+    {"client": "pi", "model": "requesty/gemma-4-31b-it", "family": "google", "tier": "hard", "notes": "Requesty free model; 200 requests a day over all free models. Public material only."},
+    {"client": "pi", "model": "requesty/laguna-xs-2.1", "family": "poolside", "tier": "trivial", "notes": "Requesty free model; 200 requests a day over all free models. Public material only."},
+    {"client": "pi", "model": "naga/inkling-2-small", "family": "thinkingmachines", "tier": "hard", "notes": "NagaAI free plan; 100 requests a day. Public material only."},
+    {"client": "pi", "model": "naga/ling-3.2-flash", "family": "inclusionai", "tier": "trivial", "notes": "NagaAI free plan; short summaries and lookups, 100 requests a day. Public material only."},
+    {"client": "pi", "model": "naga/particle-1", "family": "particle", "tier": "trivial", "notes": "NagaAI free plan; short summaries and lookups, 100 requests a day. Public material only."},
+    {"client": "pi", "model": "routeway/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "Routeway free plan; 200 requests a day, one at a time, low-priority queue. Public material only."},
+    {"client": "pi", "model": "routeway/minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "Routeway free plan; 200 requests a day, one at a time, low-priority queue. Public material only."},
+    {"client": "pi", "model": "ovh/gemma-4-26b-a4b", "family": "google", "tier": "hard", "notes": "OVHcloud anonymous tier; 2 requests a minute per IP, often 429: a last-resort copy. Public material only."},
+    {"client": "pi", "model": "ovh/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "OVHcloud anonymous tier; 2 requests a minute per IP, often 429: a last-resort copy. Public material only."},
+    {"client": "pi", "model": "ovh/qwen3.6-35b-a3b", "family": "alibaba", "tier": "routine", "notes": "OVHcloud anonymous tier; 2 requests a minute per IP, often 429: a last-resort copy. Public material only."},
+    {"client": "pi", "model": "ovh/laguna-xs-2.1", "family": "poolside", "tier": "trivial", "notes": "OVHcloud anonymous tier; 2 requests a minute per IP, often 429: a last-resort copy. Public material only."},
+    {"client": "pi", "model": "ovh/nemotron3-nano-30b", "family": "nvidia", "tier": "trivial", "notes": "OVHcloud anonymous tier; 2 requests a minute per IP, often 429: a last-resort copy. Public material only."}
   ],
   "profiles": {
     "cheap-research": {
@@ -138,6 +172,41 @@
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.75,
       "unenforced_clients": ["agy", "codex"]
+    },
+    "tier-free": {
+      "description": "The LiteLLM tier tier-free (cost ceiling free): the proxy runs free/hy4-flash-free -> free/longcat-2.5-free -> free/beam-free -> free/glm-4.7-flash -> free/qwen3.8-27b in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "models": ["pi-free:tier-free"],
+      "tier": "tier-free",
+      "key_models": ["free", "tier-free"],
+      "tools": {"mcp": [], "skills": [], "plugins": []}
+    },
+    "tier-vibe": {
+      "description": "The LiteLLM tier tier-vibe (cost ceiling go): the proxy runs vibe-tier/deepseek-v4-1-flash-1017 -> vibe-tier/zai-glm-5-3-flash -> vibe-tier/mistral-small-2603 -> opencode-go-tier/deepseek-v4.1-flash -> opencode-go-tier/glm-5.3-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "models": ["pi-tier-vibe:tier-vibe"],
+      "tier": "tier-vibe",
+      "key_models": ["tier-vibe", "vibe-tier", "opencode-go-tier"],
+      "tools": {"mcp": [], "skills": [], "plugins": []}
+    },
+    "tier-go-cheap": {
+      "description": "The LiteLLM tier tier-go-cheap (cost ceiling go): the proxy runs opencode-go-tier/deepseek-v4.1-flash -> opencode-go-tier/glm-5.3-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "models": ["pi-tier-go-cheap:tier-go-cheap"],
+      "tier": "tier-go-cheap",
+      "key_models": ["tier-go-cheap", "opencode-go-tier"],
+      "tools": {"mcp": [], "skills": [], "plugins": []}
+    },
+    "tier-strong-open": {
+      "description": "The LiteLLM tier tier-strong-open (cost ceiling go): the proxy runs opencode-go-tier/qwen4-max -> vibe-tier/deepseek-v4-1-flash-1017 -> vibe-tier/zai-glm-5-3-flash -> vibe-tier/mistral-small-2603 -> opencode-go-tier/deepseek-v4.1-flash -> opencode-go-tier/glm-5.3-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "models": ["pi-tier-strong-open:tier-strong-open"],
+      "tier": "tier-strong-open",
+      "key_models": ["tier-strong-open", "vibe-tier", "opencode-go-tier"],
+      "tools": {"mcp": [], "skills": [], "plugins": []}
+    },
+    "tier-review": {
+      "description": "The LiteLLM tier tier-review (cost ceiling go): the proxy runs free/nemotron-3-ultra-550b-a55b -> free/gemma-4-31b -> free/glm-4.7-flash -> free/gpt-oss-120b -> vibe-tier/deepseek-v4-1-flash-1017 -> vibe-tier/zai-glm-5-3-flash -> opencode-go-tier/qwen3.8-flash -> opencode-go-tier/minimax-m3.1-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "models": ["pi-tier-review:tier-review"],
+      "tier": "tier-review",
+      "key_models": ["free", "tier-review", "vibe-tier", "opencode-go-tier"],
+      "tools": {"mcp": [], "skills": [], "plugins": []}
     }
   },
   "settings": {

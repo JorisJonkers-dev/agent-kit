@@ -297,10 +297,10 @@ fn attaches_the_servers_the_caller_names_switches_the_homes_off_and_enables_the_
         ("VIBE_ENABLE_MCP", "true"),
         ("VIBE_ENABLE_SUBAGENTS", "false"),
         ("VIBE_INCLUDE_PROJECT_CONTEXT", "false"),
-        ("VIBE_HOME", "/run/export/client-home/vibe"),
+        ("VIBE_HOME", "/run/export.client-home/vibe"),
         ("VIBE_MCP_SERVERS", servers),
         ("VIBE_OUTSIDE_WORKDIR", "deny"),
-        ("TMPDIR", "/run/export/client-home/tmp"),
+        ("TMPDIR", "/run/export.client-home/tmp"),
     ]
     .into_iter()
     .map(|(name, value)| (name.to_string(), value.to_string()))
@@ -672,7 +672,7 @@ fn runs_opencode_standalone_with_the_prompt_as_its_message() {
     assert_eq!(command.args, strings(&["run", "--standalone", "--model", "opencode-go/kimi", "--format", "json", "read this"]));
     // The caller's variable stays, and the run home's variables are set beside it.
     assert_eq!(command.env.get("X").map(String::as_str), Some("1"));
-    assert_eq!(command.env.get("HOME").map(String::as_str), Some("/run/export/client-home"));
+    assert_eq!(command.env.get("HOME").map(String::as_str), Some("/run/export.client-home"));
     assert_eq!(command.timeout_ms, Some(900_000));
     assert_eq!(command.stdin, None);
 }
@@ -718,8 +718,8 @@ fn hermes_on_a_litellm_route_reads_the_route_key_from_the_secret_store_into_its_
     );
     // The key is read with the owner's own environment; the run home's variables reach Hermes after it, through `env`.
     assert_eq!(command.args[5], "env");
-    assert!(command.args.contains(&"HERMES_HOME=/run/export/client-home/.hermes".to_string()));
-    assert!(command.args.contains(&"HOME=/run/export/client-home".to_string()));
+    assert!(command.args.contains(&"HERMES_HOME=/run/export.client-home/.hermes".to_string()));
+    assert!(command.args.contains(&"HOME=/run/export.client-home".to_string()));
     assert!(!command.env.contains_key("HOME"));
     assert_eq!(command.args.last().map(String::as_str), Some("--ignore-rules"));
     assert_eq!(flag(&command, "--provider").as_deref(), Some("litellm-vibe"));
@@ -962,7 +962,7 @@ fn runs_opencode_on_a_litellm_provider_with_the_routes_key_read_into_its_environ
     let from_binary = command.args.iter().position(|arg| arg == "opencode").expect("the binary");
     assert_eq!(command.args[..5], strings(&["-c", crate::launchers::OPENCODE_KEYED, "opencode-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY"])[..]);
     assert_eq!(command.args[5], "env");
-    assert!(command.args[6..from_binary].contains(&"XDG_CONFIG_HOME=/run/export/client-home/.config".to_string()));
+    assert!(command.args[6..from_binary].contains(&"XDG_CONFIG_HOME=/run/export.client-home/.config".to_string()));
     assert!(!command.env.contains_key("XDG_CONFIG_HOME"));
     assert_eq!(
         command.args[from_binary..],

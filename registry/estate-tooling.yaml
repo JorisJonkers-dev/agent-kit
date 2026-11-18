@@ -142,6 +142,22 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
+  # The tier keys (see litellm.routes): one per tier a workstation calls.
+  - env: LITELLM_TIER_VIBE_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
+  - env: LITELLM_TIER_GO_CHEAP_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
+  - env: LITELLM_TIER_REVIEW_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
   - env: LITELLM_LOCAL_KEY
     mint: litellm
     check: "https://litellm.jorisjonkers.dev/key/info"
@@ -257,7 +273,34 @@ litellm:
       budget_eur: null
       budget_duration: null
       data_scope: public
-      models: ["free"]
+      models: ["free", "tier-free"]
+    # The tier keys. A tier is a callable model name on the proxy (litellm catalog/routing.json
+    # `tier_groups`, snapshotted in registry/litellm-tiers.json), and a key holds the tier's name
+    # beside the access groups its chain needs; render_registry.py refuses a route whose models
+    # differ from the tier's `key_models`. `tier-free` is called with the `free` key above, and
+    # `tier-strong-open` has no workstation key: it is an escalation key. The paid steps are
+    # per-deployment budgeted copies (`vibe-tier`, `opencode-go-tier`), so the key itself is not
+    # capped; the proxy's per-deployment budgets are what bound the spend.
+    - agent: tier-vibe
+      key_env: LITELLM_TIER_VIBE_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: any
+      models: ["tier-vibe", "vibe-tier", "opencode-go-tier"]
+    - agent: tier-go-cheap
+      key_env: LITELLM_TIER_GO_CHEAP_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: any
+      models: ["tier-go-cheap", "opencode-go-tier"]
+    # Its chain starts on free models of several labs, whose providers may train on the prompt,
+    # so this key is public work only.
+    - agent: tier-review
+      key_env: LITELLM_TIER_REVIEW_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: public
+      models: ["free", "tier-review", "vibe-tier", "opencode-go-tier"]
 
 # -------------------------------------------------------------------
 # The packages proxy.

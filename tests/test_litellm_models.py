@@ -24,6 +24,10 @@ ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 # Clients whose models are not served through the LiteLLM routes: Claude (anthropic key only,
 # not probed by the catalogue yet), Codex (employer account) and agy (Google's own CLI).
 # opencode-free runs OpenCode's own free models through the OpenCode CLI: no LiteLLM route serves them.
+# Free-only routes the litellm repository adds in its wave 1 (litellm#66) whose groups the snapshot does not
+# list until the catalogue sync has run and the snapshot is refreshed. Their defaults are declared ahead of
+# the refresh; once the snapshot lists a route as a provider, its defaults must resolve like any other.
+AWAITING_SYNC = {"groq", "zai", "nvidia", "kilo", "requesty", "naga", "routeway", "ovh"}
 NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes", "opencode-free"}
 
 
@@ -33,6 +37,9 @@ litellm_catalogue = importlib.util.module_from_spec(_spec)
 sys.modules["litellm_catalogue"] = litellm_catalogue
 _spec.loader.exec_module(litellm_catalogue)
 
+
+sys.path.insert(0, str(KIT_ROOT / "scripts"))
+import delegation_profiles  # noqa: E402
 
 GROUPS = set(json.loads(CATALOGUE.read_text())["groups"])
 
@@ -46,6 +53,7 @@ def _routes() -> dict[str, set[str]]:
 def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
     """The defaults no usable catalogue id matches, as `client:model`."""
     missing = []
+    providers = set(json.loads(CATALOGUE.read_text())["providers"])
     for entry in models:
         client, model = entry["client"], entry["model"]
         if client == "vibe":
@@ -54,9 +62,13 @@ def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
         elif client == "opencode":
             route, _, bare = model.partition("/")
             ok = route == "opencode-go" and bare in routes["opencode-go"]
+        elif model.startswith("tier-"):
+            # A tier is a model name the proxy serves, stated by litellm's tier policy.
+            ok = model in delegation_profiles.tier_groups()
         elif client == "pi":
             # Pi's models are canonical groups, which the catalogue lists by name.
-            ok = model in GROUPS
+            route = model.partition("/")[0]
+            ok = model in GROUPS or (route in AWAITING_SYNC and route not in providers)
         else:
             assert client in NOT_VIA_LITELLM, f"{client} has no LiteLLM route check"
             continue
@@ -118,3 +130,18 @@ def test_no_critique_gateway_entry_sends_a_vibe_served_model_to_opencode() -> No
         for c in clients
         if c.get("gateway", {}).get("client") == "opencode" and _norm(c["gateway"]["model"]) in vibe
     ] == []
+
+
+def test_a_default_on_a_route_the_snapshot_lists_must_resolve_and_one_awaiting_sync_may_not() -> None:
+    models = [
+        {"client": "pi", "model": "groq/gpt-oss-120b"},
+        {"client": "pi", "model": "openrouter/no-such-model"},
+        {"client": "pi", "model": "cloudflare/no-such-model"},
+    ]
+    assert unresolved(models, _routes()) == ["pi:openrouter/no-such-model", "pi:cloudflare/no-such-model"]
+
+
+def test_the_awaiting_routes_are_not_in_the_snapshot_yet() -> None:
+    """When the snapshot lists one, drop it from AWAITING_SYNC so its defaults are checked."""
+    providers = set(json.loads(CATALOGUE.read_text())["providers"])
+    assert not AWAITING_SYNC & providers

@@ -72,9 +72,13 @@ pub const CODEX_PROTECTED_ENV: [&str; 2] = ["CODEX_HOME", "TMPDIR"];
 pub const CLAUDE_PROTECTED_ENV: [&str; 3] = ["CLAUDE_CODE_DISABLE_AUTO_MEMORY", "CLAUDE_CODE_TMPDIR", "TMPDIR"];
 pub const AGY_PROTECTED_ENV: [&str; 1] = ["TMPDIR"];
 
-/// The directory a launch's home is made in: the run's own directory, else the launch's export directory.
+/// The directory a launch's home is made in: under the run's own directory, else beside the launch's export
+/// directory (which the launch makes only if its client does, so a home that is removed leaves nothing behind).
 pub fn run_home_dir(paths: &LaunchPaths) -> String {
-    join(&[paths.run_dir.as_deref().unwrap_or(&paths.export_dir), RUN_HOME])
+    match paths.run_dir.as_deref() {
+        Some(run) => join(&[run, RUN_HOME]),
+        None => format!("{}.{RUN_HOME}", paths.export_dir),
+    }
 }
 
 /// `HOME` and the four XDG directories, all inside the home, so a client that looks for its files by either finds only these.

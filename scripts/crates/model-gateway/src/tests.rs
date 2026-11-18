@@ -30,4 +30,6 @@ mod pi;
 mod profiles;
 mod catalog;
 mod matrix;
+mod routing;
+mod tier;
 mod run_home;
