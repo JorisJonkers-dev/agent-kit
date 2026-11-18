@@ -143,6 +143,15 @@ fn probe() {
             let socket = UdpSocket::bind("0.0.0.0:0")?;
             socket.connect(("127.0.0.1", port.parse::<u16>().unwrap()))
         };
+        if item == "r" {
+            // A remote address at a port nobody granted: refused at once, or it times out.
+            let remote = std::net::SocketAddr::from(([192, 0, 2, 1], 8080));
+            match TcpStream::connect_timeout(&remote, std::time::Duration::from_millis(1500)) {
+                Ok(_) => println!("r: ok"),
+                Err(e) => println!("r: {}", e.raw_os_error().unwrap_or(-1)),
+            }
+            continue;
+        }
         let result = match (item.strip_prefix('c'), item.strip_prefix('u')) {
             (Some(port), _) => TcpStream::connect(("127.0.0.1", port.parse::<u16>().unwrap())).map(drop),
             (None, Some(port)) => udp(port),
@@ -367,4 +376,17 @@ print ioctl(STDIN, 0x40487413, $t) ? "getattr=ok\n" : "getattr=refused\n";"#;
     drop(master);
     let said = text(&out);
     assert!(said.contains("sti=refused") && said.contains("winsz=ok") && said.contains("getattr=ok"), "{said}");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn loopback_is_open_at_any_port_and_a_remote_port_nobody_granted_is_still_refused() {
+    let other = TcpListener::bind("127.0.0.1:0").unwrap();
+    let o = other.local_addr().unwrap().port();
+    let said = net_probe(&["--net-connect", "443", "--net-loopback"], &format!("c{o},b,r"));
+    assert!(said.contains(&format!("c{o}: ok")) && said.contains("b: ok"), "{said}");
+    assert!(said.contains(&format!("r: {REFUSED_NET}")), "{said}");
+    // Without --net-loopback a loopback port nobody granted is refused too.
+    let closed = net_probe(&["--net-connect", "443"], &format!("c{o},b"));
+    assert!(closed.contains(&format!("c{o}: {REFUSED_NET}")) && closed.contains(&format!("b: {REFUSED_NET}")), "{closed}");
 }

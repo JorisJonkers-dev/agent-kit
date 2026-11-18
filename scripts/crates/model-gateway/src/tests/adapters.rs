@@ -870,3 +870,4 @@ fn copy_tree_names_what_it_cannot_copy_and_stops_at_a_folder_that_contains_itsel
     let looped = files.copy_tree("loop", "home/loop").expect_err("a loop");
     assert!(looped.message.contains("too deep") || looped.message.contains("cp"), "{}", looped.message);
 }
+

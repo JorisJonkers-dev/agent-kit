@@ -88,7 +88,7 @@ impl Process for Reviewing {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
-        self.0.lock().map_err(|error| error.to_string())?.push(command.clone());
+        self.0.lock().map_err(|error| error.to_string())?.push(super::vibe_client::unwrapped(command));
         let result = r#"{"event":"result","result":{"response":"x","structured_output":{"findings":[],"no_findings_reason":"clean"}}}"#;
         Ok(ProcessResult { stdout: format!("{result}\n"), stderr: String::new(), exit_code: 0, timed_out: false })
     }
@@ -130,6 +130,7 @@ fn ledger_refusing_fan_out(extra: &[(&str, &str)]) {
     runtime.files = Box::new(SystemFiles { cwd: root.clone() });
     runtime.git = Box::new(Status(Mutex::new(Ok(Vec::new()))));
     runtime.gateway.env = runtime.env.clone();
+    runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), super::vibe_client::LAUNCHER.to_string());
     runtime.gateway.files = Box::new(Refusing(SystemFiles { cwd: root.clone() }));
     runtime.gateway.process = Box::new(Reviewing(Mutex::new(Vec::new())));
     runtime.assets_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../skills/workstation/critique").to_string_lossy().into_owned();

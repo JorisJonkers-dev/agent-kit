@@ -599,6 +599,11 @@ pub fn run_failure_reason(launch: &LaunchExit, answer: Option<&str>, reported: O
     if let Some(refusal) = refusal_of(launch, reported.and_then(|report| report.error.as_ref())) {
         return Some(refusal.to_string());
     }
+    // The launcher refuses with 125 and starts nothing when it cannot hold the confinement it was asked for (no
+    // backend, an old kernel, a path that cannot be granted): the client never ran, which is a launch that failed.
+    if launch.exit_code == 125 && launch.stderr.contains("confine: the confinement cannot be applied here") {
+        return Some("launch-failed".to_string());
+    }
     if launch.exit_code != 0 {
         return Some(format!("exit-{}", launch.exit_code));
     }

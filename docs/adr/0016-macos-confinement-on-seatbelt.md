@@ -154,22 +154,106 @@ from Linux: a program the profile does not let run is refused by
 `sandbox-exec` itself, with its exit 71 and "Operation not permitted", not
 125.
 
-## Per-client recipes (to be wired by #903)
+## What the launcher gained for the clients (#903)
 
-Where the launcher's confinement wraps the client, the recipe is the
-arguments after `agent-launcher confine`. None of these is wired yet: #903
-does that, and `docs/model-gateway/harness-matrix.md` gets its macOS column
-then. The "traced" column says what was run under the confinement here.
+Wiring every client showed three things a recipe needs that the first cut did not have. Each is an option of
+`confine`, and none is on unless a recipe asks for it.
 
-| Client | Wrapped by `confine`? | Reads | Runs | Writes | Ports | Env | Traced here |
-| :- | :- | :- | :- | :- | :- | :- | :- |
-| Pi | yes (wired: `pi_grants`) | the work directory | `--run-from pi` (its package and `node`) | its agent directory (also `TMPDIR`) | the proxy (443) | `PI_CODING_AGENT_DIR`, `TMPDIR` | full `pi -p` run, local mock and the real proxy through `model-gateway run` (`pi-opencode-go`) |
-| OpenCode | yes | the work directory | `--run-from opencode` (the Homebrew Cellar directory) | `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` and `TMPDIR`, all under one run directory (it creates `$TMPDIR/opencode` and a `log` directory at start) | the proxy; Zen is a direct host (open point) | the five variables | `opencode --version` |
-| Hermes | yes | the work directory, its state directory `~/.hermes` (it reads `~/.hermes/.env`) | the `uv` tool directory and the whole `uv/python` directory | its state directory | the proxy | as the client needs | start and import reach `~/.hermes/.env` and stop there; `--version` not run to the end |
-| Claude Code | yes, `claude --version` and a Mach-O binary | the work directory | `--run-from claude` | its config directory | `api.anthropic.com` is a direct host (open point); the trust store goes through `trustd` | `ANTHROPIC_*`, config directory | `claude --version` |
-| Codex | **no**: it uses its own Seatbelt, which cannot nest (`sandbox_apply: Operation not permitted` was reproduced under `confine`) | | | | | | `codex --version` runs confined; the real run uses its sandbox flags and is checked, not wrapped |
-| `agy` (Antigravity) | yes, unless `agy --sandbox` is used (it may use Seatbelt too; not checked) | the work directory | `--run` the Caskroom directory that holds `antigravity` (the `agy` wrapper sits one level below it) | its state directory | direct host (open point) | as the client needs | `antigravity --version` |
-| Vibe | yes | the work directory | `--run` the `uv` tool directory and the Python it runs on (here `/Library/Frameworks/Python.framework`) | `VIBE_HOME` | the proxy or Mistral (direct host) | `VIBE_HOME`, key | `vibe --version` |
+- **`--run-from` follows a launcher script.** A uv tool (Vibe, Hermes) and the Homebrew `agy` wrapper are
+  `/bin/sh` scripts that `exec` another program (a venv's `python3` after `exec`, or `exec "<Caskroom>/antigravity"`).
+  The launcher now reads the first lines of a script for the absolute program after `exec` and grants its
+  install: the directory above its `bin` as written (a virtual environment keeps its libraries beside `bin`) and
+  as it resolves (the Python it links to), and the `python` store directory of a uv-managed Python, which also
+  holds the links to its versions. Nothing is guessed from a name: a script that names no absolute program grants
+  what it did before.
+- **Grants are resolved, and a missing one is refused.** Every `--read`, `--run` and `--write` is the path it
+  resolves to, never the path it was written as, and it must exist: a missing `--write` file is not turned into a
+  grant of a directory that may be made there later. A grant that goes through a link that sits in a directory the
+  command may write is refused, since the command could have planted it; a link in the run's own home therefore
+  cannot move a grant (to `~/.ssh`, say) on a later launch. `--run-from` grants the resolved program's own install
+  (`Cellar/<pkg>/<version>`, a uv tool's directory), never a shared prefix: `/usr`, `/usr/local`, `/opt/homebrew`,
+  `~`, `~/.local`, or the `bin` of one of them is narrowed to the program's file. A script's `exec` target counts
+  only on a real command line (first word, after `NAME=value` assignments; not a comment, a string or an
+  argument), and its venv is granted as written only when it has a `pyvenv.cfg`.
+- **`--write FILE` is a file.** A path that is a file is granted as that file alone (a `literal` rule, not a
+  subpath). The recipes below do not use it for a login any more (see Codex).
+- **`--net-loopback` (macOS).** Binds, accepts and connects on loopback at any port (`localhost:*`), beside the
+  `--net-connect` ports. A client that serves itself on a port chosen at run time needs it. It never opens the
+  rest of the network. Landlock cannot name a port chosen at run time, so it refuses the flag: OpenCode and
+  Antigravity are `launch-failed` on Linux until a backend can hold it.
+- **`--keychain` (macOS).** Claude Code, Antigravity, Vibe and Codex keep their sign-in in the login keychain and
+  ask it through `/usr/bin/security` or the Security framework. `--keychain` allows the Mach lookup of
+  `com.apple.SecurityServer` and reads the login keychain file and the System keychain, not the directory of
+  every keychain and not the rest of `~/Library`. **Residual risk, proved:** a confined process with it can read
+  any item of those keychains whose access list lets the caller read it. In a throwaway keychain, an item made
+  with `security add-generic-password -A` was read by a confined `security find-generic-password -w` with
+  `--keychain` and not found without it; the keychain was deleted afterwards. An item whose access list names
+  other applications still prompts or fails. **Owner decision: only a client that cannot sign in another way gets it.** Claude Code signs in from
+  `CLAUDE_CODE_OAUTH_TOKEN` and Vibe from `MISTRAL_API_KEY`, so the gateway reads that one item with `security`
+  outside the confinement and hands it over as a variable: they get no `--keychain`. (The gateway handles the
+  credential for those two: the access token of the subscription login, and the Mistral key. If the item cannot
+  be read, the launch falls back to `--keychain`.) Codex keeps it (its `auth.json` is a file, but its
+  cloud-config bundle fails without the keychain: `Failed to load cloud config bundle`; tried), and Antigravity
+  keeps it (no variable or file known). So the residual risk applies to Codex and Antigravity: a confined process
+  can read any item of the login keychain whose access list lets the caller read it, whatever the item is.
+  The keychain is found through `HOME`, so these clients keep the real `HOME`.
+- **`--preferences` (macOS).** Allows `cfprefsd` and the managed preferences, which Codex asks before it
+  starts (`Failed to synchronize managed preferences` without it). There is no `user-preference-read`: traced,
+  Codex asks only for `kCFPreferencesAnyApplication` and `com.apple.security` and starts and answers without
+  them, so other applications' defaults stay unreadable.
+
+## Per-client recipes (wired by #903: `client_run`, `run_home`, `client_confine`)
+
+Every client but Pi starts as `agent-launcher confine <grants> -- <client> ...`. A client that cannot be
+confined (no launcher, a home that cannot be made, a login that is not there) is refused with `launch-failed` and
+the reason, never started bare. The launch passes by name every variable it sets (the launcher clears the rest),
+and a key a wrapper reads from the secret store (`LITELLM_*_KEY`) by its name. Common to all: **read** the work
+directory (or **write** it, and the git directories a writing run's client writes, for `mode: "write"`), **write**
+the run directory (which holds the client's home and a `tmp` directory named by `TMPDIR`), **run** the client's
+own install (`--run-from`) and the system runtime. What each adds, as traced and run live on macOS 27:
+
+| Client | Home it runs in | Also reads / writes | Ports | macOS services | Notes |
+| :- | :- | :- | :- | :- | :- |
+| Pi | `pi-agent` in the run directory (as before) | | the proxy | | `pi_grants`, unchanged |
+| OpenCode (LiteLLM route) | `<run>/client-home`: `HOME`, `XDG_*`, `OPENCODE_*`, one provider, tools per the mode | | 443 and loopback | | key from the secret store by the wrapper |
+| OpenCode (own providers, `opencode/...` free models) | the same, with `OPENCODE_DB` at the owner's database | **writes** the owner's `~/.local/share/opencode` directory (the database and its journal) | 443 and loopback | | the sign-in is in the database; a fresh one answers 429 |
+| Hermes (LiteLLM route) | `<run>/client-home`: `HERMES_HOME`, `HOME`, `XDG_*`, one provider | | the provider's (443) | | no literal key copied |
+| Hermes (other provider) | the same, a `config.yaml` with no MCP server and a copy of the owner's `.env` | nothing of the owner's | 443 | | `--safe-mode` |
+| Claude Code | `tmp` only (`CLAUDE_CODE_TMPDIR`), real `HOME` | nothing of `~/.claude`, `~/.claude.json` or `~/.claude-personal` | 443 | no keychain: `CLAUDE_CODE_OAUTH_TOKEN` from the gateway (keychain only if it cannot be read); `USER`, `LOGNAME` kept | no global `CLAUDE.md`, skills or plugins load |
+| Codex | `CODEX_HOME=<run>/client-home` holding a copy of the owner's `auth.json`; after the launch only the `tokens` and `last_refresh` members that changed are written back to the owner's file | nothing of the owner's | 443 | keychain, preferences | runs with its own sandbox off, below |
+| Antigravity | `tmp` only, real `HOME` | **writes** `~/.gemini/antigravity-cli` and `~/.gemini/config` | 443 and loopback | keychain | its `--sandbox` is left out: its own Seatbelt cannot nest |
+| Vibe | `VIBE_HOME=<run>/client-home/vibe`: a copy of the owner's `config.toml` and `agents/`, real `HOME` | **reads** `~/.agents/skills` (Vibe walks it at start and fails on a directory it cannot even stat; the delegate agent enables no skill) | 443 | no keychain: `MISTRAL_API_KEY` from the gateway (keychain only if it cannot be read) | no session history, trusted folders or key file |
+
+**Codex.** Its own sandbox is a Seatbelt profile, and Seatbelt does not nest (`sandbox_apply: Operation not
+permitted`, reproduced under `confine`). The two choices were to use Codex's sandbox and verify it, or to turn it
+off and let ours be the sandbox. The first leaves its read-only mode reading the whole disk (Seatbelt's read-only
+profile allows every read) and is the one sandbox the gateway cannot check. The second holds the reads to the work
+directory and the writes to the worktree (a writing run) or the run directory, with the same proof every other
+client has. **Decided: a confined Codex runs `-s danger-full-access`** (and no `--add-dir`, which only its own
+workspace sandbox reads). The shell commands it runs are children of the confined process and inherit the
+profile. It stays `--ignore-user-config`, and its home is the run's own, so the owner's `AGENTS.md`, skills and
+plugins are no longer loaded.
+
+**The network.** Pi, Hermes, Claude Code, Codex and Vibe get `--net-connect 443` (or the proxy's port). OpenCode
+(`run --standalone`) and Antigravity serve themselves on a loopback port chosen at run time: they get
+`--net-connect 443 --net-loopback`, so they reach loopback at any port and the rest of the network at 443 only.
+Live on macOS, a confined `curl` to `example.com:8080` was refused and to `example.com:443` was answered under
+that grant, and OpenCode answered with it (`tests/confine.rs` pins the refusal of an ungranted remote port).
+No client runs with an unlimited network. **A host allowlist is not built:** `443` is any host, and the
+allow-listing proxy of the open point above is still the open item for every client with web tools.
+
+## Gaps left, per client
+
+- An OpenCode run on its own providers can write the owner's OpenCode data directory. It holds the sign-in and
+  the session history in one database, which the launcher cannot split.
+- Antigravity can read the owner's `~/.gemini/config`, where its skills are, and its own state beside it.
+- Vibe can list `~/.agents/skills`.
+- Antigravity and Codex ask the keychain (Claude Code and Vibe get a variable the gateway read); a prompt-injected client can still
+  use the credential it was signed in with, as it always could.
+- Codex runs on a copy of its login and only the `tokens` and `last_refresh` members are written back after the launch; a login refreshed by the run and then lost to a crash is not written back, and the owner signs in again.
+- Linux: `--keychain` and `--preferences` do nothing, the recipes were run on macOS only, and OpenCode and Antigravity are refused (`--net-loopback` is not held by Landlock).
+- The matrix's escape probe passes live for Claude Code, Antigravity, OpenCode and Hermes; Codex and Vibe have
+  no profile model on this machine, so their cells are blocked and were run by hand under the same grants.
 
 ## Consequences
 

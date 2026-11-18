@@ -371,6 +371,22 @@ impl Replay {
                 std::fs::write(target, self.substitute(content.as_str().unwrap_or_default())).expect("write file");
             }
         }
+        // Every client but Pi runs behind `agent-launcher confine` (#903). A step that makes a fake of one gets a
+        // launcher that starts what follows its `--` as it is, so the fake answers as before; a fixture that
+        // writes its own launcher (Pi's) or none keeps it.
+        let fakes_a_client = ["claude", "codex", "agy", "vibe", "hermes", "opencode"].iter().any(|client| matches!(field(step, "write"), Some(Value::Obj(writes)) if writes.get(&format!("bin/{client}")).is_some()));
+        if fakes_a_client && !sandbox.join("bin/agent-launcher").exists() {
+            std::fs::create_dir_all(sandbox.join("bin")).expect("bin");
+            std::fs::write(sandbox.join("bin/agent-launcher"), "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\ncommand -v \"$1\" >/dev/null || { echo \"$0: exec: $1: not found\" >&2; exit 127; }\nexec \"$@\"\n").expect("launcher shim");
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(sandbox.join("bin/agent-launcher"), std::fs::Permissions::from_mode(0o755)).expect("chmod launcher");
+        }
+        // A confined Codex links its home to the owner's login, which the sandbox's owner has, outside the directories the goldens hold.
+        let fakes_codex = matches!(field(step, "write"), Some(Value::Obj(writes)) if writes.get("bin/codex").is_some());
+        if fakes_codex && !sandbox.join("owner/codex/auth.json").exists() {
+            std::fs::create_dir_all(sandbox.join("owner/codex")).expect("codex home");
+            std::fs::write(sandbox.join("owner/codex/auth.json"), "{}").expect("codex login");
+        }
         for path in list(step, "exec") {
             use std::os::unix::fs::PermissionsExt;
             let target = sandbox.join(path.as_str().unwrap_or_default());
@@ -396,6 +412,9 @@ impl Replay {
             _ => std::env::var("PATH").unwrap_or_default(),
         };
         env.insert("PATH".into(), path);
+        if sandbox.join("owner/codex/auth.json").exists() {
+            env.insert("CODEX_HOME".into(), sandbox.join("owner/codex").to_string_lossy().into_owned());
+        }
         env.insert("HOME".into(), sandbox.join("home").to_string_lossy().into_owned());
         // The fake OpenCode and Hermes run in a home of their own (#903), so they log and read their scripted answers by this.
         env.insert("STUB_HOME".into(), sandbox.join("home").to_string_lossy().into_owned());

@@ -201,6 +201,9 @@ impl WriteLimit for Landlock {
 /// What the ruleset for `policy` handles on a kernel of Landlock ABI `abi`,
 /// or why that kernel cannot hold it.
 fn handled_for(policy: &Policy, abi: i64) -> Result<RulesetAttr, String> {
+    if policy.loopback {
+        return Err("--net-loopback cannot be held by Landlock, which cannot name a TCP port chosen at run time".to_string());
+    }
     if policy.connect_ports.is_some() && abi < ABI_NET {
         return Err(format!(
             "Landlock ABI {abi} cannot limit the network; the confinement needs ABI {ABI_NET} or newer (Linux 6.7)"

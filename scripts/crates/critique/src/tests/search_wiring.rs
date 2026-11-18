@@ -37,6 +37,10 @@ impl Process for Scripted {
     }
 
     fn exec(&self, command: &str, args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
+        // The gateway asks the keychain for a client's credential, which is not a kill.
+        if command == "/usr/bin/security" {
+            return Ok(ok(""));
+        }
         let mut words = vec![command.to_string()];
         words.extend(args.iter().map(|arg| (*arg).to_string()));
         self.kills.lock().map_err(|error| error.to_string())?.push(words);
@@ -44,6 +48,7 @@ impl Process for Scripted {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let command = &super::vibe_client::unwrapped(command);
         self.runs.lock().map_err(|error| error.to_string())?.push(command.clone());
         (self.handler)(command)
     }

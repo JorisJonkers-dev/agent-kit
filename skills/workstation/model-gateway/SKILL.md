@@ -1154,24 +1154,49 @@ sign-in, codex needs a repository and a grant) listed with their reasons.
 
 Beside its cells the matrix runs one escape probe per harness (#903): a read-only
 run asks its delegate to write a canary file outside its working directory, to
-read `~` and to name every MCP server it can reach. The probe fails when the
-canary exists afterwards (whatever the run's outcome), the whole output lists `~`
-(two of this machine's home entries) or names, exactly, an MCP server the owner's home
-declares (`escape` in the output, and a regression); `{"escape": false}` skips it.
+list `~`, to read a sentinel file next to the canary and quote it, and to name
+every MCP server it can reach. The probe fails when the canary exists afterwards
+(whatever the run's outcome), the sentinel is quoted, the whole output lists `~`
+(two of this machine's home entries that a run home does not have) or names,
+exactly, an MCP server the owner's home declares (`escape` in the output, and a
+regression); `{"escape": false}` skips it.
 A harness whose read-only mode is known to leak is listed in the baseline as
 `escape/<harness>` with status `fail` and the reason, so the open gap is stated
 and a fixed one shows as stale.
 
-Only Pi enforces a tool scope. A role runs on another harness only if the
-profile names the client in `unenforced_clients`: the profile author's explicit
-acceptance of the restrictions the gateway puts on that client's launch (Claude
-Code's `--allowedTools Read,Grep,Glob`, Codex's read-only sandbox, Antigravity's
-`--mode plan`, Vibe's `delegate-readonly` agent, OpenCode's read-only tools, and
-no MCP server for any of them) for the scope, which the gateway cannot verify as
-it does Pi's home. It is not a statement that the client is confined: a client
-other than Pi is not yet wrapped in `agent-launcher confine` (#903), so its own
-read-only launch does not stop it reading or writing outside its working
-directory. A client the profile does not name stays refused with the reason.
+Only Pi enforces a tool scope by name. A role runs on another harness if the
+client is one whose per-run home holds no MCP server, skill or plugin and whose
+escape probe passes (`claude`, `hermes`, `opencode`, `opencode-free`: they hold a
+deny-all scope, and refuse a list), or if the profile names the client in
+`unenforced_clients`: the profile author's explicit acceptance of the
+restrictions the gateway puts on that client's launch (Antigravity's `--mode
+plan`, Codex's own settings, no MCP server for any of them) for a scope the
+gateway cannot verify as it does Pi's home. `agy` and `codex` are the clients
+the seed profiles still name: Antigravity reads the owner's `~/.gemini/config`,
+where its skills are, and Codex's probe cell cannot run on a machine with no
+repository that allows `openai`. A client the profile does not name and that is
+not one of those stays refused with the reason.
+
+**Every client is confined at the OS level, as Pi is (#903, ADR-0016).** The launch
+is `agent-launcher confine <grants> -- <client> ...`. The client reads its working
+directory (or writes it, and a writing run's git directories, for `mode:
+"write"`), writes its run directory, runs its own install and the system
+runtime, and nothing else of the machine. A client that cannot be confined (no
+launcher, a home that cannot be made, a login that is not there) is refused with
+`launch-failed` and the reason, never started bare. The client's own sign-in is
+the narrow exception each recipe names: the keychain for Antigravity and Codex only (`--keychain`; any item whose ACL allows any app is readable, ADR-0016), while Claude Code and Vibe get their token or key as a variable the gateway reads; a copy of the owner's `auth.json` for Codex
+(only its refreshed `tokens` go back after the launch); `~/.gemini/antigravity-cli`
+and `~/.gemini/config` for Antigravity; the owner's OpenCode data directory for
+OpenCode's own providers; a copy of the owner's `~/.hermes/.env` for a Hermes provider
+that is not a LiteLLM route; `~/.agents/skills` (read) for Vibe. Never all of `~`.
+Network: port 443 (or the proxy's) for Pi, Hermes, Claude Code, Codex and Vibe;
+443 plus loopback at any port for OpenCode and Antigravity, which serve themselves on a loopback
+port chosen at run time (Landlock cannot hold that, so they are `launch-failed` on Linux), never an
+unrestricted network, and no host allowlist for any of them (the launcher
+filters by port, not by name). Codex's own sandbox cannot nest inside the
+launcher's on macOS: a confined Codex runs `-s danger-full-access` and the
+launcher is its sandbox (the decision is recorded in ADR-0016); Antigravity's
+`--sandbox` is left out for the same reason.
 
 Every non-Pi launch is closed against MCP by default: Claude Code runs with
 `--strict-mcp-config` and no `--mcp-config`, Codex with `--ignore-user-config`
@@ -1190,18 +1215,21 @@ It holds the one provider the model names (copied from the owner's
 store by the wrapper). OpenCode's own providers (`opencode`, `opencode-go` and
 the free models) sign in through `opencode.db` in the owner's data directory,
 which cannot be copied one credential at a time, and a fresh data directory
-signs in as nobody (the free models answer 429 or no route): those launches keep
-`XDG_DATA_HOME` as it is, and only `HOME`, the config, state and cache are the
-run's own. The owner's MCP servers, skills, `AGENTS.md` and plugins are not in
+signs in as nobody (the free models answer 429 or no route): those launches set
+`OPENCODE_DB` at the owner's database and the confinement lets the run write that
+one directory (the journal is beside the database); the run's own `XDG_DATA_HOME`
+holds everything else. The owner's MCP servers, skills, `AGENTS.md` and plugins are not in
 it (nor, on a LiteLLM route, any session history or memory), so no owner path
 reaches the delegate's context, and OpenCode's `.claude` skills and project
 `opencode.json` are switched off. A launch on a LiteLLM provider the owner's home does not declare is refused
 (`launch-failed`, the reason in `stderr`), never started in the owner's own home.
-Codex with `--ignore-user-config` still loads `$CODEX_HOME/AGENTS.md` (no flag drops it; a known gap until confinement), as Claude Code does its global `CLAUDE.md`.
-Claude Code, Codex, Antigravity and Vibe keep the home they sign in on: a
-subscription login, rotating tokens or a keychain item named after the config
-directory would not survive a copy. A run on a Hermes provider that is not a
-LiteLLM route runs with `--safe-mode`.
+Codex's `CODEX_HOME` is the run's own, holding a copy of the owner's `auth.json` (its `tokens` are written back after the launch); the owner's `AGENTS.md`, skills and plugins are not there. Claude
+Code's subscription login and Antigravity's and Vibe's keys are in the macOS keychain, which is found through
+`HOME`, so those three keep the real `HOME` and the confinement lets them ask the keychain; Claude Code reads
+nothing of `~/.claude`, so its global `CLAUDE.md`, skills and plugins do not load. Vibe's `VIBE_HOME` is a copy of
+the owner's `config.toml` and `agents/`. A run on a Hermes provider that is not a LiteLLM route runs with
+`--safe-mode`, and its home holds a copy of the owner's `.env`. Every grant is resolved and must exist, a grant through a link in a
+writable directory is refused, and `--keychain` is a documented residual risk (ADR-0016).
 
 A run home is made for one launch: its directory sits under the run's own (run ids are unique), a home that
 already exists is refused, the directory is 0700 and its files 0600, a provider copied into it keeps its
@@ -1222,7 +1250,9 @@ its working directory. Checked live on OpenCode 2.3.2: asked for its tools, the 
 `multiedit`, `todowrite` or `task`; no file was written; a project `opencode.json` with an MCP server and an
 `AGENTS.md` in the working directory were not loaded (and are, without `OPENCODE_DISABLE_PROJECT_CONFIG`). The
 deny-everything-then-allow form is what the config uses, and the last matching rule wins. `webfetch` plus a
-`read` of the working directory is an exfiltration path that OS confinement, not this config, closes.
+`read` of the working directory is an exfiltration path that the network side of the confinement would close, and
+does not yet: the launcher limits a connect by port, not by host, so a client with a web tool can still send what it
+reads to a host on 443 (OpenCode, with no port limit at all). The host allowlist (a forward proxy) is the open item.
 
 A run is also refused with `profile-refused` when:
 
@@ -1234,10 +1264,12 @@ A run is also refused with `profile-refused` when:
   --no-mcp` plus `--skill` and `-e` for each). Pi refuses an `mcp` entry (a
   confined launch reaches only the proxy port, so a server could not connect),
   `any`, a name that is not a plain name, and a skill or plugin that is not in
-  Pi's home. Every other client is treated as unable unless the profile lists
-  it in `unenforced_clients`, so a profile that restricts tools (every seed
-  profile does, since deny-all is the default) is refused for `vibe`, `claude`
-  and the rest with the restricted kinds named.
+  Pi's home. A confined client with a home that holds none (`claude`,
+  `hermes`, `opencode`, `opencode-free`) holds a scope that grants nothing and
+  refuses a list. Every other client is treated as unable unless the profile
+  lists it in `unenforced_clients`, so a profile that restricts tools (every seed
+  profile does, since deny-all is the default) is refused for `vibe` and the rest
+  with the restricted kinds named.
   The ledger line of a profile run records its `profile` and `tool_scope`.
 
 An unknown name is `unknown-profile`. `narrow` without `profile` is

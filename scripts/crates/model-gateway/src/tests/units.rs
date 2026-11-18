@@ -315,7 +315,10 @@ fn system_files_read_and_write_the_real_file_system() {
     assert_eq!(files.remove_file("a/b/c/lock"), Ok(()));
     assert_eq!(files.remove_file("a/b/c/lock"), Ok(()));
     let error = files.remove_file("a/b/c/folder").expect_err("a folder is not a file");
-    assert_eq!((error.code.as_str(), error.message.as_str()), ("EISDIR", "EISDIR: illegal operation on a directory, unlink 'a/b/c/folder'"));
+    // Linux refuses to unlink a directory as EISDIR, macOS as EPERM.
+    let linux = ("EISDIR", "EISDIR: illegal operation on a directory, unlink 'a/b/c/folder'");
+    let macos = ("EPERM", "EPERM: operation not permitted, unlink 'a/b/c/folder'");
+    assert!([linux, macos].contains(&(error.code.as_str(), error.message.as_str())), "{error:?}");
 
     // modified_ms reads the file's time, and gives nothing for a file that is not there.
     let modified = files.modified_ms("a/b/c/one.txt").expect("a modification time");

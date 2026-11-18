@@ -131,6 +131,9 @@ impl Files for Refusing {
     fn remove(&self, path: &str) -> Result<(), FsError> {
         self.0.remove(path)
     }
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        self.0.copy_tree(from, to)
+    }
 }
 
 /// A `vibe` that writes the export beside its `--output-dir` and answers with a journal.
@@ -146,6 +149,7 @@ impl Process for Answering {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let command = &super::vibe_client::unwrapped(command);
         let at = command.args.iter().position(|arg| arg == "--output-dir").ok_or("no output dir")?;
         let dir = &command.args[at + 1];
         std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
@@ -157,8 +161,8 @@ impl Process for Answering {
     }
 }
 
-#[test]
-fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
+/// One cold read of a file in a sandbox whose gateway has, or has not, a launcher to start the Vibe client behind.
+fn cold_read_result(with_launcher: bool) -> Value {
     let sandbox = super::scenarios::Sandbox::new();
     let root = sandbox.text();
     let write = |path: &str, text: &str| {
@@ -182,11 +186,19 @@ fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
     ]);
     runtime.files = Box::new(SystemFiles { cwd: root.clone() });
     runtime.gateway.env = runtime.env.clone();
+    if with_launcher {
+        runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), super::vibe_client::LAUNCHER.to_string());
+    }
     runtime.gateway.files = Box::new(Refusing(SystemFiles { cwd: root.clone() }));
     runtime.gateway.process = Box::new(Answering);
     runtime.assets_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../skills/workstation/critique").to_string_lossy().into_owned();
     let input = parse(&format!(r#"{{"files":["docs/a.md"],"run_dir":"{root}/run"}}"#)).unwrap_or(Value::Null);
-    let result = run(&input, &runtime).unwrap_or(Value::Null);
+    run(&input, &runtime).unwrap_or(Value::Null)
+}
+
+#[test]
+fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
+    let result = cold_read_result(true);
     let warnings = match result.as_object().and_then(|result| result.get("ledger_warnings")) {
         Some(Value::Arr(items)) => items.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>(),
         _ => Vec::new(),
@@ -194,3 +206,11 @@ fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
     assert_eq!(warnings.len(), 1, "{}", model_gateway::json::pretty(&result));
     assert!(warnings[0].contains("EACCES"), "{warnings:?}");
 }
+
+#[test]
+fn a_launch_with_no_launcher_to_confine_it_is_an_unavailable_file_and_never_a_bare_run() {
+    let result = cold_read_result(false);
+    let text = model_gateway::json::pretty(&result);
+    assert!(text.contains("the launch failed: vibe: agent-launcher is not on PATH"), "{text}");
+}
+

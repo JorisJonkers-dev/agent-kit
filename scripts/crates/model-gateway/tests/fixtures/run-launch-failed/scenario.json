@@ -11,7 +11,8 @@
       ],
       "mkdir": [
         "tmp",
-        "bin/claude"
+        "bin/claude",
+        "bin/agent-launcher"
       ],
       "shims": [
         "git",
