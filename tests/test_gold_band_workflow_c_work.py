@@ -229,7 +229,7 @@ def test_the_other_critique_nodes_are_the_stage_template_s_own(nodes: dict[str, 
     for node in template["workflow"]["nodes"]:
         if node["id"].endswith("-start") or (node["id"].endswith(("-prepare", "-fan-out")) and _is_shim(node["id"])):
             continue
-        if node["provider"] in ("vibe", "vibe-study"):
+        if node["provider"] in ("vibe", "vibe-study", "pi"):
             for key in ("goal", "output", "success_condition", "manual_check"):
                 assert nodes[node["id"]].get(key) == node.get(key)
         else:

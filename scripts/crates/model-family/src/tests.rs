@@ -68,3 +68,55 @@ fn a_roster_lists_the_clients_of_a_stage_slots_and_skips_unknown_ones() {
     let patch = json!({"stages":{"x":{"base":[{"client":"nobody"}]}}});
     assert!(Routing::load(Some(&patch)).roster("x", ["base", "deep"]).is_empty());
 }
+
+#[test]
+fn a_tier_binding_resolves_through_the_tier_profiles() {
+    let tiers = tier::Tiers::load();
+    assert_eq!(
+        tiers.names(),
+        ["tier-free", "tier-go-cheap", "tier-review", "tier-strong-open", "tier-vibe"]
+    );
+    let ok = tiers.named("pi", "litellm-free/tier-free").unwrap();
+    assert_eq!(ok, tier::Named { tier: "tier-free".into(), problem: None });
+    assert_eq!(tiers.named("pi", "litellm-tier-review/tier-review").unwrap().problem, None);
+    let wrong = tiers.named("pi", "litellm-vibe/tier-free").unwrap().problem.unwrap();
+    assert!(wrong.contains("through the provider litellm-free, not litellm-vibe"), "{wrong}");
+    let bare = tiers.named("pi", "tier-free").unwrap().problem.unwrap();
+    assert!(bare.ends_with("not none"), "{bare}");
+    let unknown = tiers.named("pi", "litellm-free/tier-cheapest").unwrap().problem.unwrap();
+    assert!(unknown.starts_with("tier tier-cheapest is not a LiteLLM tier (known: tier-free"), "{unknown}");
+    // Not a tier binding: another agent, or a model that is no tier's name.
+    assert_eq!(tiers.named("vibe", "tier-free"), None);
+    assert_eq!(tiers.named("pi", "litellm-vibe/glm-5.3"), None);
+}
+
+#[test]
+fn a_tier_without_a_profile_is_reported() {
+    let mut tiers = tier::Tiers::load();
+    tiers.providers.remove("tier-free");
+    let problem = tiers.named("pi", "litellm-free/tier-free").unwrap().problem.unwrap();
+    assert!(problem.contains("no profile in the model gateway's defaults"), "{problem}");
+}
+
+#[test]
+fn a_chain_follows_the_tiers_it_falls_to() {
+    let tiers = tier::Tiers::load();
+    let vibe = tiers.chain("tier-vibe");
+    assert_eq!(vibe.first().map(String::as_str), Some("vibe-tier/deepseek-v4-1-flash-1017"));
+    assert!(vibe.iter().any(|m| m == "opencode-go-tier/mimo-v2.6-flash"), "{vibe:?}");
+    assert!(tiers.chain("tier-nope").is_empty());
+}
+
+#[test]
+fn a_step_is_placed_by_the_vendor_word_in_its_id() {
+    assert_eq!(tier::Tiers::step_family("vibe-tier/zai-glm-5-3-flash"), Some("zhipu"));
+    assert_eq!(tier::Tiers::step_family("free/gemma-4-31b"), Some("google"));
+    assert_eq!(tier::Tiers::step_family("free/beam-free"), None);
+    // Every step of every shipped tier but the free tier's `beam-free` has a family.
+    let tiers = tier::Tiers::load();
+    for name in tiers.names() {
+        for step in tiers.chain(&name) {
+            assert!(tier::Tiers::step_family(&step).is_some() || step == "free/beam-free" || step == "free/hy4-flash-free", "{step}");
+        }
+    }
+}

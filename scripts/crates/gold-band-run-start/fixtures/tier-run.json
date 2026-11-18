@@ -1,0 +1,20 @@
+{
+  "workflow": {
+    "version": "0.1",
+    "id": "tier-run",
+    "entry": "gate-start",
+    "nodes": [
+      { "type": "worker", "id": "gate-start", "executionSlotId": "slot-gate", "provider": "gate-start", "model": "stub-model", "profile": "pf-builtin-dev", "goal": "Run the shim." },
+      { "type": "worker", "id": "questions", "executionSlotId": "slot-questions", "profile": "pf-builtin-dev", "goal": "Ask." },
+      { "type": "worker", "id": "fetch", "provider": "pi", "model": "litellm-free/tier-free", "profile": "pf-builtin-dev", "goal": "Fetch." },
+      { "type": "worker", "id": "accept", "provider": "claude", "model": "opus", "profile": "pf-builtin-dev", "goal": "Accept." }
+    ],
+    "edges": []
+  },
+  "modelBindings": {
+    "bindings": [
+      { "executionSlotId": "slot-gate", "agentId": "gate-start", "modelId": "stub-model" },
+      { "executionSlotId": "slot-questions", "agentId": "pi", "modelId": "litellm-tier-vibe/tier-vibe" }
+    ]
+  }
+}

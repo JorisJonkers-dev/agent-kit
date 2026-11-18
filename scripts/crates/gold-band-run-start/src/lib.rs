@@ -25,6 +25,11 @@
 //!   default (every family, code). On a `nedap` repository the entry file is not consulted
 //!   at all (ADR-0007): only the agent ids `claude-work` and `codex`, and only models of
 //!   their families (`anthropic`, `openai`), are allowed, whatever an entry says;
+//! * a binding that names a LiteLLM tier (#914: the agent `pi`, the model `litellm-<route>/<tier>`) is
+//!   resolved through the tier profiles (`model_family::tier`): an unknown tier or the wrong provider is
+//!   refused (`tier`), and the family check takes the families of the tier's chain, every one of which an
+//!   entry must allow (a step with no family cannot be vouched for). A passing check also writes the
+//!   run's ledger, `ledger.jsonl`, one line per model node with the tier it names;
 //! * `grant`: in the work instance only, a live gateway grant for this run
 //!   for every bound Codex agent id (an agent id containing `codex`, case
 //!   insensitive). The run is named `<workflow>@<repository>@<run id>`, read
@@ -77,6 +82,7 @@ use std::fs;
 use std::path::Path;
 
 use gold_band_report::{parse_rfc3339, rfc3339, Clock, Report, SystemClock};
+use model_family::tier::Tiers;
 use model_family::Routing;
 use serde_json::Value;
 
@@ -87,6 +93,11 @@ pub const REPORT_FILE: &str = "run-start.json";
 /// The file the `grant-check` report is written to, inside the report
 /// directory.
 pub const GRANT_CHECK_REPORT_FILE: &str = "grant-check.json";
+/// The run's ledger, inside the report directory: one JSON line per model node the workflow
+/// binds, naming the tier it runs on (#914).
+pub const LEDGER_FILE: &str = "ledger.jsonl";
+/// The agent and model of a node no model runs (a pinned shim, a stub): no ledger line.
+const SHIM_MODELS: [&str; 2] = ["stub-model", "pinned-command"];
 
 /// The subcommand that runs the three run-start checks.
 const CHECK: &str = "check";
@@ -96,6 +107,7 @@ const GRANT_CHECK: &str = "grant-check";
 const CHECK_REPOSITORY: &str = "repository-rule";
 const CHECK_FAMILY: &str = "family-allowlist";
 const CHECK_GRANT: &str = "grant";
+const CHECK_TIER: &str = "tier";
 const CHECK_CRITIC_FAMILY: &str = "critic-family";
 const CHECK_GRANT_LAPSED: &str = "grant-lapsed";
 const CHECK_GRANT_NO_START: &str = "grant-no-start-left";
@@ -417,14 +429,53 @@ where
     };
     match check(&opts, host) {
         Err(why) => bad_input(host, &command, Some(&opts.reported()), CHECK, &why, false),
-        Ok(problems) => finish(
-            host,
-            &command,
-            &opts.reported(),
-            &format!("{NAME}: ok\n"),
-            &problems,
-        ),
+        Ok((problems, workflow)) => {
+            let code = finish(
+                host,
+                &command,
+                &opts.reported(),
+                &format!("{NAME}: ok\n"),
+                &problems,
+            );
+            if code != 0 {
+                return code;
+            }
+            match write_ledger(&opts, &workflow) {
+                Ok(()) => 0,
+                Err(why) => {
+                    host.print(true, &format!("{NAME}: cannot write the ledger: {why}\n"));
+                    2
+                }
+            }
+        }
     }
+}
+
+/// The run's ledger: one JSON line per model node, with the agent, the model and the tier
+/// the model names (`null` for a model picked by hand), written beside the report.
+fn write_ledger(opts: &Options, workflow: &Workflow) -> Result<(), String> {
+    let tiers = Tiers::shipped();
+    let mut text = String::new();
+    for bound in workflow
+        .bound
+        .iter()
+        .filter(|b| !SHIM_MODELS.contains(&b.model.as_str()))
+    {
+        let tier = tiers.named(&bound.agent, &bound.model).map(|named| named.tier);
+        let line = serde_json::json!({
+            "run_id": opts.run_id,
+            "attempt": opts.attempt,
+            "workflow": opts.workflow_name,
+            "node": bound.node,
+            "agent": bound.agent,
+            "model": bound.model,
+            "tier": tier,
+        });
+        text.push_str(&format!("{line}\n"));
+    }
+    let dir = Path::new(&opts.report_dir);
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    fs::write(dir.join(LEDGER_FILE), text).map_err(|e| e.to_string())
 }
 
 /// The flags that could be read from a command line that did not parse in
@@ -576,7 +627,7 @@ fn read_remotes(repo: &str, host: &dyn Host) -> Result<Vec<Remote>, String> {
 
 /// Runs the three checks and returns every problem, in check order. `Err`
 /// is unreadable input: exit 2.
-fn check(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
+fn check(opts: &Options, host: &dyn Host) -> Result<(Vec<Problem>, Workflow), String> {
     let remotes = read_remotes(&opts.repo, host)?;
     let workflow = read_workflow(&opts.workflow)?;
     let families = read_families(&opts.families)?;
@@ -590,7 +641,7 @@ fn check(opts: &Options, host: &dyn Host) -> Result<Vec<Problem>, String> {
     if opts.instance == Instance::Work {
         problems.extend(grant_problems(opts, host, &remotes, &workflow)?);
     }
-    Ok(problems)
+    Ok((problems, workflow))
 }
 
 /// The instance's repository rule against every remote.
@@ -892,6 +943,10 @@ fn family_problems(
         }
     }
     for bound in &workflow.bound {
+        if let Some(named) = Tiers::shipped().named(&bound.agent, &bound.model) {
+            out.extend(tier_problems(bound, &named, nedap, &entries, routing));
+            continue;
+        }
         let Some(family) = bound_family(routing, families, bound) else {
             out.push(problem(
                 CHECK_FAMILY,
@@ -945,6 +1000,64 @@ fn family_problems(
         }
     }
     Ok(out)
+}
+
+/// The problems of a binding that names a LiteLLM tier (#914). A tier is a chain of models of
+/// several families, so the family of the binding is the families of the chain's steps: each one
+/// the routing places must be allowed by every entry of the repository, and a step it cannot
+/// place cannot be vouched for by an entry. On a `nedap` repository no tier is allowed (only
+/// `claude-work` and `codex` are), and a repository with no entry takes the personal default.
+fn tier_problems(
+    bound: &Bound,
+    named: &model_family::tier::Named,
+    nedap: bool,
+    entries: &[(String, Entry)],
+    routing: &Routing,
+) -> Vec<Problem> {
+    let mut out = Vec::new();
+    if let Some(why) = &named.problem {
+        out.push(problem(CHECK_TIER, format!("node {}: {}: {why}", bound.node, shown(bound))));
+        return out;
+    }
+    if nedap {
+        out.push(problem(
+            CHECK_FAMILY,
+            format!(
+                "node {}: {} is not allowed on a {WORK_OWNER} repository (only claude-work and codex, whatever an entry says)",
+                bound.node,
+                shown(bound)
+            ),
+        ));
+        return out;
+    }
+    let chain = Tiers::shipped().chain(&named.tier);
+    let placed: Vec<(&String, Option<String>)> = chain
+        .iter()
+        .map(|step| (step, routing.family(&bound.agent, step).or_else(|| Tiers::step_family(step).map(String::from))))
+        .collect();
+    for (key, entry) in entries {
+        for (step, family) in &placed {
+            match family {
+                None => out.push(problem(
+                    CHECK_FAMILY,
+                    format!(
+                        "node {}: {} falls to {step}, which has no family in the routing, so entry {key} cannot vouch for it",
+                        bound.node,
+                        shown(bound)
+                    ),
+                )),
+                Some(family) if !entry.families.iter().any(|f| f == family) => out.push(problem(
+                    CHECK_FAMILY,
+                    format!(
+                        "node {}: family {family} ({step} of tier {}) is not allowed by entry {key}",
+                        bound.node, named.tier
+                    ),
+                )),
+                Some(_) => {}
+            }
+        }
+    }
+    out
 }
 
 /// The repository key the run is named by: `origin`'s, else the first

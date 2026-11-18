@@ -38,7 +38,7 @@ fn run_for(kind: &str, name: &str, instance: &str) -> i32 {
 
 #[test]
 fn valid_workflows_pass() {
-    for name in ["unrolled-review", "wrapped-personal"] {
+    for name in ["unrolled-review", "wrapped-personal", "tier-binding"] {
         assert_eq!(problems("valid", name), Vec::<String>::new(), "{name}");
         assert_eq!(exit_code("valid", name), 0, "{name}");
     }
@@ -86,6 +86,17 @@ fn a_new_round_edge_is_refused() {
     assert_eq!(found.len(), 1);
     assert!(found[0].starts_with("dev-build: loop-not-unrolled: has an edge to `$new-round`"));
     assert_eq!(exit_code("refused", "new-round"), 1);
+}
+
+#[test]
+fn a_tier_that_resolves_passes_and_one_that_does_not_is_refused() {
+    let found = problems("refused", "unknown-tier");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].starts_with("fetch-pages: unknown-tier: binds litellm-free/tier-cheapest (tier-cheapest): tier tier-cheapest is not a LiteLLM tier (known: tier-free"));
+    assert_eq!(exit_code("refused", "unknown-tier"), 1);
+    let found = problems("refused", "tier-wrong-provider");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].contains("is called through the provider litellm-free, not litellm-vibe"));
 }
 
 #[test]
