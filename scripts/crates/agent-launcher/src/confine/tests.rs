@@ -458,6 +458,9 @@ fn a_program_in_a_shared_bin_is_granted_as_itself_and_never_as_its_prefix() {
         assert!(shared(Path::new(shared_dir), &env), "{shared_dir}");
     }
     assert!(!shared(&root.join("opt/homebrew/Cellar/pkg/1.0"), &env));
+    // An exec target that is not there is granted as written, and a variable name may hold an underscore.
+    let missing = file(&root.join("m/run"), &format!("#!{}\nMY_VAR=1 exec {} x\n", cellar.display(), root.join("gone/bin/tool").display()), 0o755);
+    assert!(program_grants(missing.as_os_str(), &env).unwrap().contains(&root.join("gone")), "missing");
     // A program that is its own script's interpreter is granted once.
     let twice = file(&root.join("t/run"), &format!("#!{0}\nexec {0} x\n", cellar.display()), 0o755);
     let grants = program_grants(twice.as_os_str(), &env).unwrap();
