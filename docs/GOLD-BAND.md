@@ -1366,6 +1366,38 @@ The proof of each is segmented, as for Workflow C: it pauses (exit 2) at a round
 with an open question, at the check after it, and so on, and ends in its expected
 state in the segment after the last check (see [gold-band-proof.md](gold-band-proof.md)).
 
+## Workflows choose models by tier (#914)
+
+A workflow file names a LiteLLM tier where a tier fits, and a model where the model is the point. A tier
+binding is the agent `pi` with the model `litellm-<route>/<tier>`, where `litellm-<route>` is the Pi provider of
+the tier's profile in the model gateway's defaults (`tier-free` is `pi-free:tier-free`, so
+`litellm-free/tier-free`; `tier-vibe` is `litellm-tier-vibe/tier-vibe`): the same profiles `model-gateway run
+--tier` runs, rendered from `registry/litellm-tiers.json`. LiteLLM walks the tier's chain, so the template no
+longer says which model answers.
+
+* **Where a tier fits.** The to-spec and to-tickets question rounds, their checks and their escalation check,
+  and the `needs-human` node of each critique template run on `tier-vibe`. The research fetchers (and the
+  ai-dynamic node's bootstrap and acceptance) name `tier-free` first and `tier-vibe` second, since they read
+  public pages only. Claude stays the planner, the merge and the judge (Opus, Sonnet), and Codex and
+  Antigravity keep their pins.
+* **Where a model stays.** A node the critique rules reason about by family stays concrete: the writers
+  (`*-write`, `*-draft`), the stage orchestrators (`*-verdicts`, whose family leaves the critic roster) and the
+  critics themselves. A tier hides the family, so binding one there would turn `critic-required` and
+  `critic-family` off silently. Workflow B and C keep their pinned test author, writer and critic for the same
+  reason, and `critique-spec-stage` keeps its Vibe and Antigravity roster.
+* **The lint resolves every tier.** `workflow-lint` refuses a Pi binding whose model is named `tier-*` when the
+  tier is not in the snapshot or the provider is not the tier's (`unknown-tier`).
+* **The run-start shim resolves them too.** A tier is a chain of models of several families, so the family check
+  takes the families of the chain's steps: each one must be allowed by the repository's entry, and a step with
+  no family (`free/beam-free`) cannot be vouched for by any entry, so a repository with an entry that names
+  fewer families than the chain holds is refused until its entry is extended with `allow`. A repository with no
+  entry takes the personal default, and a `nedap` repository allows no tier (only `claude-work` and `codex`).
+* **The ledger shows the tier.** Gold Band runs outside the gateway's ledger (ADR-0014), so a passing run-start
+  check writes the run's own ledger, `ledger.jsonl` in the report directory: one line per model node with
+  `run_id`, `attempt`, `workflow`, `node`, `agent`, `model` and `tier` (`null` for a model picked by hand). The
+  line records the binding, not the answer: the model that served a tier call is on the gateway's ledger line
+  of a `model-gateway run`, which Gold Band nodes do not make.
+
 ## What a bare Gold Band node does not guarantee
 
 A Gold Band node that asks an agent to critique, with no runner behind it,

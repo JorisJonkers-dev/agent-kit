@@ -1,0 +1,18 @@
+{
+  "workflow": {
+    "version": "0.1",
+    "id": "unknown-tier",
+    "entry": "fetch-pages",
+    "nodes": [
+      { "type": "worker", "id": "fetch-pages", "provider": "pi", "model": "litellm-free/tier-cheapest", "executionSlotId": "slot-fetch", "profile": "pf-builtin-dev", "goal": "Read the pages." }
+    ],
+    "edges": [
+      { "from": "fetch-pages", "to": "$end", "on": "success", "session": null }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      { "executionSlotId": "slot-fetch", "agentId": "pi", "modelId": "litellm-free/tier-cheapest" }
+    ]
+  }
+}

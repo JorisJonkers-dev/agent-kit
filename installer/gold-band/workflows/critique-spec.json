@@ -158,8 +158,8 @@
         "type": "worker",
         "id": "spec-needs-human",
         "executionSlotId": "slot-spec-needs-human",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -352,8 +352,8 @@
       },
       {
         "executionSlotId": "slot-spec-needs-human",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-refute",

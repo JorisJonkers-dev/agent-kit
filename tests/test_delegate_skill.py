@@ -30,6 +30,7 @@ SECTIONS = [
     "Plan first: `models` and `usage`",
     "Rate each task",
     "Splitting tasks",
+    "Choose by tier",
     "Choose the model",
     "When nothing covers a tier",
     "Send one batch",
@@ -109,7 +110,7 @@ def test_the_skill_does_not_duplicate_the_gateway_reference_and_links_to_it() ->
 
 def test_the_skill_is_short_and_carries_no_assistant_attribution() -> None:
     text = _text()
-    assert len(text.splitlines()) < 200
+    assert len(text.splitlines()) < 240
     assert "Co-Authored-By" not in text
     assert "Generated with" not in text
 
