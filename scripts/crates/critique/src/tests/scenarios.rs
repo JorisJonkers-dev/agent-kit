@@ -221,7 +221,7 @@ impl Replay {
         if ["claude", "codex", "agy", "vibe"].iter().any(|client| fakes(client)) && !sandbox.join("bin/agent-launcher").exists() {
             use std::os::unix::fs::PermissionsExt;
             std::fs::create_dir_all(sandbox.join("bin")).expect("bin");
-            std::fs::write(sandbox.join("bin/agent-launcher"), "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n").expect("launcher shim");
+            std::fs::write(sandbox.join("bin/agent-launcher"), "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\ncommand -v \"$1\" >/dev/null || { echo \"$0: exec: $1: not found\" >&2; exit 127; }\nexec \"$@\"\n").expect("launcher shim");
             std::fs::set_permissions(sandbox.join("bin/agent-launcher"), std::fs::Permissions::from_mode(0o755)).expect("chmod launcher");
         }
         if fakes("codex") && !sandbox.join("owner/codex/auth.json").exists() {
