@@ -1139,7 +1139,7 @@ default, and `--tier` is not combined with `--profile`, `--harness`, `client` or
 `model`. `tier-strong-open` is an escalation tier with no workstation key, so a run
 on it is refused with `tier-key-missing`, naming the key it needs, until a key is provisioned. Every run's ledger line records the
 tier, the harness, the serving model, the fallback count and `routing_capture`
-(`recorded`, `no-request`, `hidden` or `not-litellm`): a tier run on Pi is routed
+(`recorded`, `no-request`, `no-litellm-headers`, `hidden` or `not-litellm`): a tier run on Pi is routed
 through a recording proxy so LiteLLM's response headers are read; a client that
 hides them records `null`.
 

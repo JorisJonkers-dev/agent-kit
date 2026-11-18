@@ -183,7 +183,7 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   `x-litellm-model-id`, `served_model` from the response body), `attempted_fallbacks`
   (from `x-litellm-attempted-fallbacks`), `fallback_fired` (`attempted_fallbacks >= 1`),
   the cost (`cost_usd`) and `routing_capture`, which says how much the gateway saw:
-  `recorded` (it read LiteLLM's response headers), `no-request` (it stood in front of
+  `recorded` (it read LiteLLM's response headers), `no-litellm-headers` (it saw answers, none carrying a LiteLLM header), `no-request` (it stood in front of
   the client and no request was answered), `hidden` (the client talks to LiteLLM
   itself and shows the gateway no headers: the fields are `null`) or `not-litellm`
   (Claude Code, Codex, Antigravity and OpenCode's own models never call LiteLLM; their
@@ -191,8 +191,13 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   **tier run on Pi** goes through a recording proxy (`routing.rs`): the gateway binds
   `127.0.0.1:<port>`, gives the run a copy of Pi's home whose provider has that address
   as its base URL (the confinement then allows exactly that port), forwards each
-  request to the real proxy with `curl` (the key travels in a private curl config,
-  never a command line) and relays the answer as it arrives, noting the headers. Other
+  request to the real proxy with `curl` (the run's home holds a random per-run token,
+  not the key: the proxy answers 401 without it and adds the real key itself, from a
+  private curl config and never a command line; only `Content-Type` and `Accept` of the
+  client's headers are passed on, and a request head with a control byte is refused;
+  `x-litellm-attempted-fallbacks` is an integer count, and an unreadable one is `null`,
+  never 0; LiteLLM rewrites the body's model to the requested name unless a fallback
+  fired, so `served_model` is then the tier name) and relays the answer as it arrives, noting the headers. Other
   Pi runs and the other LiteLLM clients (Vibe, OpenCode, Hermes) are `hidden` until
   they are put behind the same proxy. The `routing` tests hold a stub LiteLLM that
   forces a fallback (`attempted_fallbacks >= 1`); they need `curl` on `PATH`.
