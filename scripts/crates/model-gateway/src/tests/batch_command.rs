@@ -35,7 +35,7 @@ fn machine() -> Machine {
 
 /// Runs one batch over the machine's runtime.
 fn batch(machine: &Machine, input: &str) -> Result<Value, GatewayError> {
-    let runs = RunCommand { runtime: &machine.runtime };
+    let runs = RunCommand { runtime: &machine.runtime, decision: None };
     BatchCommand { runtime: &machine.runtime, runs: &runs }.run(&parse(input).expect("JSON"))
 }
 

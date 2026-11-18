@@ -407,7 +407,7 @@ impl Process for StubPi {
 fn a_tier_run_sends_the_tier_as_the_model_and_writes_one_ledger_line_with_the_routing() {
     let upstream = stub(vec![
         answer(&[("x-litellm-model-id", "free/hy4-flash-free/opencode-go"), ("x-litellm-attempted-fallbacks", "1")], r#"{"model":"free/longcat-2.5-free","choices":[]}"#),
-        answer(&[("x-litellm-model-id", "free/longcat-2.5-free/opencode-go")], r#"{"model":"free/longcat-2.5-free","choices":[]}"#),
+        answer(&[("x-litellm-model-id", "free/longcat-2.5-free/opencode-go"), ("x-litellm-response-cost", "0.5")], r#"{"model":"free/longcat-2.5-free","choices":[],"usage":{"opencode":{"allowance":0.25}}}"#),
     ]);
     let asked = Arc::new(Mutex::new(Vec::new()));
     let mut machine = Machine::with_process(crate::SHIPPED_DEFAULTS, super::machine::now_ms(), super::machine::FakeProcess::default(), Box::new(StubPi { asked: asked.clone() }));
@@ -436,6 +436,14 @@ fn a_tier_run_sends_the_tier_as_the_model_and_writes_one_ledger_line_with_the_ro
     assert_eq!((text("litellm_model_id").as_deref(), text("served_model").as_deref(), text("routing_capture").as_deref()), (Some("free/longcat-2.5-free/opencode-go"), Some("free/longcat-2.5-free"), Some("recorded")));
     assert_eq!((line.get("attempted_fallbacks"), line.get("fallback_fired")), (Some(&Value::Num(1.0)), Some(&Value::Bool(true))));
     assert!(matches!(line.get("cost_usd"), Some(Value::Num(_))));
+    // What the run drew on the plan, and how its tier was chosen (the free tier has no plan to be out of).
+    assert_eq!((line.get("allowance_usd"), line.get("litellm_cost_usd")), (Some(&Value::Num(0.25)), Some(&Value::Num(0.5))));
+    let decision = line.get("tier_decision").and_then(Value::as_object).expect("the decision");
+    let said = |key: &str| decision.get(key).and_then(Value::as_str).map(str::to_string);
+    assert_eq!((said("requested").as_deref(), said("chosen").as_deref(), said("reason").as_deref()), (Some("tier-free"), Some("tier-free"), Some("no-signal")));
+    // The run's slot was given back.
+    let slots = format!("{}/state/agent-kit/model-gateway/tier-slots", machine.sandbox.text());
+    assert_eq!(std::fs::read_dir(slots).expect("the slot directory").count(), 0);
 }
 
 #[test]
@@ -588,4 +596,39 @@ fn a_proxy_that_cannot_read_the_real_key_stands_aside() {
         let (own, routing) = recorded(&machine.runtime, "curl", &home, "litellm-free", "pi-free", |env| env.get("PI_CODING_AGENT_DIR").cloned());
         assert_eq!((own, routing.capture), (None, Capture::Hidden), "{what}");
     }
+}
+
+#[test]
+fn the_allowance_a_response_reports_is_the_last_one_in_what_was_read_and_a_price_is_a_header() {
+    use crate::routing::allowance_of;
+    assert_eq!(allowance_of(r#"{"usage":{"cost":0,"opencode":{"billing_source":"go","list_cost":6.18e-06,"allowance":1.854e-05,"tokens":{"input":1}}}}"#), Some(1.854e-05));
+    assert_eq!(allowance_of("data: {\"opencode\":{\"allowance\": 0.25}}\n\ndata: {\"opencode\":{\"allowance\":0.5}}\n"), Some(0.5));
+    for none in ["", r#"{"allowance":"x"}"#, r#"{"allowance" 3}"#, r#"{"allowance":-1}"#, r#"{"allowance":}"#, r#"{"usage":{}}"#] {
+        assert_eq!(allowance_of(none), None, "{none}");
+    }
+    let seen = seen_of(&header_list(&[("x-litellm-response-cost", "7.5e-06")]), r#"{"opencode":{"allowance":2e-06}}"#);
+    assert_eq!((seen.cost_usd, seen.allowance_usd), (Some(7.5e-06), Some(2e-06)));
+    for odd in ["", "free", "-1", "inf"] {
+        assert_eq!(seen_of(&header_list(&[("x-litellm-response-cost", odd)]), "").cost_usd, None, "{odd}");
+    }
+    // A run draws what its requests did, summed; a run none of whose requests said so draws nothing it knows of.
+    let draw = |allowance: Option<f64>, cost: Option<f64>| Seen { model_id: Some("m".into()), allowance_usd: allowance, cost_usd: cost, ..Seen::default() };
+    let routing = Routing::of(&[draw(Some(0.25), None), draw(Some(0.5), Some(1.0)), draw(None, None)]);
+    assert_eq!((routing.allowance_usd, routing.litellm_cost_usd), (Some(0.75), Some(1.0)));
+    let none = Routing::of(&[draw(None, None)]);
+    assert_eq!((none.allowance_usd, none.litellm_cost_usd), (None, None));
+    let foreign = Routing::of(&[Seen { allowance_usd: Some(1.0), ..Seen::default() }]);
+    assert_eq!((foreign.capture, foreign.allowance_usd), (Capture::NoHeaders, Some(1.0)));
+}
+
+#[test]
+fn the_allowance_a_stream_reports_in_its_last_event_is_found_beyond_the_prefix_the_proxy_keeps() {
+    let padding = "x".repeat(40_000);
+    let body = format!("data: {{\"model\":\"m\",\"pad\":\"{padding}\"}}\n\ndata: {{\"usage\":{{\"opencode\":{{\"allowance\":0.125}}}}}}\n\n");
+    let upstream = stub(vec![answer(&[("x-litellm-model-id", "opencode-go/mimo"), ("x-litellm-response-cost", "0.5")], &body)]);
+    let machine = machine_with(&format!("http://127.0.0.1:{}/v1", upstream.port));
+    let home = home_of(&machine);
+    let (answered, routing) = recorded(&machine.runtime, "curl", &home, "litellm-free", "pi-free", |env| post(&target(env), "/v1/chat/completions", r#"{"model":"tier-free"}"#));
+    assert!(answered.contains("0.125"), "the answer is passed back whole");
+    assert_eq!((routing.allowance_usd, routing.litellm_cost_usd), (Some(0.125), Some(0.5)));
 }

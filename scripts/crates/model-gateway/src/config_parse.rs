@@ -364,6 +364,7 @@ fn merge_settings(base: &Settings, raw: Option<&Value>) -> Result<Settings, Gate
     let output_allowance_tokens = merge_allowances(&base.output_allowance_tokens, object.get("output_allowance_tokens"))?;
     let plan_warning_ratio = ratio_field(object, "plan_warning_ratio", base.plan_warning_ratio)?;
     let summary_max_chars = number_field(object, "summary_max_chars", base.summary_max_chars, "settings.")?;
+    let quota = crate::quota::merge(&base.quota, object.get("quota"))?;
     Ok(Settings {
         plan_warning_ratio,
         summary_max_chars,
@@ -372,6 +373,7 @@ fn merge_settings(base: &Settings, raw: Option<&Value>) -> Result<Settings, Gate
         availability_window_minutes,
         metered_personal_caps,
         output_allowance_tokens,
+        quota,
     })
 }
 
@@ -393,6 +395,7 @@ fn parse_settings(raw: &Object) -> Result<Settings, GatewayError> {
     }
     let plan_warning_ratio = require_ratio(raw.get("plan_warning_ratio"), "settings.plan_warning_ratio")?;
     let summary_max_chars = require_number(raw.get("summary_max_chars"), "settings.summary_max_chars")?;
+    let quota = crate::quota::merge(&crate::quota::QuotaSettings::default(), raw.get("quota"))?;
     Ok(Settings {
         plan_warning_ratio,
         summary_max_chars,
@@ -401,6 +404,7 @@ fn parse_settings(raw: &Object) -> Result<Settings, GatewayError> {
         availability_window_minutes,
         metered_personal_caps: MeteredPersonalCaps { per_workflow_usd, per_day_usd },
         output_allowance_tokens,
+        quota,
     })
 }
 

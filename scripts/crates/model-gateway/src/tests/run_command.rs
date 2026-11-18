@@ -95,7 +95,7 @@ fn with_tmp(mut machine: Machine) -> Machine {
 
 fn run(machine: &Machine, input: &str) -> Result<Value, GatewayError> {
     let _held = super::scenarios::EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    RunCommand { runtime: &machine.runtime }.run(&parse(input).expect("JSON"))
+    RunCommand { runtime: &machine.runtime, decision: None }.run(&parse(input).expect("JSON"))
 }
 
 fn repo_run(extra: &str) -> String {
@@ -384,7 +384,7 @@ fn a_client_a_run_cannot_launch_is_a_launch_failure() {
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"m","prompt":"p"}"#).expect("JSON")).expect("input");
     let input = crate::run::RunInput { client: "foo".into(), ..input };
     let paths = crate::launchers::LaunchPaths::default();
-    let (result, _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime }.launch("foo", &input, &paths, "p", None, false);
+    let (result, _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", None, false);
     assert_eq!((failure.as_deref(), result.exit_code), (Some("launch-failed"), 1));
     assert_eq!(result.stderr, "foo is not a client a run can launch");
     assert_eq!(routing.capture, crate::routing::Capture::Hidden);
@@ -409,7 +409,7 @@ fn codex_input(time_limit_s: u32) -> crate::run::RunInput {
 #[test]
 fn a_dependent_that_starts_later_needs_its_grant_to_still_stand_and_is_held_to_what_is_left() {
     let machine = machine();
-    let command = RunCommand { runtime: &machine.runtime };
+    let command = RunCommand { runtime: &machine.runtime, decision: None };
 
     // Every grant lapsed, or there never was one.
     assert_eq!(command.within_grant(&codex_input(900)).expect_err("no grant").code, "no-grant");

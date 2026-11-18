@@ -201,6 +201,9 @@ pub struct Settings {
     pub metered_personal_caps: MeteredPersonalCaps,
     /// The output tokens a run of each tier is allowed, in `Tier::ALL` order (trivial, routine, hard, frontier).
     pub output_allowance_tokens: [f64; 4],
+    /// What `run --tier` reads before it chooses a tier, and how many runs a tier takes at once. Every field has a
+    /// default, so the shipped defaults and a machine file need not state it.
+    pub quota: crate::quota::QuotaSettings,
 }
 
 impl Settings {

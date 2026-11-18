@@ -27,6 +27,7 @@ fn settings() -> Settings {
         max_batch_delegations: 8.0,
         availability_window_minutes: 60.0,
         metered_personal_caps: MeteredPersonalCaps { per_workflow_usd: 5.0, per_day_usd: 20.0 },
+        quota: crate::quota::QuotaSettings::default(),
         output_allowance_tokens: [1000.0, 2000.0, 4000.0, 8000.0],
     }
 }
@@ -75,6 +76,9 @@ fn record(at: &str, client: &str, cost_usd: f64, workflow: &str, reported: Optio
         workflow: workflow.to_string(),
         batch_id: None,
         delegation: None,
+        allowance_usd: None,
+        litellm_cost_usd: None,
+        litellm_model_id: None,
     }
 }
 
