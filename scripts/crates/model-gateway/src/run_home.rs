@@ -104,10 +104,9 @@ pub fn opencode_config(mode: Option<RunMode>, provider: Option<(&str, Value)>) -
     let mut permission = vec![("*", Value::str("deny"))];
     permission.extend(OPENCODE_READ_ACTIONS.iter().map(|action| (*action, Value::str("allow"))));
     permission.extend([("edit", Value::str(if write { "allow" } else { "deny" })), ("bash", Value::str("deny")), ("external_directory", Value::str("deny")), ("task", Value::str("deny"))]);
+    // The v1 `tools` map agrees with `permission`: the edit tools are on for a writing run and off otherwise.
     let mut tools = vec![("bash", Value::Bool(false)), ("task", Value::Bool(false))];
-    if !write {
-        tools.extend([("write", Value::Bool(false)), ("edit", Value::Bool(false)), ("patch", Value::Bool(false))]);
-    }
+    tools.extend(["write", "edit", "patch"].into_iter().map(|tool| (tool, Value::Bool(write))));
     let mut members = vec![
         ("$schema", Value::str("https://opencode.ai/config.json")),
         ("autoupdate", Value::Bool(false)),
@@ -122,6 +121,32 @@ pub fn opencode_config(mode: Option<RunMode>, provider: Option<(&str, Value)>) -
     json::object(members)
 }
 
+/// Whether a member's name says it holds a secret: a key, token, password or authorization header.
+fn secret_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    ["key", "token", "secret", "password", "authorization", "bearer"].iter().any(|word| lower.contains(word))
+}
+
+/// A copy of a config value without a secret written into it: a member that says it holds one and has a literal
+/// string for a value is left out. A reference (`{env:NAME}` or `{file:PATH}`) stays, so the key still comes from
+/// the secret store through the launch's wrapper and no key is written into the run home.
+pub fn without_inline_secrets(value: &Value) -> Value {
+    match value {
+        Value::Obj(object) => {
+            let mut kept = json::Object::new();
+            for (name, member) in object.entries() {
+                let literal = matches!(member, Value::Str(text) if !text.contains("{env:") && !text.contains("{file:"));
+                if !(secret_name(name) && literal) {
+                    kept.set(name, without_inline_secrets(member));
+                }
+            }
+            Value::Obj(kept)
+        }
+        Value::Arr(items) => Value::Arr(items.iter().map(without_inline_secrets).collect()),
+        other => other.clone(),
+    }
+}
+
 /// The provider of the owner's OpenCode config a litellm route runs on, cut down to the model of the run, or why it is not there.
 fn opencode_provider(files: &dyn Files, env: &HashMap<String, String>, provider: &str, model: &str) -> Result<Value, String> {
     let path = join(&[&real_dir(env, "XDG_CONFIG_HOME", &[".config"]), "opencode", "opencode.json"]);
@@ -133,7 +158,7 @@ fn opencode_provider(files: &dyn Files, env: &HashMap<String, String>, provider:
     let Some(Value::Obj(entry)) = entry else {
         return Err(format!("opencode: {path} has no {provider} provider; re-run agent-kit setup so it writes the LiteLLM providers there"));
     };
-    let mut entry = entry.clone();
+    let Value::Obj(mut entry) = without_inline_secrets(&Value::Obj(entry.clone())) else { unreachable!("an object stays an object") };
     if let Some(Value::Obj(models)) = entry.get("models") {
         let id = model.split_once('/').map_or(model, |(_, id)| id);
         if let Some(chosen) = models.get(id) {
@@ -205,6 +230,12 @@ fn yaml_block(text: &str, parent: &str, child: &str) -> Option<String> {
     (!block.is_empty()).then(|| block.join("\n"))
 }
 
+/// Whether a line of a Hermes provider block writes a secret in plain: `api_key: sk-...`, `token: ...`.
+fn literal_secret(line: &str) -> bool {
+    let Some((name, value)) = line.trim().split_once(':') else { return false };
+    secret_name(name) && !name.ends_with("_env") && !value.trim().is_empty()
+}
+
 /// A launch's Hermes home: a `config.yaml` with the one provider the run names, copied from the owner's, and no
 /// MCP server, skill, memory or persona. Hermes finds it by `HERMES_HOME`, and `HOME` and the XDG directories point inside it too.
 pub fn prepare_hermes(files: &dyn Files, env: &HashMap<String, String>, provider: &str, dir: &str) -> Result<RunHome, String> {
@@ -214,6 +245,8 @@ pub fn prepare_hermes(files: &dyn Files, env: &HashMap<String, String>, provider
     let Some(block) = yaml_block(&text, "providers", provider) else {
         return Err(format!("hermes: {path} has no {provider} provider; re-run agent-kit setup so it writes the LiteLLM providers there"));
     };
+    // A provider's key is named by `key_env` and read by the launch's wrapper; a literal one is not copied.
+    let block = block.lines().filter(|line| !literal_secret(line)).collect::<Vec<_>>().join("\n");
     let config = format!("providers:\n{block}\nmcp_servers: {{}}\n");
     files.write_private(&join(&[dir, ".hermes", "config.yaml"]), &config).map_err(|error| format!("hermes: cannot write the launch's home {dir}: {}", error.message))?;
     let mut vars = home_vars(dir);

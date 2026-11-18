@@ -173,7 +173,10 @@ fn a_writing_opencode_run_keeps_its_edit_tools_but_never_a_shell_or_a_path_outsi
     }
     let tools = object(&config, "tools");
     assert_eq!((object(tools, "bash"), object(tools, "task")), (&Value::Bool(false), &Value::Bool(false)));
-    assert!(tools.as_object().unwrap().get("edit").is_none());
+    // The v1 `tools` map agrees with `permission`: the edit tools are on.
+    for tool in ["write", "edit", "patch"] {
+        assert_eq!(object(tools, tool), &Value::Bool(true), "{tool}");
+    }
     assert_eq!(object(object(&config, "permission"), "edit"), &Value::str("allow"));
     // A run that names no mode is read-only.
     assert_eq!(effect(&super::run_home::rules(&opencode_config(None, None)), "edit"), "deny");
@@ -420,4 +423,151 @@ fn the_servers_every_home_declares_are_named_for_the_escape_probe() {
     assert!(declared_servers(&broken, &env).is_empty());
     assert!(declared_servers(&Disk::default().with("/h/.config/opencode/opencode.json", r#"{"mcp":1}"#), &env).is_empty());
     assert!(declared_servers(&Disk::default(), &HashMap::new()).is_empty());
+}
+
+#[test]
+fn every_tool_name_a_delegate_might_reach_for_is_denied_by_the_catch_all_in_read_only_and_write_mode() {
+    for mode in [RunMode::ReadOnly, RunMode::Write] {
+        let rules = rules(&opencode_config(Some(mode), None));
+        for action in ["bash", "shell", "execute", "task", "subagent", "todowrite", "lsp", "question", "multiedit", "external_directory", "memory-api_recall", "opencode_read_mcp_resource"] {
+            assert_eq!(effect(&rules, action), "deny", "{mode:?} {action}");
+        }
+    }
+    let read_only = rules(&opencode_config(Some(RunMode::ReadOnly), None));
+    for action in ["write", "patch", "edit", "multiedit"] {
+        assert_eq!(effect(&read_only, action), "deny", "{action}");
+    }
+}
+
+#[test]
+fn a_provider_copied_into_a_run_home_carries_no_secret_written_in_plain() {
+    use crate::run_home::without_inline_secrets;
+    let owner = r#"{"provider":{"litellm-vibe":{"options":{"apiKey":"sk-literal","baseURL":"https://x/v1","headers":{"Authorization":"Bearer abc","X-Api-Key":"{env:K}","X-Team":"blue"}},"models":{"m":{}}},"litellm-free":{"options":{"apiKey":"{env:LITELLM_FREE_KEY}","token":"{file:/t}","secret":"s"}}}}"#;
+    let disk = Disk::default().with("/home/me/.config/opencode/opencode.json", owner);
+    prepare_opencode(&disk, &env(), "litellm-vibe/m", None, "/run/h").expect("a home");
+    let written = disk.text("/run/h/opencode.json").unwrap();
+    for leaked in ["sk-literal", "Bearer abc"] {
+        assert!(!written.contains(leaked), "{leaked} in {written}");
+    }
+    // A reference, and what is no secret, stays.
+    for kept in ["{env:K}", "blue", "https://x/v1"] {
+        assert!(written.contains(kept), "{kept}");
+    }
+    prepare_opencode(&disk, &env(), "litellm-free/m", None, "/run/h").expect("a home");
+    let free = disk.text("/run/h/opencode.json").unwrap();
+    assert!(free.contains("{env:LITELLM_FREE_KEY}") && free.contains("{file:/t}") && !free.contains(r#""secret""#), "{free}");
+    assert_eq!(without_inline_secrets(&Value::Arr(vec![Value::Num(1.0), json::parse(r#"{"password":"p","name":"n"}"#).unwrap()])), json::parse(r#"[1,{"name":"n"}]"#).unwrap());
+
+    // The same for a Hermes provider: `key_env` names the key, a literal `api_key` is not copied.
+    let hermes = "providers:\n  litellm-vibe:\n    name: v\n    key_env: LITELLM_VIBE_KEY\n    api_key: sk-literal\n    token:\n    models:\n      m: {}\n";
+    let disk = Disk::default().with("/home/me/.hermes/config.yaml", hermes);
+    prepare_hermes(&disk, &env(), "litellm-vibe", "/run/h").expect("a home");
+    let config = disk.text("/run/h/.hermes/config.yaml").unwrap();
+    assert!(config.contains("key_env: LITELLM_VIBE_KEY") && !config.contains("sk-literal") && config.contains("token:"), "{config}");
+}
+
+#[test]
+fn a_run_home_is_private_and_removed_without_following_a_symlink() {
+    use crate::adapters::fs::SystemFiles;
+    use std::os::unix::fs::PermissionsExt;
+    let sandbox = super::scenarios::Sandbox::new();
+    let root = sandbox.text();
+    let files = SystemFiles { cwd: root.clone() };
+    let dir = format!("{root}/run/client-home");
+    prepare_opencode(&files, &HashMap::from([("HOME".to_string(), root.clone())]), "opencode/x", None, &dir).expect("a home");
+    let mode = |path: &str| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    assert_eq!((mode(&dir), mode(&format!("{dir}/opencode.json"))), (0o700, 0o600));
+    // A symlink inside the home to a directory outside it: removing the home removes the link, never what it points at.
+    let outside = format!("{root}/outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(format!("{outside}/keep.txt"), "kept").unwrap();
+    std::os::unix::fs::symlink(&outside, format!("{dir}/link")).unwrap();
+    files.remove(&dir).expect("removed");
+    assert!(!std::path::Path::new(&dir).exists());
+    assert_eq!(std::fs::read_to_string(format!("{outside}/keep.txt")).unwrap(), "kept");
+}
+
+/// Files whose `remove` fails, and that hold a run home already when a test says so.
+struct Stuck(Disk);
+
+impl Files for Stuck {
+    fn read_text(&self, path: &str) -> Result<String, FsError> {
+        self.0.read_text(path)
+    }
+    fn write_atomic(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.write_atomic(path, content)
+    }
+    fn mkdir_all(&self, path: &str) -> Result<(), FsError> {
+        self.0.mkdir_all(path)
+    }
+    fn create_exclusive(&self, path: &str) -> Result<bool, FsError> {
+        self.0.create_exclusive(path)
+    }
+    fn remove_file(&self, path: &str) -> Result<(), FsError> {
+        self.0.remove_file(path)
+    }
+    fn modified_ms(&self, path: &str) -> Option<i64> {
+        self.0.modified_ms(path)
+    }
+    fn exists(&self, path: &str) -> Result<bool, FsError> {
+        self.0.exists(path)
+    }
+    fn append(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.append(path, content)
+    }
+    fn stamp(&self, path: &str) -> Option<crate::ports::FileStamp> {
+        self.0.stamp(path)
+    }
+    fn write_private(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.write_private(path, content)
+    }
+    fn write_text(&self, path: &str, content: &str) -> Result<(), FsError> {
+        self.0.write_text(path, content)
+    }
+    fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError> {
+        self.0.temp_dir(parent, prefix)
+    }
+    fn remove(&self, _path: &str) -> Result<(), FsError> {
+        Err(nothing())
+    }
+}
+
+#[test]
+fn a_run_home_that_cannot_be_removed_is_reported_and_one_that_already_exists_is_never_reused() {
+    let stuck = Stuck(owner());
+    let programs = Programs::answering();
+    let outcome = (ClientRun { process: &programs, files: &stuck, env: &env() }).launch(&request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect("launched");
+    assert_eq!(outcome.warnings, ["the launch's directory /run/client-home was not removed: EACCES: denied"]);
+    let broken = Programs { launched: Err("spawn failed".into()), ..Programs::answering() };
+    let error = (ClientRun { process: &broken, files: &Stuck(owner()), env: &env() }).launch(&request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect_err("spawn");
+    assert_eq!(error, ClientRunError::Spawn("spawn failed; the launch's directory /run/client-home was not removed: EACCES: denied".into()));
+
+    let taken = owner().with("/run/client-home", "");
+    let refused = run(&taken, &Programs::answering(), &request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect_err("refused");
+    assert!(matches!(&refused, ClientRunError::Gateway(error) if error.message.contains("already exists; a run home is made for one launch")), "{refused:?}");
+}
+
+#[test]
+fn hermes_has_the_web_tools_alone_when_read_only_and_the_file_tools_besides_when_writing() {
+    for (mode, toolsets) in [(RunMode::ReadOnly, "web"), (RunMode::Write, "web,file")] {
+        let programs = Programs::answering();
+        let _ = run(&owner(), &programs, &request(RunClient::Hermes, "glm-5.3", Some("litellm-vibe"), mode));
+        let args = programs.first().args;
+        let at = args.iter().position(|arg| arg == "-t").expect("toolsets");
+        assert_eq!(args[at + 1], toolsets);
+        assert!(!args.iter().any(|arg| arg.contains("terminal") || arg.contains("code_execution")));
+    }
+}
+
+#[test]
+fn vibe_turns_mcp_on_only_for_a_server_the_caller_attaches() {
+    use crate::extras::AttachedServer;
+    let launch = |extras: RunExtras| {
+        let programs = Programs::answering();
+        let _ = run(&owner(), &programs, &ClientRunRequest { extras, ..request(RunClient::Vibe, "m", None, RunMode::ReadOnly) });
+        programs.first().env
+    };
+    assert_eq!(launch(RunExtras::default()).get("VIBE_ENABLE_MCP").map(String::as_str), Some("false"));
+    let attached = RunExtras { mcp_servers: Some(vec![AttachedServer { name: "packet".into(), command: "node".into(), args: vec![] }]), ..RunExtras::default() };
+    assert_eq!(launch(attached).get("VIBE_ENABLE_MCP").map(String::as_str), Some("true"));
 }

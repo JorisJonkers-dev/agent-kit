@@ -50,11 +50,15 @@ pub const VIBE_PROTECTED_ENV: [&str; 7] = [
 const MCP_STARTUP_TIMEOUT_S: f64 = 10.0;
 const MCP_TOOL_TIMEOUT_S: f64 = 30.0;
 
-/// agy's own tool families, in the order its deny list names them. A read-only
-/// run denies every family the caller did not name among the tools it may use.
+/// The Hermes toolsets of a read-only run and of a writing run (`hermes -t`).
+pub const HERMES_READ_TOOLSETS: &str = "web";
+pub const HERMES_WRITE_TOOLSETS: &str = "web,file";
+
 /// What an Antigravity run without the read-only sandbox denies: MCP, in every mode (#903).
 pub(crate) const AGY_MCP_DENIED: &str = r#"{"permissions":{"deny":["mcp(*)"]}}"#;
 
+/// agy's own tool families, in the order its deny list names them. A read-only
+/// run denies every family the caller did not name among the tools it may use.
 const AGY_TOOL_FAMILIES: [&str; 8] = ["mcp", "read_url", "execute_url", "command", "write_file", "list_dir", "grep_search", "find_by_name"];
 
 /// Where one launch reads its prompt and writes what the client exports, and
@@ -201,8 +205,11 @@ fn vibe_env(extras: Option<&LaunchExtras>, work_dir: &str) -> BTreeMap<String, S
     for (name, value) in VIBE_ENV {
         env.insert(name.to_string(), value.to_string());
     }
-    if !servers.is_empty() {
+    // MCP stays off unless the caller attaches a server of its own; the home's servers are only ever switched off.
+    if extras.is_some_and(|extras| !extras.mcp_servers.is_empty()) {
         env.insert("VIBE_ENABLE_MCP".to_string(), "true".to_string());
+    }
+    if !servers.is_empty() {
         env.insert("VIBE_MCP_SERVERS".to_string(), json::compact(&Value::Arr(servers)));
     }
     env
@@ -434,6 +441,9 @@ fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prom
     // The node launcher writes `String(input.provider)`, so a run that names none passes the word `undefined`.
     let provider = input.provider.as_deref().unwrap_or("undefined");
     let mut args = strings(&["-z", prompt, "--usage-file", &hermes_report(paths), "-m", &input.model, "--provider", provider]);
+    // Hermes has no read-only file toolset, so a read-only run has the web tools alone (no file, terminal, code
+    // execution, memory or delegation), and a writing run the file tools besides, with no terminal.
+    args.extend(strings(&["-t", if input.mode == Some(RunMode::Write) { HERMES_WRITE_TOOLSETS } else { HERMES_READ_TOOLSETS }]));
     // In its own home Hermes skips the rules and memory it would inject; a provider the owner's home must give (its
     // sign-in is there) runs in safe mode, which loads no config, plugin, memory or MCP server.
     args.push(if extras.is_some_and(|extras| extras.home.is_some()) { "--ignore-rules" } else { "--safe-mode" }.to_string());

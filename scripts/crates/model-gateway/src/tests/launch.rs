@@ -668,7 +668,7 @@ fn runs_hermes_with_its_provider_and_reads_the_usage_file_from_the_run_directory
 
     let command = process.first();
     // A provider the owner's home must give (its sign-in is there) runs in safe mode: no config, plugin, memory or MCP server.
-    assert_eq!(command.args, strings(&["-z", "read this", "--usage-file", "/run/own/usage.json", "-m", "deepseek", "--provider", "deepinfra", "--safe-mode"]));
+    assert_eq!(command.args, strings(&["-z", "read this", "--usage-file", "/run/own/usage.json", "-m", "deepseek", "--provider", "deepinfra", "-t", "web", "--safe-mode"]));
     assert!(!command.env.contains_key("HERMES_HOME"));
     assert_eq!(command.timeout_ms, Some(960_000));
     assert_eq!(outcome.exported, Some(json::parse(usage).expect("JSON")));

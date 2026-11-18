@@ -40,6 +40,8 @@ pub struct ClientRunOutcome {
     /// Parsed `export.json`, or `None` when the client wrote none or it does not parse.
     pub exported: Option<Value>,
     pub output: ClientOutput,
+    /// What the launch could not clean up: a run home that was not removed still holds what the run needed.
+    pub warnings: Vec<String>,
 }
 
 /// Why a launch did not come to an outcome: the gateway refused it, or the
@@ -130,20 +132,21 @@ impl ClientRun<'_> {
         let extras = LaunchExtras { confine: confine.clone(), home: home.clone(), ..self.extras_of(request)? };
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
         let ran = self.process.run(&command);
-        // The agent directory holds the route's key, and a run home may hold a provider's sign-in, so each goes the moment the launch ends.
-        if let Some(confine) = &confine {
-            let _ = self.files.remove(&confine.agent_dir);
-        }
-        if let Some(home) = &home {
-            let _ = self.files.remove(&home.dir);
-        }
-        let result = ran.map_err(ClientRunError::Spawn)?;
+        // The agent directory holds the route's key, so it goes the moment the launch ends, and so does a run home; a
+        // directory that stays is reported, never left unsaid. `remove` does not follow a symlink.
+        let leftovers: Vec<String> = confine
+            .iter()
+            .map(|confine| confine.agent_dir.clone())
+            .chain(home.iter().map(|home| home.dir.clone()))
+            .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
+            .collect();
+        let result = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
             Some(path) => self.read_report(&path(&request.paths))?,
             None => None,
         };
         let output = (launcher.read)(&result.stdout, exported.as_ref());
-        Ok(ClientRunOutcome { result, exported, output })
+        Ok(ClientRunOutcome { result, exported, output, warnings: leftovers })
     }
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
@@ -160,6 +163,10 @@ impl ClientRun<'_> {
     /// provider the owner's home does not declare is refused rather than started in the owner's own home.
     fn home_of(&self, request: &ClientRunRequest) -> Result<Option<RunHome>, GatewayError> {
         let dir = run_home_dir(&request.paths);
+        // A run's directory is its own (run ids are unique), so a home that is already there is not this launch's: it is never reused.
+        if matches!(request.client, RunClient::Opencode | RunClient::Hermes) && self.files.exists(&dir).unwrap_or(false) {
+            return Err(GatewayError::new("unconfined", format!("the launch's home {dir} already exists; a run home is made for one launch and never reused")));
+        }
         let made = match request.client {
             RunClient::Opencode => prepare_opencode(self.files, self.env, &request.launch.model, request.launch.mode, &dir),
             RunClient::Hermes => match request.launch.provider.as_deref().filter(|provider| hermes_key(provider).is_some()) {

@@ -25,6 +25,31 @@
       "vibe": {
         "status": "blocked",
         "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"
+      },
+      "escape/pi": {
+        "status": "pass"
+      },
+      "escape/pi-opencode-go": {
+        "status": "pass"
+      },
+      "escape/claude": {
+        "status": "pass"
+      },
+      "escape/codex": {
+        "status": "pass"
+      },
+      "escape/agy": {
+        "status": "pass"
+      },
+      "escape/vibe": {
+        "status": "blocked",
+        "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"
+      },
+      "escape/hermes": {
+        "status": "pass"
+      },
+      "escape/opencode": {
+        "status": "pass"
       }
     },
     "live": {
@@ -37,8 +62,30 @@
         "why": "metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)"
       },
       "escape/hermes": {
-        "status": "fail",
-        "why": "Hermes has no read-only tool set: its file and terminal tools can write outside the working directory until agent-launcher confine wraps it (#903, proposed fix 1, after #904)"
+        "status": "pass"
+      },
+      "escape/pi": {
+        "status": "pass"
+      },
+      "escape/pi-opencode-go": {
+        "status": "pass"
+      },
+      "escape/claude": {
+        "status": "pass"
+      },
+      "escape/codex": {
+        "status": "blocked",
+        "why": "metered-employer: needs a repo whose allowlist names openai, and a grant for the harness-matrix workflow (model-gateway grant write)"
+      },
+      "escape/agy": {
+        "status": "pass"
+      },
+      "escape/vibe": {
+        "status": "blocked",
+        "why": "explicit only: no profile lists a vibe model, so a profile run never picks the Vibe CLI; a run that names client vibe still runs"
+      },
+      "escape/opencode": {
+        "status": "pass"
       }
     }
   }
