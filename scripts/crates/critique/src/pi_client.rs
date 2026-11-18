@@ -15,6 +15,9 @@ use crate::error::CritiqueError;
 use crate::findings::{parse_findings, FindingsParse};
 use crate::paths::join;
 use crate::routing::PiCriticClient;
+use crate::tier_routing::TierRouting;
+use crate::tier_review::GATEWAY_CLIENT;
+use model_gateway::routing::recorded;
 use crate::runtime::Runtime;
 use crate::vibe_client::{js_string, on_path};
 use model_gateway::json::{self, Object, Value};
@@ -46,10 +49,13 @@ pub fn pi_readiness(runtime: &Runtime, config: &PiCriticClient) -> Result<Client
     if !sign_in.ready {
         return Ok(sign_in);
     }
-    let listed = runtime.gateway.process.exec(&config.binary, &["--offline", "--list-models", &config.model], Some(STATUS_TIMEOUT_MS));
-    let models = models_readiness(&listed, config);
-    if !models.ready {
-        return Ok(models);
+    // A tier reviewer's home is made for its launch and lists the step model it asks for, so the home's own list says nothing.
+    if config.tier.is_none() {
+        let listed = runtime.gateway.process.exec(&config.binary, &["--offline", "--list-models", &config.model], Some(STATUS_TIMEOUT_MS));
+        let models = models_readiness(&listed, config);
+        if !models.ready {
+            return Ok(models);
+        }
     }
     let route = match route(runtime, config) {
         Ok(route) => route,
@@ -154,7 +160,12 @@ pub(crate) fn launcher(runtime: &Runtime) -> Option<String> {
 
 /// The route's provider as the home's `models.json` holds it, or why a confined critic cannot use it.
 pub(crate) fn route(runtime: &Runtime, config: &PiCriticClient) -> Result<PiRoute, String> {
-    let path = join(&[&home_agent_dir(runtime), "models.json"]);
+    route_in(runtime, config, &home_agent_dir(runtime))
+}
+
+/// The route's provider as the `models.json` of the Pi directory `dir` holds it.
+pub(crate) fn route_in(runtime: &Runtime, config: &PiCriticClient, dir: &str) -> Result<PiRoute, String> {
+    let path = join(&[dir, "models.json"]);
     let text = runtime.files.read_text(&path).ok();
     let providers = text.as_deref().and_then(parse_object).and_then(|models| models.get("providers").and_then(Value::as_object).cloned());
     route_of(providers.as_ref().and_then(|providers| providers.get(&config.provider)).and_then(Value::as_object), config, &path)
@@ -227,20 +238,26 @@ pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &st
         Ok(key) => key,
         Err(detail) => return Ok(Err(detail)),
     };
+    write_home(runtime, config, agent_dir, (&route, &key), server)?;
+    Ok(Ok((launcher, route)))
+}
+
+/// The files of a launch's own agent directory: a `models.json` holding only the route's provider with the key given (the
+/// real key, or the token of the recording proxy) and the one model of the launch, an empty `settings.json`, and the search
+/// server's `mcp.json` when the critic has one. The key goes in last, so a write that fails leaves no key behind.
+fn write_home(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, (route, key): (&PiRoute, &str), server: Option<&SearchServerLaunch>) -> Result<(), CritiqueError> {
     let provider = json::object(vec![
         ("api", Value::str(&route.api)),
-        ("apiKey", Value::str(&key)),
+        ("apiKey", Value::str(key)),
         ("baseUrl", Value::str(&route.base_url)),
         ("models", Value::Arr(vec![route.model.clone()])),
     ]);
     let models = json::object(vec![("providers", json::object(vec![(config.provider.as_str(), provider)]))]);
-    // The key goes in last, so a write that fails leaves no key behind.
     runtime.files.write_private(&join(&[agent_dir, "settings.json"]), "{}\n").map_err(CritiqueError::from_fs)?;
     if let Some(server) = server {
         runtime.files.write_private(&join(&[agent_dir, "mcp.json"]), &format!("{}\n", json::pretty(&mcp_servers(server)))).map_err(CritiqueError::from_fs)?;
     }
-    runtime.files.write_private(&join(&[agent_dir, "models.json"]), &format!("{}\n", json::pretty(&models))).map_err(CritiqueError::from_fs)?;
-    Ok(Ok((launcher, route)))
+    runtime.files.write_private(&join(&[agent_dir, "models.json"]), &format!("{}\n", json::pretty(&models))).map_err(CritiqueError::from_fs)
 }
 
 /// The launch's `mcp.json`: the runner's search server as the only MCP server, its tools called directly by name. Pi
@@ -290,6 +307,7 @@ pub(crate) fn unconfined_report(launch: &CriticLaunch<'_>, detail: String) -> Cr
         tokens: None,
         search_failure: None,
         tool_calls: Vec::new(),
+        routing: None,
     }
 }
 
@@ -320,7 +338,57 @@ pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: St
     }
 }
 
-/// Runs one critic through Pi and keeps its answer, price and tokens beside the stream.
+/// What one launch left: the process (or why it never started), and for a tier reviewer what LiteLLM said of it.
+enum Launched {
+    /// The critic could not be confined or set up, and nothing ran.
+    Refused(String),
+    Ran(Result<ProcessResult, String>),
+}
+
+/// The launch confined, through the route's key as the home holds it.
+fn launch_direct(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<Launched, CritiqueError> {
+    let (launcher, route) = match prepare(runtime, config, agent_dir, server)? {
+        Ok(prepared) => prepared,
+        Err(detail) => return Ok(Launched::Refused(detail)),
+    };
+    let grants = grants(runtime, config, &route, Some((&launch.packet_dir, agent_dir)), server);
+    let bin = home_bin(runtime);
+    let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
+    let ran = runtime.gateway.process.run(&command);
+    let _ = runtime.files.remove(agent_dir);
+    Ok(Launched::Ran(ran))
+}
+
+/// The launch confined, in the per-run home the recording proxy made: its provider's base URL is the proxy and its key is
+/// the run's token, so the real key never reaches the critic. The home is written again to list only the step model the
+/// reviewer asks for.
+fn launch_proxied(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<Launched, CritiqueError> {
+    let mut route = route_in(runtime, config, agent_dir).map_err(CritiqueError::unexpected)?;
+    route.model = json::object(vec![("id", Value::str(&config.model))]);
+    let Some(launcher) = launcher(runtime) else {
+        return Ok(Launched::Refused(NO_LAUNCHER.to_string()));
+    };
+    write_home(runtime, config, agent_dir, (&route, &route.api_key), server)?;
+    let grants = grants(runtime, config, &route, Some((&launch.packet_dir, agent_dir)), server);
+    let bin = home_bin(runtime);
+    let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
+    Ok(Launched::Ran(runtime.gateway.process.run(&command)))
+}
+
+/// A tier reviewer's launch behind the recording proxy: the launch and what LiteLLM's headers said of it. When the proxy
+/// cannot be set up the launch runs as any Pi critic does, and its routing is `hidden`, which does not prove its family.
+fn launch_recorded(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, tier: &str, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<(Launched, TierRouting), CritiqueError> {
+    let mut launched: Option<Result<Launched, CritiqueError>> = None;
+    let routing = recorded(&runtime.gateway, "curl", agent_dir, &config.provider, GATEWAY_CLIENT, &mut |env| {
+        let proxied = env.get("PI_CODING_AGENT_DIR").map(String::as_str) == Some(agent_dir);
+        launched = Some(if proxied { launch_proxied(runtime, launch, config, agent_dir, prompt.clone(), server) } else { launch_direct(runtime, launch, config, agent_dir, prompt.clone(), server) });
+    });
+    let launched = launched.expect("the launch ran, with or without the proxy")?;
+    Ok((launched, TierRouting::of(tier, &config.model, &routing)))
+}
+
+/// Runs one critic through Pi and keeps its answer, price and tokens beside the stream. A tier reviewer's run goes through
+/// the recording proxy, and counts as a review only when the routing shows the step model it asked for answered.
 pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient) -> Result<CriticReport, CritiqueError> {
     let prompt = runtime.files.read_text(&launch.prompt_path).map_err(CritiqueError::from_fs)?;
     let agent_dir = join(&[&launch.critic_dir, "pi-agent"]);
@@ -328,15 +396,17 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
         CriticToolset::PiSearch { server, .. } => Some(server),
         _ => None,
     };
-    let (launcher, route) = match prepare(runtime, config, &agent_dir, server)? {
-        Ok(prepared) => prepared,
-        Err(detail) => return Ok(unconfined_report(launch, detail)),
+    let (launched, routing) = match &config.tier {
+        Some(tier) => {
+            let (launched, routing) = launch_recorded(runtime, launch, config, tier, &agent_dir, prompt, server)?;
+            (launched, Some(routing))
+        }
+        None => (launch_direct(runtime, launch, config, &agent_dir, prompt, server)?, None),
     };
-    let grants = grants(runtime, config, &route, Some((&launch.packet_dir, &agent_dir)), server);
-    let bin = home_bin(runtime);
-    let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), &agent_dir, bin.as_deref());
-    let ran = runtime.gateway.process.run(&command);
-    let _ = runtime.files.remove(&agent_dir);
+    let ran = match launched {
+        Launched::Refused(detail) => return Ok(CriticReport { routing, ..unconfined_report(launch, detail) }),
+        Launched::Ran(ran) => ran,
+    };
     let result = ran.map_err(CritiqueError::unexpected)?;
     let stream = read_pi_stream(&result.stdout);
     let export_path = join(&[&launch.critic_dir, "result.json"]);
@@ -347,7 +417,10 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
         ("tokens", stream.tokens.as_ref().map_or(Value::Null, |tokens| json::object(vec![("cached", number(tokens.cached)), ("input", number(tokens.input)), ("output", number(tokens.output))]))),
     ]);
     runtime.files.write_text(&export_path, &format!("{}\n", json::pretty(&saved))).map_err(CritiqueError::from_fs)?;
-    let outcome = classify_pi_run(&result, &stream, &launch.packet_dir, launch.critic.time_limit_s, &allowed_tools(&launch.toolset));
+    let mut outcome = classify_pi_run(&result, &stream, &launch.packet_dir, launch.critic.time_limit_s, &allowed_tools(&launch.toolset));
+    if let (CriticOutcome::Ok { cost_usd, .. }, Some((failure, detail))) = (&outcome, routing.as_ref().and_then(TierRouting::collapse)) {
+        outcome = CriticOutcome::Failed { failure: failure.to_string(), detail, cost_usd: *cost_usd };
+    }
     Ok(CriticReport {
         exit_code: result.exit_code,
         stdout: result.stdout,
@@ -360,6 +433,7 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
         tokens: stream.tokens,
         search_failure: None,
         tool_calls: Vec::new(),
+        routing,
     })
 }
 
@@ -561,6 +635,13 @@ pub fn allowed_tools(toolset: &CriticToolset) -> Vec<String> {
     allowed
 }
 
+/// Whether a provider's error message says the model is rate-limited or out of quota: the gateway's ledger then holds the
+/// model as cooled, and a tier review leaves it for another step.
+pub(crate) fn is_rate_limit(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    ["429", "rate limit", "rate-limit", "quota"].iter().any(|word| lower.contains(word))
+}
+
 /// Pi exits 0 after a provider error too, so the stream decides: the run must end in an assistant message that stopped
 /// normally, its tools must be the read tools alone, every path they took must stay in the packet, and its text's last
 /// ```json block must match the output contract.
@@ -602,6 +683,7 @@ pub fn classify_pi_run(result: &ProcessResult, stream: &PiStream, packet_dir: &s
     };
     let error = last.get("errorMessage").and_then(Value::as_str).map_or_else(String::new, |message| format!(": {message}"));
     match last.get("stopReason").and_then(Value::as_str) {
+        Some("error") if is_rate_limit(&error) => return failed("rate-limited", format!("pi stopped on a rate limit{error}")),
         Some("error") => return failed("infrastructure-failure", format!("pi stopped on an error{error}")),
         Some("aborted") => return failed("stopped-early", format!("pi was aborted{error}")),
         _ => {}

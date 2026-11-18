@@ -11,7 +11,7 @@ use crate::flow_budget::PromptHashes;
 pub const CRITIC_STATUSES: [&str; 4] = ["ok", "failed", "violated-readonly", "budget-skip"];
 
 /// Why a critic's run counts as no review, besides `exit-<code>`: the findings failures, then the run's own.
-const RUN_FAILURES: [&str; 17] = [
+const RUN_FAILURES: [&str; 20] = [
     "no-findings-block",
     "unparseable-findings",
     "invalid-findings",
@@ -29,6 +29,9 @@ const RUN_FAILURES: [&str; 17] = [
     "unsafe-tool",
     "unconfined",
     "timeout",
+    "rate-limited",
+    "routing-collapsed",
+    "routing-unseen",
 ];
 
 /// One critic's run as fan-out recorded it.
@@ -66,6 +69,8 @@ pub struct CriticRun {
     pub tools: Option<Vec<String>>,
     /// Why the critic could not search, or why its searches failed during the run.
     pub search_failure: Option<String>,
+    /// What LiteLLM said of the model that served a tier reviewer; none for any other critic.
+    pub routing: Option<crate::tier_routing::TierRouting>,
 }
 
 /// A failure a critic run may carry: one of the named ones, or `exit-` and digits (`/^exit-\d+$/`).
@@ -111,6 +116,7 @@ pub fn read_critic_run(fields: &Fields<'_>) -> Result<CriticRun, ShapeError> {
     let role = fields.string("role")?;
     let status = fields.one_of("status", &CRITIC_STATUSES)?;
     let tools = if fields.has("tools") { Some(fields.strings("tools")?) } else { None };
+    let routing = if fields.has("routing") { Some(crate::tier_routing::TierRouting::read(&fields.object("routing")?)?) } else { None };
     Ok(CriticRun {
         critic_id,
         client,
@@ -137,5 +143,6 @@ pub fn read_critic_run(fields: &Fields<'_>) -> Result<CriticRun, ShapeError> {
         export_path,
         tools,
         search_failure,
+        routing,
     })
 }

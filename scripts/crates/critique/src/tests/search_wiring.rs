@@ -542,7 +542,7 @@ fn a_critic_that_searched_without_a_failure_records_none_and_one_that_could_not_
 }
 
 fn pi_critic() -> RosterCritic {
-    let config = PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string(), free: false };
+    let config = PiCriticClient { binary: "pi".to_string(), provider: "litellm-vibe-study".to_string(), model: "glm-5-3".to_string(), family: "zhipu".to_string(), data_scope: "any".to_string(), free: false, tier: None };
     RosterCritic { client: "pi-vibe-study-glm".to_string(), client_config: CriticClient::Pi(config), ..vibe_critic() }
 }
 

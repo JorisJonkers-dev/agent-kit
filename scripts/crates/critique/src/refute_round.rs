@@ -361,6 +361,9 @@ pub fn run_json(run: &CriticRun) -> Value {
     if let Some(failure) = &run.search_failure {
         pairs.push(("search_failure", Value::str(failure)));
     }
+    if let Some(routing) = &run.routing {
+        pairs.push(("routing", routing.to_json()));
+    }
     if let Some(detail) = &run.detail {
         pairs.push(("detail", Value::str(detail)));
     }

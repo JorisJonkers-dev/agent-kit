@@ -74,6 +74,9 @@ pub struct PiCriticClient {
     /// Whether the client's model is free on its route: no charge for a launch, so a free-only roster may name it.
     /// Only a client on a `public` route is free, since a free route's models are for public material alone.
     pub free: bool,
+    /// The LiteLLM tier whose key the client calls a step of: its launches go through the recording proxy, so the
+    /// model that served each one is known. `None` for a client on a plain route.
+    pub tier: Option<String>,
 }
 
 /// The data scopes a Pi client's route can have.
@@ -383,6 +386,7 @@ pub fn read_critic_client(fields: &Fields<'_>) -> Result<CriticClient, ShapeErro
             free: read_free(fields)?,
             model: fields.string("model")?,
             provider: fields.matching("provider", is_litellm_provider, "a LiteLLM route's Pi provider, litellm-<route>")?,
+            tier: fields.optional_string("tier")?,
         }));
     }
     let gateway = if fields.has("gateway") { Some(read_gateway_model(&fields.object("gateway")?, &kind)?) } else { None };

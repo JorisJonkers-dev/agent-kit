@@ -106,8 +106,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-glm.family must be one of mistral, zhipu, deepseek, google, nvidia, cohere, reflection\",\"status\":\"error\"}\n",
-      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-glm.family must be one of mistral, zhipu, deepseek, google, nvidia, cohere, reflection\n",
+      "stdout": "{\"code\":\"invalid-routing\",\"message\":\"/assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-glm.family must be one of mistral, zhipu, deepseek, google, nvidia, cohere, reflection, openai, alibaba, minimax, xiaomi\",\"status\":\"error\"}\n",
+      "stderr": "critique check-plan: /assets/routing.json with the override @SANDBOX@/home/.config/agent-kit/critique-routing.json: clients.vibe-glm.family must be one of mistral, zhipu, deepseek, google, nvidia, cohere, reflection, openai, alibaba, minimax, xiaomi\n",
       "files": {
         "home/": null,
         "home/.config/": null,

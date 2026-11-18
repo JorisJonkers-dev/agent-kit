@@ -257,6 +257,7 @@ fn read(
         status: if answers.is_none() { "failed" } else { "ok" }.to_string(),
         tokens: None,
         vibe_cost_usd: Some(report.vibe_cost_usd),
+        routing: None,
     };
     let client = LedgerClient {
         kind: "vibe".to_string(),

@@ -145,6 +145,8 @@ pub struct LedgerRun {
     pub tokens: Option<CriticTokens>,
     /// `undefined` when the client reported nothing at all, `null` when it reported no cost.
     pub vibe_cost_usd: Option<Option<f64>>,
+    /// What LiteLLM said of the model that served a tier reviewer.
+    pub routing: Option<crate::tier_routing::TierRouting>,
 }
 
 impl LedgerRun {
@@ -169,6 +171,7 @@ impl LedgerRun {
             role: Some(run.role.clone()),
             tokens: run.tokens.clone(),
             vibe_cost_usd: run.vibe_cost_usd,
+            routing: run.routing.clone(),
         }
     }
 }
@@ -178,7 +181,11 @@ impl LedgerClient {
     pub fn of(config: &crate::routing::CriticClient) -> LedgerClient {
         LedgerClient {
             kind: config.kind().to_string(),
-            gateway: config.gateway().map(|gateway| GatewayClient { client: gateway.client.clone(), model: gateway.model.clone() }),
+            gateway: match config {
+                // A tier reviewer is recorded under the tier's gateway client, with the step model it asked for.
+                crate::routing::CriticClient::Pi(pi) if pi.tier.is_some() => Some(GatewayClient { client: crate::tier_review::GATEWAY_CLIENT.to_string(), model: pi.model.clone() }),
+                _ => config.gateway().map(|gateway| GatewayClient { client: gateway.client.clone(), model: gateway.model.clone() }),
+            },
         }
     }
 }
@@ -278,6 +285,9 @@ pub struct CritiqueLedgerRecord {
     pub r#type: String,
     pub vibe_cost_usd: Option<Option<f64>>,
     pub workflow: String,
+    /// What LiteLLM said of the model that served a tier reviewer; its members go on the line beside the delegation
+    /// record's own.
+    pub routing: Option<crate::tier_routing::TierRouting>,
 }
 
 impl CritiqueLedgerRecord {
@@ -318,6 +328,9 @@ impl CritiqueLedgerRecord {
         object.set("type", Value::str(&self.r#type));
         set_optional(&mut object, "vibe_cost_usd", self.vibe_cost_usd.map(number_or_null));
         object.set("workflow", Value::str(&self.workflow));
+        if let Some(routing) = &self.routing {
+            routing.ledger_members(&mut object);
+        }
         Value::Obj(object)
     }
 }
@@ -385,6 +398,7 @@ pub fn critique_ledger_record(context: &CritiqueLedgerContext, run: &LedgerRun, 
         r#type: "invocation".to_string(),
         vibe_cost_usd: run.vibe_cost_usd,
         workflow: context.flow.clone(),
+        routing: run.routing.clone(),
     }
 }
 
@@ -396,6 +410,7 @@ fn gateway_reason(run: &LedgerRun) -> Option<String> {
     let failure = run.failure.as_deref()?;
     match failure {
         "timeout" => Some("timeout".to_string()),
+        "rate-limited" => Some("rate-limited".to_string()),
         "unparseable-output" | "empty-output" | "missing-structured-output" => Some("parse-error".to_string()),
         _ if is_exit_code(failure) => Some(failure.to_string()),
         _ => None,

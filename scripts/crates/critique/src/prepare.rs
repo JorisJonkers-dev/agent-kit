@@ -31,7 +31,7 @@ use crate::repository::{read_allowlist, refusal, resolve_for_roster, work_entry,
 use crate::roster_resolve::{
     candidate_clients, resolve_roster, resolve_work_roster, work_candidate_clients, work_grant_client, Availability, Roster, RosterRequest, WorkGrant, WorkRosterRequest,
 };
-use crate::routing::{stage_routing, CriticClient, Routing};
+use crate::routing::{stage_routing, CriticClient, RosterSlot, Routing, StageRouting};
 use crate::routing_source::load_routing;
 use crate::runtime::Runtime;
 use crate::stage::{CRITIQUE_STAGES, DEPTHS};
@@ -48,7 +48,7 @@ use model_gateway::timestamps::to_iso;
 use std::collections::HashMap;
 
 /// The rosters a run may ask for: the stage's own, or its free-only one.
-const ROSTERS: [&str; 2] = ["default", "free"];
+const ROSTERS: [&str; 3] = ["default", "free", "tier-review"];
 
 struct PrepareInput {
     stage: String,
@@ -85,6 +85,9 @@ struct PrepareInput {
     /// Whether the run asked for the free-only roster (`"roster": "free"`): only free models, so only a repository the
     /// owner recorded as public.
     free: bool,
+    /// Whether the run asked for the tier-review roster (`"roster": "tier-review"`): reviewers of three families resolved
+    /// from the chain of the `tier-review` LiteLLM alias.
+    tier_review: bool,
 }
 
 /// Reads the input in the order the node runner evaluates its fields, so the first wrong field is the one reported.
@@ -101,7 +104,8 @@ fn read_input(raw: &Value) -> Result<PrepareInput, CritiqueError> {
     let head = fields.optional_string("head").map_err(shape)?.unwrap_or_else(|| "HEAD".to_string());
     let orchestrator_family = fields.one_of("orchestrator_family", &ORCHESTRATOR_FAMILIES).map_err(shape)?;
     let plan = fields.optional_string("plan").map_err(shape)?;
-    let free = fields.has("roster") && fields.one_of("roster", &ROSTERS).map_err(shape)? == "free";
+    let roster = if fields.has("roster") { fields.one_of("roster", &ROSTERS).map_err(shape)? } else { "default".to_string() };
+    let (free, tier_review) = (roster == "free", roster == "tier-review");
     let previous_run_dir = if fields.has("previous_run_dir") { Some(fields.string("previous_run_dir").map_err(shape)?) } else { None };
     let references = if fields.has("references") { Some(fields.strings("references").map_err(shape)?) } else { None };
     let repo = fields.string("repo").map_err(shape)?;
@@ -113,7 +117,7 @@ fn read_input(raw: &Value) -> Result<PrepareInput, CritiqueError> {
     })?;
     let ticket = fields.optional_string("ticket").map_err(shape)?;
     let workflow = fields.optional_string("workflow").map_err(shape)?;
-    Ok(PrepareInput { stage, orchestrator_family, repo, spec, workflow, feature, decision_summary, comments, references, adrs, flow, previous_run_dir, depth, base, head, staged, ticket, plan, free })
+    Ok(PrepareInput { stage, orchestrator_family, repo, spec, workflow, feature, decision_summary, comments, references, adrs, flow, previous_run_dir, depth, base, head, staged, ticket, plan, free, tier_review })
 }
 
 /// What the stage critiques, whose labels and text its depth signals read.
@@ -234,6 +238,9 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
         RosterResolution::Refused(refusal) => return Ok(refusal),
         RosterResolution::Resolved(repository, work) => (repository, work),
     };
+    if work && input.tier_review {
+        return Ok(refusal("work-repository", "the tier-review roster is for open repositories; a nedap repository's critics are its work roster, so leave roster out"));
+    }
     // A nedap repository has the work-only roster whatever the allowlist says, so it needs no entry.
     let entry: Entry = if work {
         work_entry()
@@ -299,6 +306,10 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     let allowed: Vec<String> = entry.families.clone();
     let roster = match &grant {
         Some(grant) => work_roster(runtime, &routing, &input, &stage, grant)?,
+        None if input.tier_review => match tier_roster(runtime, stage_routes, &entry, &input.orchestrator_family)? {
+            Ok(roster) => roster,
+            Err(refused) => return Ok(refused),
+        },
         None => open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr, public_repository: entry.public, free: input.free })?,
     };
     let plan_warnings = if roster.critics.iter().any(|critic| matches!(critic.client_config, CriticClient::Vibe(_))) { plan_limit(runtime, "vibe")?.warnings } else { Vec::new() };
@@ -342,6 +353,9 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     }
     if input.free {
         manifest.set("free_roster", Value::Bool(true));
+    }
+    if input.tier_review {
+        manifest.set("tier_roster", Value::str(crate::tier_review::TIER));
     }
     if !plan_warnings.is_empty() {
         manifest.set("plan_warnings", strings_value(&plan_warnings));
@@ -652,6 +666,34 @@ fn open_roster(runtime: &Runtime, routing: &Routing, request: &RosterRequest) ->
         readiness.insert(name, availability);
     }
     resolve_roster(routing, request, &readiness)
+}
+
+/// The tier-review roster: reviewers of at least three families, one step model each from the chain of the `tier-review`
+/// alias in ladder order, none of the writer's family. A run that cannot have them is refused with what was passed over,
+/// and so is one whose key or confinement is not ready here: a launch that would only be turned away is never frozen.
+fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, writer_family: &str) -> Result<Result<Roster, Value>, CritiqueError> {
+    use crate::tier_review::{cooled_models, passed_over, resolve_roster, review_ladder, Request, MIN_FAMILIES, TIER};
+    let slots: Vec<RosterSlot> = stage.base.iter().chain(&stage.deep).cloned().collect();
+    if slots.is_empty() {
+        return Ok(Err(refusal("no-roster", "routing names no critics for this stage to give the tier-review reviewers their roles")));
+    }
+    let cooled = cooled_models(runtime)?;
+    let request = Request { allowed_families: &entry.families, writer_family, public_repository: entry.public, cooled: &cooled, want: MIN_FAMILIES };
+    let (roster, unplaced) = resolve_roster(&review_ladder()?, &slots, &request);
+    if roster.critics.len() < MIN_FAMILIES {
+        let passed = passed_over(&roster, &unplaced);
+        let message = format!(
+            "{TIER} resolved {} of {MIN_FAMILIES} families that are neither {writer_family} nor barred; passed over: {}",
+            roster.critics.len(),
+            passed.join(", ")
+        );
+        return Ok(Err(refusal("too-few-families", &message)));
+    }
+    let ready = client_readiness(runtime, &roster.critics[0].client_config)?;
+    if !ready.ready {
+        return Ok(Err(refusal("tier-not-ready", &ready.detail.unwrap_or_default())));
+    }
+    Ok(Ok(roster))
 }
 
 fn fresh_run_id(runtime: &Runtime, repository: &Resolved, stage: &str) -> String {

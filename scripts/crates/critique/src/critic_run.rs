@@ -228,6 +228,7 @@ pub fn run_critic(runtime: &Runtime, launch: &Launch<'_>) -> Result<CriticLaunch
         export_path: Some(report.export_path.clone()),
         tools: Some(tool_names(&choice.toolset)),
         search_failure: choice.search_failure.clone().or_else(|| report.search_failure.clone()),
+        routing: report.routing.clone(),
     };
     Ok(CriticLaunchResult { findings, run })
 }
