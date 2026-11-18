@@ -270,6 +270,7 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
         attempt_of: Some("r0".into()),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
+        routing: crate::routing::Routing::unseen("claude"),
     };
     assert!(!result.is_ok() && result.check_output_path().is_none());
     assert_eq!((result.family(), result.summary()), (Some("anthropic"), Some("s")));
@@ -383,9 +384,10 @@ fn a_client_a_run_cannot_launch_is_a_launch_failure() {
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"m","prompt":"p"}"#).expect("JSON")).expect("input");
     let input = crate::run::RunInput { client: "foo".into(), ..input };
     let paths = crate::launchers::LaunchPaths::default();
-    let (result, _output, failure) = RunCommand { runtime: &machine.runtime }.launch("foo", &input, &paths, "p", None);
+    let (result, _output, failure, routing) = RunCommand { runtime: &machine.runtime }.launch("foo", &input, &paths, "p", None, false);
     assert_eq!((failure.as_deref(), result.exit_code), (Some("launch-failed"), 1));
     assert_eq!(result.stderr, "foo is not a client a run can launch");
+    assert_eq!(routing.capture, crate::routing::Capture::Hidden);
 }
 
 #[test]

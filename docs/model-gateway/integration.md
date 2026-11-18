@@ -173,6 +173,25 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   profile, harness, client or model. `tier-strong-open` is an escalation tier
   with no workstation key, so a run on it is refused until a key is provisioned.
   The `run-tier` scenario holds the goldens.
+- **Every run writes its routing (#906).** The run's one ledger line carries
+  `tier` (the LiteLLM tier its profile is, else `null`), `harness` (the client's
+  program: `pi`, `claude`, ...), the serving model (`litellm_model_id` from
+  `x-litellm-model-id`, `served_model` from the response body), `attempted_fallbacks`
+  (from `x-litellm-attempted-fallbacks`), `fallback_fired` (`attempted_fallbacks >= 1`),
+  the cost (`cost_usd`) and `routing_capture`, which says how much the gateway saw:
+  `recorded` (it read LiteLLM's response headers), `no-request` (it stood in front of
+  the client and no request was answered), `hidden` (the client talks to LiteLLM
+  itself and shows the gateway no headers: the fields are `null`) or `not-litellm`
+  (Claude Code, Codex, Antigravity and OpenCode's own models never call LiteLLM; their
+  fields are `null` and the cost and harness still count). Pi hides the headers, so a
+  **tier run on Pi** goes through a recording proxy (`routing.rs`): the gateway binds
+  `127.0.0.1:<port>`, gives the run a copy of Pi's home whose provider has that address
+  as its base URL (the confinement then allows exactly that port), forwards each
+  request to the real proxy with `curl` (the key travels in a private curl config,
+  never a command line) and relays the answer as it arrives, noting the headers. Other
+  Pi runs and the other LiteLLM clients (Vibe, OpenCode, Hermes) are `hidden` until
+  they are put behind the same proxy. The `routing` tests hold a stub LiteLLM that
+  forces a fallback (`attempted_fallbacks >= 1`); they need `curl` on `PATH`.
 - **`matrix` proves them (#856).** `model-gateway matrix` runs each role on each
   harness once and judges the cells against `docs/model-gateway/harness-matrix.json`;
   the stub proof is the `matrix-stub` scenario in CI, `{"live": true}` is the owner's

@@ -49,6 +49,7 @@ pub mod profiles;
 pub mod ports;
 pub mod reserve;
 pub mod proof;
+pub mod routing;
 pub mod run;
 pub mod run_command;
 pub mod sha256;

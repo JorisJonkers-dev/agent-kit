@@ -29,4 +29,5 @@ mod pi;
 mod profiles;
 mod catalog;
 mod matrix;
+mod routing;
 mod tier;

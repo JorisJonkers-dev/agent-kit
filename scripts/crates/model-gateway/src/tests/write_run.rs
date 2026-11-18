@@ -854,6 +854,7 @@ fn a_writing_run_result_prints_its_members_in_the_order_the_node_runner_writes_t
         attempt_of: Some("r0".into()),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
+        routing: crate::routing::Routing::unseen("claude"),
     };
     assert_eq!(result.check_output_path(), Some("/run/check-output.txt"));
     let keys: Vec<String> = match result.to_json() {
