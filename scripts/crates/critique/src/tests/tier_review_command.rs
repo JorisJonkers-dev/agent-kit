@@ -444,3 +444,22 @@ fn an_orchestrator_family_the_caller_names_is_kept_and_the_review_still_runs() {
     let (result, value) = machine.tier_review(",\"orchestrator_family\":\"anthropic\"");
     assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
 }
+
+#[test]
+fn a_ledger_that_cannot_be_read_stops_the_review_before_any_run_is_frozen() {
+    let machine = Machine::new(&setup());
+    // A directory where the ledger file should be: the ledger cannot be read, so the cooled steps cannot be known.
+    std::fs::create_dir_all(machine.sandbox.path.join("state/agent-kit/model-gateway/ledger.jsonl")).expect("the directory");
+    let (result, value) = machine.tier_review("");
+    assert_ne!(result.exit_code, 0, "{}", result.stdout);
+    assert_eq!(text(&value, "code"), "unexpected", "{value:?}");
+}
+
+#[test]
+fn a_string_field_given_as_a_number_is_an_invalid_input_whichever_field_it_is() {
+    let machine = Machine::new(&setup());
+    for field in ["head", "base", "decision_summary", "feature", "flow", "spec", "plan", "ticket", "workflow"] {
+        let (result, value) = machine.tier_review(&format!(",\"{field}\":5"));
+        assert_eq!((result.exit_code, text(&value, "code")), (1, "invalid-input"), "{field}: {}", result.stdout);
+    }
+}

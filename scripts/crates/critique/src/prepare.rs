@@ -685,7 +685,7 @@ fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, writer_fa
         let message = format!(
             "{TIER} resolved {} of {MIN_FAMILIES} families that are neither {writer_family} nor barred; passed over: {}",
             roster.critics.len(),
-            if passed.is_empty() { "nothing".to_string() } else { passed.join(", ") }
+            passed.join(", ")
         );
         return Ok(Err(refusal("too-few-families", &message)));
     }
