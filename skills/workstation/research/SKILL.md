@@ -11,6 +11,15 @@ allows the repository; otherwise fall back to direct delegation through the
 `delegate` skill. Check the repository rule first, then the instance: a refused
 repository never reaches the instance.
 
+## Model tier
+
+Research reads public pages, so it runs on tiers and never on a model picked by hand: first `tier-free`, then
+`tier-vibe` for what the free tier could not answer or when it is refused or out of quota. The Gold Band
+Workflow A fetchers name the same two tiers; a direct delegation runs
+`model-gateway run --tier tier-free --json '{...}'`, then the same with `tier-vibe`. A repository's private
+content never goes to the free tier (the gateway's data policy refuses it). The run writes its routing record on its ledger line (`$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl`, else `~/.local/state/agent-kit/model-gateway/ledger.jsonl`; the line whose `run_id` is the run's): `tier`, `harness`, `served_model`, `attempted_fallbacks`, `fallback_fired`, `cost_usd` and `routing_capture`. Read that line instead of guessing, and say in your report which tier ran, which model served it and whether a fallback fired. A `null` field is reported as unknown, with the `routing_capture` that explains it.
+Claude Code stays the interactive author and the orchestrator that rules on findings. Never send Claude traffic through LiteLLM: a tier run takes no `client`, `model`, `profile` or `harness`, so it cannot name a Claude model.
+
 ## Check the repository rule
 
 The personal instance's rule is `remotes: not-nedap`, `no_remote: allow`

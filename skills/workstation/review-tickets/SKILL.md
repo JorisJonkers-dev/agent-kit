@@ -39,6 +39,14 @@ directory stay as the runner wrote them; your own files (ticket copies,
 - **base** or **deep**: the **depth**. Pass it to prepare as `"depth"` only
   when the owner named it; otherwise the runner chooses.
 
+## Model tier
+
+This stage's model class is the tier `tier-review`; you never pick a model by hand. The critics the runner
+launches are routed by `routing.json` in the critique directory, which keeps one family per critic. Any other
+model work you hand off for this stage, such as a second read or a check of one finding, runs as
+`model-gateway run --tier tier-review --json '{...}'` (read-only, with `repo` so the data policy applies). The tier's Pi client reaches public data only (`data_scope: public`), so for a private repository the gateway refuses the run with its policy reason: report that refusal, and do not retry on a model you pick yourself. The run writes its routing record on its ledger line (`$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl`, else `~/.local/state/agent-kit/model-gateway/ledger.jsonl`; the line whose `run_id` is the run's): `tier`, `harness`, `served_model`, `attempted_fallbacks`, `fallback_fired`, `cost_usd` and `routing_capture`. Read that line instead of guessing, and say in your report which tier ran, which model served it and whether a fallback fired. A `null` field is reported as unknown, with the `routing_capture` that explains it.
+Claude Code stays the interactive author and the orchestrator that rules on findings. Never send Claude traffic through LiteLLM: a tier run takes no `client`, `model`, `profile` or `harness`, so it cannot name a Claude model.
+
 ## Your model family
 
 Prepare needs `orchestrator_family`, the vendor of the model you are running
