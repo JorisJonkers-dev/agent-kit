@@ -74,8 +74,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\",\"status\":\"error\"}\n",
-      "stderr": "critique allow: allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\n",
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi\n",
       "files": {
         "home/": null,
         "work/": null
@@ -83,8 +83,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[1] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\",\"status\":\"error\"}\n",
-      "stderr": "critique allow: allow input: families[1] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\n",
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[1] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families[1] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi\n",
       "files": {
         "home/": null,
         "work/": null
@@ -92,8 +92,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\",\"status\":\"error\"}\n",
-      "stderr": "critique allow: allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection\n",
+      "stdout": "{\"code\":\"invalid-input\",\"message\":\"allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi\",\"status\":\"error\"}\n",
+      "stderr": "critique allow: allow input: families[0] must be one of mistral, zhipu, deepseek, google, anthropic, openai, nvidia, cohere, reflection, alibaba, minimax, xiaomi\n",
       "files": {
         "home/": null,
         "work/": null
