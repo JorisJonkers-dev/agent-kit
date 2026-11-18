@@ -292,7 +292,7 @@ impl WriteMachine {
     }
 
     fn run(&self, input: &str) -> Result<Value, GatewayError> {
-        RunCommand { runtime: &self.machine.runtime }.run(&parse(input).expect("JSON"))
+        RunCommand { runtime: &self.machine.runtime, decision: None }.run(&parse(input).expect("JSON"))
     }
 
     /// The prompt the delegate was given.

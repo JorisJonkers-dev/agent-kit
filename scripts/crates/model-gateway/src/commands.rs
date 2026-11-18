@@ -55,11 +55,13 @@ pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> 
         Command::WorktreesClean => crate::worktrees::clean(input, runtime),
         Command::Run => {
             let tiered = crate::tier::choose(input, runtime)?;
-            let chosen = crate::harness::choose(&tiered, runtime)?;
-            crate::run_command::RunCommand { runtime }.run(&Value::Obj(chosen))
+            // The run holds one of its tier's slots until it ends, so a tier takes only so many runs at once.
+            let _slot = tiered.slot.as_ref().map(|plan| crate::tier_slots::acquire(runtime, plan)).transpose()?;
+            let chosen = crate::harness::choose(&tiered.input, runtime)?;
+            crate::run_command::RunCommand { runtime, decision: tiered.decision }.run(&Value::Obj(chosen))
         }
         Command::Batch => {
-            let runs = crate::run_command::RunCommand { runtime };
+            let runs = crate::run_command::RunCommand { runtime, decision: None };
             crate::batch_command::BatchCommand { runtime, runs: &runs }.run(&Value::Obj(input.clone()))
         }
         Command::WorkflowStart => workflow_start(input, runtime),

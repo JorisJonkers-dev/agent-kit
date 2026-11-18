@@ -31,7 +31,7 @@ fn input(text: &str) -> Object {
 }
 
 fn chosen(machine: &Machine, text: &str) -> Result<String, String> {
-    choose(&input(text), &machine.runtime).map(|object| json::compact(&Value::Obj(object))).map_err(|error| format!("{}: {}", error.code, error.message))
+    choose(&input(text), &machine.runtime).map(|chosen| json::compact(&Value::Obj(chosen.input))).map_err(|error| format!("{}: {}", error.code, error.message))
 }
 
 #[test]

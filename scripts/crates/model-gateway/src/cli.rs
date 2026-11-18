@@ -107,6 +107,11 @@ proxy serves, so the run goes through the Pi route whose key holds the tier and 
 name as the model; LiteLLM walks the tier's chain. A tier the defaults do not state is refused
 with "unknown-tier", never defaulted, and a tier is not combined with a profile, harness, client
 or model.
+A tier is chosen by what is left of its quota (docs/model-gateway/quota-tiers.md): at 80% of a
+window of the plan it draws on (Go's 5 hours, week or 30-day cycle, or an account's monthly cap), the
+run drops to the next cheaper tier on the ladder tier-free, tier-vibe, tier-go-cheap,
+tier-strong-open, never to a dearer one. The ledger line's "tier_decision" says what was asked for,
+what was chosen, why, and the signals read. A tier takes only "settings.quota.parallel" runs at once.
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the

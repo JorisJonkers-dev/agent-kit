@@ -31,6 +31,12 @@ pub struct LedgerRecord {
     pub batch_id: Option<String>,
     /// The delegation of that plan this run was an attempt of.
     pub delegation: Option<String>,
+    /// The Go allowance the run drew on, in USD, when a response carried one (`opencode.allowance`).
+    pub allowance_usd: Option<f64>,
+    /// What LiteLLM priced the run's requests at, in USD, when its responses carried a price.
+    pub litellm_cost_usd: Option<f64>,
+    /// The LiteLLM deployment that served the run (`<account>/<model>`).
+    pub litellm_model_id: Option<String>,
 }
 
 /// A metered run's estimate, held against the caps while it runs.

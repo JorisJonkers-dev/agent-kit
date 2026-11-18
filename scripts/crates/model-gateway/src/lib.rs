@@ -43,6 +43,8 @@ pub mod matrix;
 pub mod models;
 pub mod outputs;
 pub mod pi_launch;
+pub mod quota;
+pub mod tier_slots;
 pub mod plan;
 pub mod policy;
 pub mod profiles;
