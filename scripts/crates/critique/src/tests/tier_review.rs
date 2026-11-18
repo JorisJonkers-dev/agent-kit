@@ -105,7 +105,7 @@ fn a_step_is_passed_over_for_its_scope_its_family_the_writer_or_a_standing_refus
 }
 
 fn recorded(served: &str, model_id: Option<&str>, fallbacks: Option<u64>) -> Routing {
-    Routing { capture: Capture::Recorded, model_id: model_id.map(str::to_string), served_model: Some(served.to_string()), attempted_fallbacks: fallbacks }
+    Routing { capture: Capture::Recorded, model_id: model_id.map(str::to_string), served_model: Some(served.to_string()), attempted_fallbacks: fallbacks, allowance_usd: None, litellm_cost_usd: None }
 }
 
 #[test]
@@ -122,15 +122,15 @@ fn a_reviewer_counts_only_when_the_proxy_saw_the_model_it_asked_for_answer() {
     let fallback_without_a_name = routed(&Routing { served_model: None, ..recorded("", None, Some(2)) }).collapse().expect("a collapse");
     assert!(fallback_without_a_name.1.contains("another deployment"), "{}", fallback_without_a_name.1);
     for unseen in [
-        Routing { capture: Capture::Hidden, model_id: None, served_model: None, attempted_fallbacks: None },
-        Routing { capture: Capture::NoRequest, model_id: None, served_model: None, attempted_fallbacks: None },
+        Routing { capture: Capture::Hidden, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None },
+        Routing { capture: Capture::NoRequest, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None },
         recorded("free/glm-4.7-flash", Some("d1"), None),
     ] {
         let collapse = routed(&unseen).collapse().expect("unseen");
         assert_eq!(collapse.0, UNSEEN);
     }
-    assert!(routed(&Routing { capture: Capture::Hidden, model_id: None, served_model: None, attempted_fallbacks: Some(0) }).collapse().expect("unseen").1.contains("fallback count 0"));
-    assert!(routed(&Routing { capture: Capture::Hidden, model_id: None, served_model: None, attempted_fallbacks: None }).collapse().expect("unseen").1.contains("unreadable"));
+    assert!(routed(&Routing { capture: Capture::Hidden, model_id: None, served_model: None, attempted_fallbacks: Some(0), allowance_usd: None, litellm_cost_usd: None }).collapse().expect("unseen").1.contains("fallback count 0"));
+    assert!(routed(&Routing { capture: Capture::Hidden, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None }).collapse().expect("unseen").1.contains("unreadable"));
 }
 
 #[test]
