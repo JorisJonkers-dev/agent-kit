@@ -13,6 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 
+pub mod tier;
+
 const ROUTING: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../skills/workstation/critique/routing.json"

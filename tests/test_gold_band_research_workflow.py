@@ -164,7 +164,12 @@ def test_the_fetchers_are_pi_over_litellm_routes(nodes: dict[str, dict[str, Any]
     models = [strategy["bootstrapModel"], strategy["acceptanceModel"]] + [
         agent["model"] for agent in strategy["availableAgents"]
     ]
-    assert all(model.startswith(("litellm-vibe/", "litellm-vibe-study/")) for model in models)
+    # The fetchers name tiers, free first and then Vibe, never a model (#914).
+    assert [agent["model"] for agent in strategy["availableAgents"]] == [
+        "litellm-free/tier-free",
+        "litellm-tier-vibe/tier-vibe",
+    ]
+    assert all(model.split("/")[1].startswith("tier-") for model in models)
 
 
 def test_only_the_fetchers_bind_a_non_anthropic_agent_and_they_never_see_the_private_repository(

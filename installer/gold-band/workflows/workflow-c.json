@@ -328,8 +328,8 @@
         "type": "worker",
         "id": "spec-needs-human",
         "executionSlotId": "slot-spec-needs-human",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -593,8 +593,8 @@
         "type": "worker",
         "id": "spec-needs-human-2",
         "executionSlotId": "slot-spec-needs-human-2",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the spec review (/review-spec) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -933,8 +933,8 @@
         "type": "worker",
         "id": "tickets-needs-human",
         "executionSlotId": "slot-tickets-needs-human",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the ticket review (/review-tickets) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -1243,8 +1243,8 @@
         "type": "worker",
         "id": "tickets-needs-human-2",
         "executionSlotId": "slot-tickets-needs-human-2",
-        "provider": "vibe-study",
-        "model": "deepseek-v4-1-flash-1017",
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe",
         "profile": "pf-builtin-dev",
         "goal": "Some finding of the ticket review (/review-tickets) cannot be settled without the owner: read the open findings document and state the needs-human case in one short paragraph, naming each finding's id, its location and what the owner must decide. Do not write any file; the manual check after your answer is where the owner rules.",
         "manual_check": true
@@ -1922,8 +1922,8 @@
       },
       {
         "executionSlotId": "slot-spec-needs-human",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-refute",
@@ -1982,8 +1982,8 @@
       },
       {
         "executionSlotId": "slot-spec-needs-human-2",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-spec-refute-2",
@@ -2062,8 +2062,8 @@
       },
       {
         "executionSlotId": "slot-tickets-needs-human",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-refute",
@@ -2132,8 +2132,8 @@
       },
       {
         "executionSlotId": "slot-tickets-needs-human-2",
-        "agentId": "vibe-study",
-        "modelId": "deepseek-v4-1-flash-1017"
+        "agentId": "pi",
+        "modelId": "litellm-tier-vibe/tier-vibe"
       },
       {
         "executionSlotId": "slot-gate-critique-tickets-refute-2",

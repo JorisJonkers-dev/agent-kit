@@ -17,8 +17,8 @@
         "model": "opus"
       },
       "escalation_check": {
-        "provider": "vibe",
-        "model": "glm-5-3"
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe"
       }
     },
     {
@@ -37,8 +37,8 @@
         "model": "opus"
       },
       "escalation_check": {
-        "provider": "vibe",
-        "model": "glm-5-3"
+        "provider": "pi",
+        "model": "litellm-tier-vibe/tier-vibe"
       },
       "precheck": {
         "command": "critique check-tickets --strict",

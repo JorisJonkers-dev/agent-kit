@@ -145,12 +145,16 @@
         "agentStrategy": {
           "mode": "dynamic",
           "bootstrapProvider": "pi",
-          "bootstrapModel": "litellm-vibe/mistral-medium-3.5",
-          "acceptanceModel": "litellm-vibe/mistral-medium-3.5",
+          "bootstrapModel": "litellm-tier-vibe/tier-vibe",
+          "acceptanceModel": "litellm-tier-vibe/tier-vibe",
           "availableAgents": [
             {
               "provider": "pi",
-              "model": "litellm-vibe-study/deepseek-v4.1-flash"
+              "model": "litellm-free/tier-free"
+            },
+            {
+              "provider": "pi",
+              "model": "litellm-tier-vibe/tier-vibe"
             }
           ],
           "routingPrompt": "Fan out one worker node per source in ~/.local/state/agent-kit/gold-band/research/<run id>/pages/fetch-log.json that has a file (a source with an error gets none), and nothing else, at most six, all for provider `pi`, and use the profile pf-builtin-dev for each. Each fetcher reads only its own stored page, ~/.local/state/agent-kit/gold-band/research/<run id>/pages/<source id>.txt, and the plan, ~/.local/state/agent-kit/gold-band/research/<run id>/plan.json, and writes one note, ~/.local/state/agent-kit/gold-band/research/<run id>/staging/<source id>.md: what the page says about the plan's sub-questions in a few sentences, then every passage it relies on as a quote, each quote being one or more lines starting with `> ` copied verbatim from the stored page (at least eight characters, never paraphrased) followed by a line `-- <source id>.txt`. A fetcher fetches nothing, follows no link and writes no other file; a page that says nothing relevant gets a note that says so. Do not plan any other node."
