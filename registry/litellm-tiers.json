@@ -4,7 +4,7 @@
     "path": "catalog/routing.json",
     "key": "tier_groups",
     "ref": "main",
-    "blob": "cc4c5139aaeca506d1f9831166d59d0fdde29edd"
+    "blob": "2de59bc34187d0d385235b0c4f5c3a59b62d9a17"
   },
   "tier_groups": {
     "tier-free": {
@@ -87,11 +87,24 @@
       "key_models": [
         "tier-strong-open",
         "vibe-tier",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "strong-open-tier"
       ],
       "steps": [
         {
           "model": "opencode-go-tier/qwen4-max",
+          "cost": "go"
+        },
+        {
+          "model": "vibe-tier/zai-glm-5-3",
+          "cost": "vibe"
+        },
+        {
+          "model": "opencode-go-tier/kimi-k3.1-pro",
+          "cost": "go"
+        },
+        {
+          "model": "opencode-go-tier/gpt-6-luna",
           "cost": "go"
         },
         {

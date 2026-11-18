@@ -112,6 +112,8 @@ fn a_step_is_placed_by_the_vendor_word_in_its_id() {
     assert_eq!(tier::Tiers::step_family("vibe-tier/zai-glm-5-3-flash"), Some("zhipu"));
     assert_eq!(tier::Tiers::step_family("free/gemma-4-31b"), Some("google"));
     assert_eq!(tier::Tiers::step_family("free/beam-free"), None);
+    assert_eq!(tier::Tiers::step_family("opencode-go-tier/kimi-k3.1-pro"), Some("moonshot"));
+    assert_eq!(tier::Tiers::step_family("opencode-go-tier/gpt-6-luna"), Some("openai"));
     // Every step of every shipped tier but the free tier's `beam-free` has a family.
     let tiers = tier::Tiers::load();
     for name in tiers.names() {
