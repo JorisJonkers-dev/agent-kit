@@ -29,7 +29,8 @@
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
         "work/": null,
-        "state/agent-kit/model-gateway/tier-slots/": null
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -67,7 +68,8 @@
         "tmp/": null,
         "work/": null,
         "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Looked.\\nSUMMARY: pi is fine\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}}}}\n",
-        "state/agent-kit/model-gateway/tier-slots/": null
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -104,7 +106,8 @@
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
         "work/": null,
-        "state/agent-kit/model-gateway/tier-slots/": null
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -141,7 +144,8 @@
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
         "work/": null,
-        "state/agent-kit/model-gateway/tier-slots/": null
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -178,7 +182,8 @@
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
         "work/": null,
-        "state/agent-kit/model-gateway/tier-slots/": null
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     }
   ]

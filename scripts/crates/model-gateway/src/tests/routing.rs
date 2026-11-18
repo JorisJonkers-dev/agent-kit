@@ -441,9 +441,10 @@ fn a_tier_run_sends_the_tier_as_the_model_and_writes_one_ledger_line_with_the_ro
     let decision = line.get("tier_decision").and_then(Value::as_object).expect("the decision");
     let said = |key: &str| decision.get(key).and_then(Value::as_str).map(str::to_string);
     assert_eq!((said("requested").as_deref(), said("chosen").as_deref(), said("reason").as_deref()), (Some("tier-free"), Some("tier-free"), Some("no-signal")));
-    // The run's slot was given back.
-    let slots = format!("{}/state/agent-kit/model-gateway/tier-slots", machine.sandbox.text());
-    assert_eq!(std::fs::read_dir(slots).expect("the slot directory").count(), 0);
+    // The run's slot was given back: every slot of the tier can be taken again.
+    let plan = crate::tier_slots::SlotPlan { tier: "tier-free".into(), limit: 4, wait_s: 0.0 };
+    let slots: Vec<_> = (0..4).map(|_| crate::tier_slots::acquire(&machine.runtime, &plan).expect("a free slot")).collect();
+    assert_eq!(slots.len(), 4);
 }
 
 #[test]

@@ -25,7 +25,6 @@
 
 use crate::error::GatewayError;
 use crate::json::{self, Object, Value};
-use crate::ledger_file::LedgerStore;
 use crate::pi_launch::{home_agent_dir, key_of};
 use crate::ports::{ProcessCommand, Runtime};
 use crate::text::join;
@@ -69,10 +68,8 @@ pub struct QuotaSettings {
     pub parallel: BTreeMap<String, usize>,
     /// How many a tier takes when `parallel` does not name it.
     pub default_parallel: usize,
-    /// How long a run waits for a free slot of its tier before it gives up, and how old a slot is before it is
-    /// taken to belong to a run that died.
+    /// How long a run waits for a free slot of its tier before it gives up, in seconds.
     pub slot_wait_s: f64,
-    pub slot_stale_s: f64,
 }
 
 impl Default for QuotaSettings {
@@ -85,7 +82,6 @@ impl Default for QuotaSettings {
             parallel: TIER_PARALLEL.iter().map(|(name, count)| (name.to_string(), *count)).collect(),
             default_parallel: 2,
             slot_wait_s: 600.0,
-            slot_stale_s: 7200.0,
         }
     }
 }
@@ -105,7 +101,11 @@ fn invalid(message: String) -> GatewayError {
     GatewayError::new("invalid-config", message)
 }
 
-const FIELDS: [&str; 8] = ["threshold", "go_five_hour_usd", "go_weekly_usd", "accounts", "parallel", "default_parallel", "slot_wait_s", "slot_stale_s"];
+const FIELDS: [&str; 7] = ["threshold", "go_five_hour_usd", "go_weekly_usd", "accounts", "parallel", "default_parallel", "slot_wait_s"];
+
+/// The most runs a tier may be given at once, and the longest a run may be told to wait, in seconds (a day).
+const MAX_PARALLEL: f64 = 1024.0;
+const MAX_WAIT_S: f64 = 86_400.0;
 
 /// `base` with what `raw` (a `settings.quota` object) states over it.
 pub fn merge(base: &QuotaSettings, raw: Option<&Value>) -> Result<QuotaSettings, GatewayError> {
@@ -124,8 +124,13 @@ pub fn merge(base: &QuotaSettings, raw: Option<&Value>) -> Result<QuotaSettings,
         return Err(invalid("settings.quota.threshold must be a share of a window: above 0 and at most 1".to_string()));
     }
     let count = |name: &str, value: Option<&Value>| match value {
-        Some(Value::Num(count)) if count.fract() == 0.0 && *count >= 1.0 => Ok(*count as usize),
-        _ => Err(invalid(format!("settings.quota.{name} must be a whole number of at least 1"))),
+        Some(Value::Num(count)) if count.fract() == 0.0 && (1.0..=MAX_PARALLEL).contains(count) => Ok(*count as usize),
+        _ => Err(invalid(format!("settings.quota.{name} must be a whole number from 1 to {MAX_PARALLEL}"))),
+    };
+    let wait = match object.get("slot_wait_s") {
+        None => base.slot_wait_s,
+        Some(Value::Num(wait)) if (0.0..=MAX_WAIT_S).contains(wait) => *wait,
+        Some(_) => return Err(invalid(format!("settings.quota.slot_wait_s must be a number of seconds from 0 to {MAX_WAIT_S}"))),
     };
     let mut accounts = base.accounts.clone();
     for (name, value) in members(object, "accounts")? {
@@ -149,8 +154,7 @@ pub fn merge(base: &QuotaSettings, raw: Option<&Value>) -> Result<QuotaSettings,
         accounts,
         parallel,
         default_parallel,
-        slot_wait_s: number("slot_wait_s", base.slot_wait_s)?,
-        slot_stale_s: number("slot_stale_s", base.slot_stale_s)?,
+        slot_wait_s: wait,
     })
 }
 
@@ -197,6 +201,8 @@ pub enum Source {
     Account,
     /// The key's own `spend` and `max_budget`.
     Key,
+    /// The key could not be read, which is taken as out of quota: see `key_reading`.
+    KeyError,
     /// Nothing says how much is used.
     None,
 }
@@ -207,6 +213,7 @@ impl Source {
             Source::Allowance => "allowance",
             Source::Account => "account",
             Source::Key => "key",
+            Source::KeyError => "key-error",
             Source::None => "none",
         }
     }
@@ -219,11 +226,14 @@ pub struct Reading {
     pub tier: String,
     pub source: Source,
     pub accounts: Vec<Account>,
+    /// What LiteLLM priced the tier's runs at in the window but did not say which deployment served: counted in no
+    /// account, and reported in the decision's signals so it is not lost.
+    pub unattributed_usd: f64,
 }
 
 impl Reading {
     fn none(tier: &str) -> Reading {
-        Reading { tier: tier.to_string(), source: Source::None, accounts: Vec::new() }
+        Reading { tier: tier.to_string(), source: Source::None, accounts: Vec::new(), unattributed_usd: 0.0 }
     }
 
     /// The windows at the threshold, one per account, when the tier is out of quota.
@@ -256,6 +266,15 @@ impl Decision {
     pub fn to_json(&self) -> Value {
         let mut signals = Vec::new();
         for reading in &self.readings {
+            if reading.unattributed_usd > 0.0 {
+                signals.push(json::object(vec![
+                    ("tier", Value::str(&reading.tier)),
+                    ("source", Value::str(reading.source.as_str())),
+                    ("account", Value::str("unattributed")),
+                    ("window", Value::str("month")),
+                    ("used", Value::Num(reading.unattributed_usd)),
+                ]));
+            }
             if reading.accounts.is_empty() {
                 signals.push(json::object(vec![("tier", Value::str(&reading.tier)), ("source", Value::str(reading.source.as_str()))]));
             }
@@ -350,15 +369,57 @@ pub struct Draw {
     pub account: Option<String>,
 }
 
-/// Every run of the ledger that drew on a plan, with when. A ledger that cannot be read says nothing.
-pub fn draws(runtime: &Runtime) -> Vec<Draw> {
-    let entries = (LedgerStore { runtime }).read().unwrap_or_default();
-    crate::caps::run_records(&entries)
-        .into_iter()
+/// The longest window read: Go's 30-day cycle and a calendar month of up to 31 days, with a day of margin.
+const HORIZON_MS: i64 = 32 * DAY_MS;
+
+/// How much of the ledger is read at a time, from its end.
+const CHUNK: u64 = 256 * 1024;
+
+/// The run a ledger line holds; a reservation, a settlement and a line that is none are not runs.
+fn run_of(line: &str) -> Option<crate::ledger::LedgerRecord> {
+    if let Some(crate::ledger::LedgerEntry::Run(run)) = crate::ledger_file::parse_ledger_line(line) { Some(run) } else { None }
+}
+
+/// The ledger's lines newer than `cutoff_ms`, read from the end of the file in chunks until a run older than the
+/// cutoff is reached, so a ledger of years is never held whole. Lines of the oldest chunk may be older than the
+/// cutoff, and the caller filters them. A ledger that cannot be read gives none.
+fn recent_lines(path: &str, cutoff_ms: i64) -> Vec<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut file) = std::fs::File::open(path) else { return Vec::new() };
+    let mut position = file.metadata().map_or(0, |meta| meta.len());
+    let mut bytes: Vec<u8> = Vec::new();
+    while position > 0 {
+        let start = position.saturating_sub(CHUNK);
+        let mut chunk = vec![0u8; (position - start) as usize];
+        if file.seek(SeekFrom::Start(start)).and_then(|_| file.read_exact(&mut chunk)).is_err() {
+            return Vec::new();
+        }
+        chunk.extend_from_slice(&bytes);
+        bytes = chunk;
+        position = start;
+        // The first line is whole only when the start of the file is in hand; otherwise the next one is.
+        let text = String::from_utf8_lossy(&bytes);
+        let oldest = text.lines().nth(usize::from(position > 0));
+        let older = oldest.and_then(run_of).is_some_and(|run| timestamps::parse(&run.at).is_some_and(|at| at < cutoff_ms));
+        if older {
+            break;
+        }
+    }
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    text.lines().skip(usize::from(position > 0)).map(str::to_string).collect()
+}
+
+/// Every recent run of the ledger that drew on a plan, with when. Only the last 32 days are read.
+pub fn draws(runtime: &Runtime, now_ms: i64) -> Vec<Draw> {
+    let Ok(path) = crate::locations::ledger_path(&runtime.env) else { return Vec::new() };
+    let cutoff = now_ms - HORIZON_MS;
+    recent_lines(&path, cutoff)
+        .iter()
+        .filter_map(|line| run_of(line))
         .filter(|run| run.allowance_usd.is_some() || run.litellm_cost_usd.is_some())
         .filter_map(|run| {
             Some(Draw {
-                at_ms: timestamps::parse(&run.at)?,
+                at_ms: timestamps::parse(&run.at).filter(|at| *at >= cutoff)?,
                 allowance_usd: run.allowance_usd,
                 cost_usd: run.litellm_cost_usd,
                 account: run.litellm_model_id.as_deref().and_then(|id| id.split_once('/')).map(|(account, _)| account.to_string()),
@@ -386,48 +447,73 @@ pub struct KeyInfo {
     pub max_budget: Option<f64>,
 }
 
+/// What asking LiteLLM about a key came to.
+#[derive(Clone, Debug, PartialEq)]
+pub enum KeyOutcome {
+    Info(KeyInfo),
+    /// The key could not be read, or LiteLLM did not answer or answered something that is not a key's info.
+    Failed(String),
+}
+
 /// The signals of one tier, from the ledger's draws and, where they say nothing, from the key.
-pub fn reading_of(tier: &str, draws: &[Draw], now_ms: i64, settings: &QuotaSettings, key: &mut dyn FnMut() -> Option<KeyInfo>) -> Reading {
-    let since = |start: i64, value: &dyn Fn(&Draw) -> Option<f64>, only: &dyn Fn(&Draw) -> bool| -> (bool, f64) {
-        let drawn: Vec<f64> = draws.iter().filter(|draw| draw.at_ms >= start && draw.at_ms <= now_ms && only(draw)).filter_map(value).collect();
-        (!drawn.is_empty(), drawn.iter().sum())
+///
+/// Every window is summed from the draws inside it, on its own: a draw in the last 5 hours counts toward the 5-hour
+/// window whether or not the 30-day cycle has just turned over. A tier has a ledger signal when any draw of its plan
+/// lies in any of its windows; with none, the key is asked.
+pub fn reading_of(tier: &str, draws: &[Draw], now_ms: i64, settings: &QuotaSettings, key: &mut dyn FnMut() -> KeyOutcome) -> Reading {
+    let sum = |start: i64, value: &dyn Fn(&Draw) -> Option<f64>, only: &dyn Fn(&Draw) -> bool| -> f64 {
+        draws.iter().filter(|draw| draw.at_ms >= start && draw.at_ms <= now_ms && only(draw)).filter_map(value).sum()
     };
+    let any = |start: i64, value: &dyn Fn(&Draw) -> Option<f64>, only: &dyn Fn(&Draw) -> bool| draws.iter().any(|draw| draw.at_ms >= start && draw.at_ms <= now_ms && only(draw) && value(draw).is_some());
     let reading = match tier {
         "tier-go-cheap" | "tier-strong-open" => {
-            let cycle = since(go_cycle_start(now_ms), &|draw| draw.allowance_usd, &|_| true);
-            let windows = |from: i64| since(from, &|draw| draw.allowance_usd, &|_| true).1;
-            cycle.0.then(|| Reading {
+            let allowance = |draw: &Draw| draw.allowance_usd;
+            let cycle = go_cycle_start(now_ms);
+            let week = now_ms - 7 * DAY_MS;
+            any(cycle.min(week), &allowance, &|_| true).then(|| Reading {
                 tier: tier.to_string(),
                 source: Source::Allowance,
+                unattributed_usd: 0.0,
                 accounts: vec![Account {
                     name: GO_ACCOUNT.to_string(),
                     windows: vec![
-                        Window::new("5h", windows(now_ms - 5 * HOUR_MS), settings.go_five_hour_usd),
-                        Window::new("week", windows(now_ms - 7 * DAY_MS), settings.go_weekly_usd),
-                        Window::new("cycle", cycle.1, settings.cap(GO_ACCOUNT)),
+                        Window::new("5h", sum(now_ms - 5 * HOUR_MS, &allowance, &|_| true), settings.go_five_hour_usd),
+                        Window::new("week", sum(week, &allowance, &|_| true), settings.go_weekly_usd),
+                        Window::new("cycle", sum(cycle, &allowance, &|_| true), settings.cap(GO_ACCOUNT)),
                     ],
                 }],
             })
         }
         "tier-vibe" => {
             let month = month_start(now_ms);
-            let spent = |account: &str| since(month, &|draw| draw.cost_usd, &|draw| draw.account.as_deref() == Some(account));
-            VIBE_ACCOUNTS.iter().any(|account| spent(account).0).then(|| Reading {
+            let cost = |draw: &Draw| draw.cost_usd;
+            let spent = |account: &str| sum(month, &cost, &|draw| draw.account.as_deref() == Some(account));
+            // A month that has just turned over holds no draw yet, but the days before it do: that is a signal of zero.
+            any(month.min(now_ms - 31 * DAY_MS), &cost, &|draw| draw.account.as_deref().is_some_and(|account| VIBE_ACCOUNTS.contains(&account))).then(|| Reading {
                 tier: tier.to_string(),
                 source: Source::Account,
-                accounts: VIBE_ACCOUNTS.iter().map(|account| Account { name: account.to_string(), windows: vec![Window::new("month", spent(account).1, settings.cap(account))] }).collect(),
+                unattributed_usd: sum(month, &cost, &|draw| draw.account.is_none()),
+                accounts: VIBE_ACCOUNTS.iter().map(|account| Account { name: account.to_string(), windows: vec![Window::new("month", spent(account), settings.cap(account))] }).collect(),
             })
         }
         _ => return Reading::none(tier),
     };
-    reading.or_else(|| key_reading(tier, key())).unwrap_or_else(|| Reading::none(tier))
+    reading.unwrap_or_else(|| key_reading(tier, key()))
 }
 
-/// The key-level reading: only a key that was given a cap says how near it is.
-fn key_reading(tier: &str, info: Option<KeyInfo>) -> Option<Reading> {
-    let info = info?;
-    let limit = info.max_budget.filter(|cap| *cap > 0.0)?;
-    Some(Reading { tier: tier.to_string(), source: Source::Key, accounts: vec![Account { name: "key".to_string(), windows: vec![Window::new("key", info.spend, limit)] }] })
+/// The key-level reading, when the ledger says nothing. A key that was given a cap says how near it is; a key with
+/// none says nothing (no budget, so no signal). A key that could not be read is *not* the same as one with no cap:
+/// it is read as out of quota (`key-error`), so the run drops to the next cheaper tier rather than spending on a plan
+/// that cannot be checked, and the decision records why.
+fn key_reading(tier: &str, outcome: KeyOutcome) -> Reading {
+    let account = |name: String, window: Window| Reading { tier: tier.to_string(), source: Source::Key, accounts: vec![Account { name, windows: vec![window] }], unattributed_usd: 0.0 };
+    match outcome {
+        KeyOutcome::Info(info) => match info.max_budget.filter(|cap| *cap > 0.0) {
+            Some(limit) => account("key".to_string(), Window::new("key", info.spend, limit)),
+            None => Reading::none(tier),
+        },
+        KeyOutcome::Failed(why) => Reading { source: Source::KeyError, ..account(format!("key ({why})"), Window::new("unreadable", 1.0, 1.0)) },
+    }
 }
 
 /// The key a Pi provider holds and where its proxy is, from the home's `models.json`.
@@ -441,22 +527,26 @@ fn provider_key(runtime: &Runtime, provider: &str) -> Option<(String, String)> {
 }
 
 /// What LiteLLM says of the key the Pi provider holds: `GET /key/info`, which a workstation key may call on itself.
-/// The key goes to curl on its stdin, as a config line, never on a command line. `None` when any step fails: the
-/// check is advice, and a proxy that cannot be asked never stops a run.
-pub fn key_info(runtime: &Runtime, provider: &str) -> Option<KeyInfo> {
-    let (origin, key) = provider_key(runtime, provider)?;
+/// The key goes to curl on its stdin, as a config line, never on a command line. Every way it can fail is a
+/// `Failed` with the step named, which the reading treats conservatively.
+pub fn key_info(runtime: &Runtime, provider: &str) -> KeyOutcome {
+    let failed = |why: &str| KeyOutcome::Failed(why.to_string());
+    let Some((origin, key)) = provider_key(runtime, provider) else { return failed("no key to ask with") };
     if key.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
-        return None;
+        return failed("the key holds a control byte");
     }
     let mut command = ProcessCommand::new("curl", &["-sS", "-m", "10", "--config", "-", &format!("{origin}/key/info")]);
     command.stdin = Some(format!("header = \"Authorization: Bearer {}\"\n", crate::routing::quoted(&key)));
     command.timeout_ms = Some(15_000);
-    let done = runtime.process.run(&command).ok().filter(|done| done.exit_code == 0 && !done.timed_out)?;
-    let parsed = json::parse(&done.stdout).ok()?;
-    let info = parsed.as_object()?.get("info")?.as_object()?;
-    let number = |name: &str| match info.get(name) {
+    let Some(done) = runtime.process.run(&command).ok().filter(|done| done.exit_code == 0 && !done.timed_out) else { return failed("LiteLLM did not answer") };
+    let parsed = json::parse(&done.stdout).ok();
+    let info = parsed.as_ref().and_then(Value::as_object).and_then(|object| object.get("info")).and_then(Value::as_object);
+    let number = |name: &str| match info.and_then(|info| info.get(name)) {
         Some(Value::Num(value)) => Some(*value),
         _ => None,
     };
-    Some(KeyInfo { spend: number("spend")?, max_budget: number("max_budget") })
+    match number("spend") {
+        Some(spend) => KeyOutcome::Info(KeyInfo { spend, max_budget: number("max_budget") }),
+        None => failed("LiteLLM's answer is not a key's info"),
+    }
 }

@@ -57,7 +57,7 @@ pub fn choose(input: &Object, runtime: &Runtime) -> Result<Chosen, GatewayError>
         .filter(|name| name == tier || config.profiles.values().any(|other| other.tier.as_deref() == Some(name) && missing_provider(runtime, other).is_none()))
         .collect();
     let now_ms = runtime.clock.now_ms();
-    let drawn = quota::draws(runtime);
+    let drawn = quota::draws(runtime, now_ms);
     let profile_of = |name: &str| config.profiles.values().find(|other| other.tier.as_deref() == Some(name)).expect("a usable tier has a profile");
     let decision = quota::walk(&usable, settings.threshold, &mut |name| {
         let client = profile_of(name).models.first().and_then(|model| model.split(':').next()).unwrap_or("");
@@ -68,7 +68,7 @@ pub fn choose(input: &Object, runtime: &Runtime) -> Result<Chosen, GatewayError>
     object.remove("tier");
     object.set("profile", Value::str(&profile.name));
     object.set("harness", Value::str("pi"));
-    let slot = SlotPlan { tier: decision.chosen.clone(), limit: settings.parallel_of(&decision.chosen), wait_s: settings.slot_wait_s, stale_s: settings.slot_stale_s };
+    let slot = SlotPlan { tier: decision.chosen.clone(), limit: settings.parallel_of(&decision.chosen), wait_s: settings.slot_wait_s };
     Ok(Chosen { input: object, decision: Some(decision.to_json()), slot: Some(slot) })
 }
 

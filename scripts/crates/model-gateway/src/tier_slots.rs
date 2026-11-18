@@ -1,12 +1,15 @@
-//! How many runs one tier takes at once. A `run --tier` is a process of its own, so the limit is held on disk, by
-//! the same exclusive-create the ledger's lock uses: a tier has `limit` slot files under the state directory, a run
-//! creates one before it starts and removes it when it ends, and a run that finds them all taken waits for one.
-//! A slot older than `stale_s` belongs to a run that died, and is broken.
+//! How many runs one tier takes at once. A `run --tier` is a process of its own, so the limit is held on disk: a
+//! tier has `limit` slot files under the state directory, and a run takes a slot by holding an exclusive OS lock
+//! (`flock`) on one of them for as long as it runs. The lock belongs to the open file, so the system releases it when
+//! the run ends however it ends, a killed run included: there is no staleness to guess and no file to delete, so a run
+//! can never take over a slot that is still held, and a run never frees a slot that is not its own. The slot files are
+//! left in place, empty.
 
 use crate::error::GatewayError;
 use crate::ports::Runtime;
 use crate::state_file::state_dir;
 use crate::text::join;
+use std::fs::{File, OpenOptions, TryLockError};
 use std::time::{Duration, Instant};
 
 /// What a run needs to take its tier's slot.
@@ -16,32 +19,25 @@ pub struct SlotPlan {
     pub limit: usize,
     /// How long to wait for a free slot, in seconds, before the run is refused.
     pub wait_s: f64,
-    /// How old a slot is before it is taken to belong to a run that died, in seconds.
-    pub stale_s: f64,
 }
 
-/// A slot a run holds: dropping it gives the slot back.
-pub struct TierSlot<'a> {
-    runtime: &'a Runtime,
-    path: String,
-}
-
-impl Drop for TierSlot<'_> {
-    fn drop(&mut self) {
-        let _ = self.runtime.files.remove_file(&self.path);
-    }
+/// A slot a run holds: dropping it closes the file, which releases the lock, and nothing else.
+pub struct TierSlot {
+    _lock: File,
 }
 
 /// Takes a slot of the tier, waiting for one when all are taken; refused once `wait_s` has passed.
-pub fn acquire<'a>(runtime: &'a Runtime, plan: &SlotPlan) -> Result<TierSlot<'a>, GatewayError> {
+pub fn acquire(runtime: &Runtime, plan: &SlotPlan) -> Result<TierSlot, GatewayError> {
     let dir = join(&[&state_dir(&runtime.env)?, "tier-slots"]);
     runtime.files.mkdir_all(&dir).map_err(GatewayError::from_fs)?;
     let deadline = Instant::now() + Duration::from_secs_f64(plan.wait_s);
     loop {
         for number in 0..plan.limit {
             let path = join(&[&dir, &format!("{}.{number}", plan.tier)]);
-            if take(runtime, &path, plan.stale_s)? {
-                return Ok(TierSlot { runtime, path });
+            let file = OpenOptions::new().create(true).truncate(false).write(true).open(&path).map_err(|error| GatewayError::new("unexpected", format!("{path}: {error}")))?;
+            let lock = |error: TryLockError| match error { TryLockError::WouldBlock => Ok(false), TryLockError::Error(error) => Err(GatewayError::new("unexpected", format!("{path}: cannot lock the slot: {error}"))) };
+            if file.try_lock().map(|()| true).or_else(lock)? {
+                return Ok(TierSlot { _lock: file });
             }
         }
         if Instant::now() >= deadline {
@@ -52,18 +48,4 @@ pub fn acquire<'a>(runtime: &'a Runtime, plan: &SlotPlan) -> Result<TierSlot<'a>
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-}
-
-/// Creates the slot file, breaking one that is too old to be alive.
-fn take(runtime: &Runtime, path: &str, stale_s: f64) -> Result<bool, GatewayError> {
-    let files = runtime.files.as_ref();
-    if files.create_exclusive(path).map_err(GatewayError::from_fs)? {
-        return Ok(true);
-    }
-    let old = files.modified_ms(path).is_some_and(|modified| (runtime.clock.now_ms() - modified) as f64 > stale_s * 1000.0);
-    if !old {
-        return Ok(false);
-    }
-    let _ = files.remove_file(path);
-    files.create_exclusive(path).map_err(GatewayError::from_fs)
 }

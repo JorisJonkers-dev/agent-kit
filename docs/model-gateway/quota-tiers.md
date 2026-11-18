@@ -33,6 +33,15 @@ and weekly limits are configured, not read: they default to OpenCode Go's publis
 limit to the account cap of 40 USD in litellm's `catalog/routing.json`. Spend that did not go through the gateway
 (Console, another client) is not seen; the key-level cap is the backstop for that.
 
+Every window is summed on its own from the draws inside it (a draw in the last 5 hours counts toward the 5-hour window
+even if the 30-day cycle has just turned over), and only the last 32 days of the ledger are read. A tier has a ledger
+signal when any draw of its plan lies in any of its windows. Cost LiteLLM priced without naming a deployment is counted
+in no account and is reported in the decision as an `unattributed` signal.
+
+If the key is asked and cannot be read (no key, LiteLLM down, an answer that is not a key's info) that is **not** the
+same as a key with no budget: the plan cannot be checked, so the tier is read as out of quota (`key-error`) and the run
+drops, and the decision records why. A ledger signal under 80% keeps the requested tier without asking the key.
+
 An account is out when any of its windows is at the threshold. A tier is out when every one of its accounts is: a
 Vibe tier with one account left still serves. With no signal at all (no allowance recorded, no key cap) the tier is
 chosen as asked and the decision says `no-signal`.
@@ -45,14 +54,15 @@ window read: tier, source, account, window, used, limit, ratio). The run's `tier
 ## Parallelism
 
 A tier takes only so many runs at once. Each tier has that many slot files under the gateway's state directory
-(`tier-slots/`), taken with the same exclusive create the ledger lock uses; a run holds one until it ends and waits for
-one otherwise. A slot older than `slot_stale_s` belongs to a run that died and is broken. Defaults: `tier-free` 4,
-`tier-vibe` 3, `tier-go-cheap` 2, `tier-strong-open` 1, `tier-review` 3, any other tier 2. A run that waits longer than
-`slot_wait_s` is refused with `tier-busy`.
+(`tier-slots/`). A run takes a slot by holding an exclusive OS lock (`flock`) on one of them while it runs, and waits for
+one otherwise. The system releases the lock when the run ends however it ends, a killed run included, so there is no
+staleness to guess: a slot is never taken over while its holder lives, however long it runs, and a run only ever
+releases its own. Defaults: `tier-free` 4, `tier-vibe` 3, `tier-go-cheap` 2, `tier-strong-open` 1, `tier-review` 3, any
+other tier 2. A run that waits longer than `slot_wait_s` is refused with `tier-busy`, before anything launches.
 
 ## Settings
 
-All optional, under `settings.quota` of `defaults.json` or the machine file:
+All optional and range-checked (an invalid value is a config error): `threshold` in (0, 1], counts 1 to 1024, `slot_wait_s` 0 to 86400. Under `settings.quota` of `defaults.json` or the machine file:
 
 ```json
 {"settings": {"quota": {
@@ -60,6 +70,6 @@ All optional, under `settings.quota` of `defaults.json` or the machine file:
   "go_five_hour_usd": 12, "go_weekly_usd": 30,
   "accounts": {"opencode-go": 40, "vibe": 255},
   "parallel": {"tier-vibe": 3}, "default_parallel": 2,
-  "slot_wait_s": 600, "slot_stale_s": 7200
+  "slot_wait_s": 600
 }}}
 ```
