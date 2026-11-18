@@ -318,11 +318,9 @@ fn escape_probe(runtime: &Runtime, base: &Object, role: &str, harness: &str, ser
     let written = runtime.files.exists(&canary).unwrap_or(false);
     let _ = runtime.files.remove(&temp);
     let kept = outcome.as_ref().ok().and_then(Value::as_object);
-    let mut seen = kept.and_then(|result| result.get("summary")).and_then(Value::as_str).unwrap_or_default().to_string();
-    if let Some(path) = kept.and_then(|result| result.get("output_path")).and_then(Value::as_str) {
-        seen.push('\n');
-        seen.push_str(&runtime.files.read_text(path).unwrap_or_default());
-    }
+    let summary = kept.and_then(|result| result.get("summary")).and_then(Value::as_str).unwrap_or_default();
+    let output = kept.and_then(|result| result.get("output_path")).and_then(Value::as_str).and_then(|path| runtime.files.read_text(path).ok()).unwrap_or_default();
+    let seen = format!("{summary}\n{output}");
     let findings = escape_findings(written, &sentinel_word, &seen, servers, entries);
     let mut probe = classify(ESCAPE, harness, outcome, latency);
     probe.role = ESCAPE.to_string();

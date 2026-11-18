@@ -55,32 +55,6 @@ pub fn mask_stamp(text: &str) -> String {
     out
 }
 
-/// A price estimate follows the length of the prompt, and the escape probe's prompt names a directory under the
-/// sandbox, whose path is as long as the temporary directory of the machine and the counters in its name make it
-/// (a Mac's is not a Linux machine's). The goldens hold `@ESTIMATE@` for every estimate (a number with six
-/// decimals after `estimate_usd` or `max_price_usd`), so none of them depends on the machine.
-pub fn mask_estimates(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = text;
-    while let Some(at) = ["estimate_usd\":", "max_price_usd\":"].iter().filter_map(|key| rest.find(key).map(|found| found + key.len())).min() {
-        let (head, tail) = rest.split_at(at);
-        out.push_str(head);
-        let spaces = tail.len() - tail.trim_start_matches(' ').len();
-        out.push_str(&tail[..spaces]);
-        let number = &tail[spaces..];
-        let whole = number.find(|c: char| !c.is_ascii_digit()).unwrap_or(number.len());
-        let decimals = number[whole..].strip_prefix('.').map_or(0, |after| after.find(|c: char| !c.is_ascii_digit()).unwrap_or(after.len()));
-        if whole > 0 && decimals == 6 {
-            out.push_str("@ESTIMATE@");
-            rest = &number[whole + 1 + decimals..];
-        } else {
-            rest = number;
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
 /// Git's "not a git repository" message names a filesystem boundary when the sandbox sits on another filesystem than
 /// its parents (a separate /tmp, a btrfs subvolume), and the node runner's goldens were recorded without one. Both
 /// spellings mean the same, so the boundary form is read as the plain one, escaped or not.
@@ -474,7 +448,7 @@ impl Replay {
         };
         let argv: Vec<String> = list(step, "argv").iter().map(|arg| self.substitute(arg.as_str().unwrap_or_default())).collect();
         let result = run_cli(&argv, &runtime);
-        let normalise = |text: &str| mask_estimates(&mask_escape_dirs(&mask_git_boundary(&mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@"))))));
+        let normalise = |text: &str| mask_escape_dirs(&mask_git_boundary(&mask_stamp(&mask_grant_ids(&text.replace(&self.sandbox.text(), "@SANDBOX@")))));
         let extra: Vec<&str> = list(step, "roots").iter().filter_map(Value::as_str).collect();
         let roots: Vec<&str> = ["state", "home", "work"].into_iter().chain(extra).collect();
         let files = snapshot(&self.sandbox, &roots)
@@ -585,14 +559,6 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     }
     let shown: Vec<&String> = mismatches.iter().take(6).collect();
     assert!(mismatches.is_empty(), "{} mismatches, first {}:\n{}", mismatches.len(), shown.len(), shown.iter().map(|m| m.as_str()).collect::<Vec<_>>().join("\n====\n"));
-}
-
-#[test]
-fn a_price_estimate_reads_as_one_word_and_other_numbers_are_left_alone() {
-    assert_eq!(mask_estimates(r#"{"estimate_usd":0.160143,"max_price_usd": 0.160202}"#), r#"{"estimate_usd":@ESTIMATE@,"max_price_usd": @ESTIMATE@}"#);
-    // Not six decimals, no number, a number with none, or no key at all.
-    assert_eq!(mask_estimates(r#""max_price_usd": 2, "estimate_usd":0.5, "max_price_usd":x, "estimate_usd":1.1234567"#), r#""max_price_usd": 2, "estimate_usd":0.5, "max_price_usd":x, "estimate_usd":1.1234567"#);
-    assert_eq!(mask_estimates("nothing"), "nothing");
 }
 
 #[test]
