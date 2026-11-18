@@ -38,6 +38,9 @@ sys.modules["litellm_catalogue"] = litellm_catalogue
 _spec.loader.exec_module(litellm_catalogue)
 
 
+sys.path.insert(0, str(KIT_ROOT / "scripts"))
+import delegation_profiles  # noqa: E402
+
 GROUPS = set(json.loads(CATALOGUE.read_text())["groups"])
 
 
@@ -59,6 +62,9 @@ def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
         elif client == "opencode":
             route, _, bare = model.partition("/")
             ok = route == "opencode-go" and bare in routes["opencode-go"]
+        elif model.startswith("tier-"):
+            # A tier is a model name the proxy serves, stated by litellm's tier policy.
+            ok = model in delegation_profiles.tier_groups()
         elif client == "pi":
             # Pi's models are canonical groups, which the catalogue lists by name.
             route = model.partition("/")[0]

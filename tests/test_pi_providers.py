@@ -20,6 +20,7 @@ import pytest
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
+import delegation_profiles  # noqa: E402
 import litellm_catalogue  # noqa: E402
 import render_registry  # noqa: E402
 
@@ -198,9 +199,10 @@ def test_the_free_route_reaches_every_free_group_and_nothing_with_a_paid_fallbac
     )
     registry = render_registry.load_registry()
     route = next(r for r in registry["litellm"]["routes"] if r["agent"] == "free")
-    assert route["models"] == ["free"] and route["data_scope"] == "public" and route["budget_eur"] is None
+    assert route["models"] == ["free", "tier-free"] and route["data_scope"] == "public" and route["budget_eur"] is None
     reached = render_registry.litellm_route_models(route["models"], catalogue, route)
-    assert [m["id"] for m in reached] == ["google-free/gemini-2.5-flash", "openrouter/glm"]
+    # The tier the key holds is a model of its own, beside the free groups.
+    assert [m["id"] for m in reached] == ["google-free/gemini-2.5-flash", "openrouter/glm", "tier-free"]
 
 
 def test_free_groups_carry_zero_cost_and_only_the_matching_public_route_reaches_them() -> None:
@@ -425,11 +427,12 @@ def test_a_route_with_nothing_usable_has_no_pi_provider(monkeypatch: pytest.Monk
 def test_the_rendered_table_lists_nothing_unusable_or_cloud_on_local_and_public() -> None:
     catalogue = _snapshot()
     usable = _usable_names(catalogue)
+    tiers = set(delegation_profiles.tier_groups())  # a tier is a name the proxy serves, not a catalogue group
     table = json.loads(render_registry.render_pi_providers(render_registry.load_registry()))
     providers = {p["name"]: p["models"] for p in table["providers"]}
     # The local route may have no models (none probed usable): when it has, they are local deployments only.
     for name in _ids(providers.get("litellm-local", [])):
         assert {d["route"] for d in catalogue.data["groups"][name]["deployments"]} == {"local"}, name
     for name, models in providers.items():
-        assert set(_ids(models)) <= usable, name
+        assert set(_ids(models)) <= usable | tiers, name
     assert all(catalogue.data["groups"][i]["public"] for i in _ids(providers["litellm-public"]))

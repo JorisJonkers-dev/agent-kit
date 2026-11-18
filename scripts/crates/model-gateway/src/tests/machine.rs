@@ -115,18 +115,23 @@ pub struct Machine {
 impl Machine {
     /// A machine whose shipped defaults are `defaults`, and whose clock reads `now`.
     pub fn at(defaults: &str, now: i64) -> Machine {
+        let process = FakeProcess::default();
+        Machine::with_process(defaults, now, process.clone(), Box::new(process))
+    }
+
+    /// Like `at`, with the programs the machine starts answered by `programs`; `process` is the fake `at` would use.
+    pub fn with_process(defaults: &str, now: i64, process: FakeProcess, programs: Box<dyn Process>) -> Machine {
         let sandbox = Sandbox::new();
         let root = sandbox.text();
         let env = HashMap::from([
             ("HOME".to_string(), format!("{root}/home")),
             ("XDG_STATE_HOME".to_string(), format!("{root}/state")),
         ]);
-        let process = FakeProcess::default();
         let runtime = Runtime {
             clock: Box::new(FixedClock(now)),
             files: Box::new(SystemFiles { cwd: root }),
             lock: LockTimings::default(),
-            process: Box::new(process.clone()),
+            process: programs,
             git: Box::new(NoRepositories),
             env,
             defaults: defaults.to_string(),

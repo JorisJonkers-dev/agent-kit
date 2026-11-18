@@ -94,6 +94,10 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "pi-public": ("pi", "subsidised", "live"),
         "pi-openrouter": ("pi", "subsidised", "live"),
         "pi-free": ("pi", "subsidised", "live"),
+        "pi-tier-vibe": ("pi", "subsidised", "live"),
+        "pi-tier-go-cheap": ("pi", "subsidised", "live"),
+        "pi-tier-strong-open": ("pi", "subsidised", "live"),
+        "pi-tier-review": ("pi", "subsidised", "live"),
         "opencode-free": ("opencode", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
@@ -122,6 +126,11 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("agy", "gemini-3.8-flash-high", "google", "hard"),
         ("agy", "gemini-3.8-flash-medium", "google", "routine"),
         ("agy", "gemini-3.8-flash-low", "google", "trivial"),
+        ("pi-free", "tier-free", "litellm-tier", "routine"),
+        ("pi-tier-vibe", "tier-vibe", "litellm-tier", "routine"),
+        ("pi-tier-go-cheap", "tier-go-cheap", "litellm-tier", "routine"),
+        ("pi-tier-strong-open", "tier-strong-open", "litellm-tier", "hard"),
+        ("pi-tier-review", "tier-review", "litellm-tier", "hard"),
         ("opencode-free", "opencode/glm-5.3-flash-free", "zhipu", "routine"),
         ("opencode-free", "opencode/deepseek-v4.1-flash-free", "deepseek", "routine"),
         ("opencode-free", "opencode/hy4-flash-free", "tencent", "routine"),
@@ -322,7 +331,9 @@ def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_on
     routes = json.loads((KIT_ROOT / "registry" / "generated" / "litellm" / "routes.json").read_text())["routes"]
     clients = json.loads(DEFAULTS.read_text())["clients"]
     shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
-    assert set(shipped) == {route["agent"] for route in routes}
+    agents = {route["agent"] for route in routes}
+    # A tier no workstation key calls (tier-strong-open, an escalation key) has a client and no route.
+    assert set(shipped) - agents == {"tier-strong-open"} and agents <= set(shipped)
     for route in routes:
         client = shipped.get(route["agent"])
         if client is not None:

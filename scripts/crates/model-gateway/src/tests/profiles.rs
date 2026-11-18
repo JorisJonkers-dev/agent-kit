@@ -73,11 +73,16 @@ fn the_shipped_defaults_state_the_seed_profiles_and_the_roles() {
     let names: Vec<&str> = config.profiles.keys().map(String::as_str).collect();
     assert_eq!(
         names,
-        vec!["cheap-research", "critique", "cross-critic", "implement", "implement-cheap", "public-gemini", "red-team", "refute", "research", "triage"]
+        vec![
+            "cheap-research", "critique", "cross-critic", "implement", "implement-cheap", "public-gemini", "red-team", "refute", "research", "tier-free",
+            "tier-go-cheap", "tier-review", "tier-strong-open", "tier-vibe", "triage"
+        ]
     );
+    // A tier profile is litellm's: deny-all on tools like every role, but its spend is bounded by the proxy's budgets, not a cap here.
     for profile in config.profiles.values() {
+        assert_eq!(profile.tier.is_some(), profile.name.starts_with("tier-"), "{}", profile.name);
+        assert_eq!(profile.max_spend_usd.is_some(), profile.tier.is_none(), "{}", profile.name);
         assert_eq!(profile.tools, ToolScope { mcp: ToolList::Only(vec![]), plugins: ToolList::Only(vec![]), skills: ToolList::Only(vec![]) });
-        assert!(profile.max_spend_usd.is_some());
     }
     assert_eq!(config.profiles["cross-critic"].distinct_families, Some(2.0));
     assert_eq!(config.profiles["cross-critic"].exclude_writer_family, Some(true));
@@ -207,7 +212,7 @@ fn a_profile_that_is_not_stated_is_unknown_and_the_error_says_what_is() {
     let config = shipped();
     let error = require_profile(&config, "nowhere").expect_err("unknown");
     assert_eq!(error.code, "unknown-profile");
-    assert!(error.message.ends_with("the defaults state cheap-research, critique, cross-critic, implement, implement-cheap, public-gemini, red-team, refute, research, triage"));
+    assert!(error.message.ends_with("the defaults state cheap-research, critique, cross-critic, implement, implement-cheap, public-gemini, red-team, refute, research, tier-free, tier-go-cheap, tier-review, tier-strong-open, tier-vibe, triage"));
     let none = custom("{}").expect("none");
     assert!(require_profile(&none, "x").expect_err("unknown").message.ends_with("the defaults state none"));
 }
