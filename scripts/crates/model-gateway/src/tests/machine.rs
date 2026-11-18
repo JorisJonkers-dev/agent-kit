@@ -48,6 +48,7 @@ impl Process for FakeProcess {
     }
 
     fn run(&self, command: &crate::ports::ProcessCommand) -> Result<ProcessResult, String> {
+        let (command, _) = super::confined::unwrapped(command);
         let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
         self.exec(&command.command, &args, command.timeout_ms)
     }
@@ -126,6 +127,7 @@ impl Machine {
         let env = HashMap::from([
             ("HOME".to_string(), format!("{root}/home")),
             ("XDG_STATE_HOME".to_string(), format!("{root}/state")),
+            ("AGENT_KIT_LAUNCHER_BIN".to_string(), super::confined::LAUNCHER.to_string()),
         ]);
         let runtime = Runtime {
             clock: Box::new(FixedClock(now)),

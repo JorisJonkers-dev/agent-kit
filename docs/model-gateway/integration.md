@@ -153,13 +153,13 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   for the repository that are on the harness (`pi` is every Pi route, `pi-<route>`
   one, `claude`, `codex`, `agy` and `vibe` themselves) and runs the cheapest. A
   harness with none (hermes has no model configured) is `profile-refused` with
-  the models that are left. Only Pi enforces a scope: a profile lists in
-  `unenforced_clients` the other clients whose launch restrictions it accepts
-  (read-only flags or agent, no MCP, a per-run home for OpenCode and Hermes), and
-  a client it does not list is refused as before. Listing a client is not OS
-  confinement: until `agent-launcher confine` wraps it (#903), a client's own
-  read-only launch does not stop it reading or writing outside its working
-  directory.
+  the models that are left. Only Pi enforces a scope by name. Every client now
+  runs behind `agent-launcher confine` (#903, ADR-0016), reading its working
+  directory and writing its run directory only; `claude`, `hermes`, `opencode`
+  and `opencode-free`, whose per-run home holds no MCP server, skill or plugin,
+  hold a deny-all scope on that, and a profile lists in `unenforced_clients` the
+  other clients whose launch restrictions it accepts (today `agy` and `codex`).
+  A client that is neither is refused as before.
   `scripts/crates/model-gateway/src/harness.rs` holds the choice; the
   `run-roles` scenario holds the goldens.
 - **Tiers are profiles too, rendered from litellm (#905).** A LiteLLM tier

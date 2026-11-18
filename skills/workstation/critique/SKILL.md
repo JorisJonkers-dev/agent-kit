@@ -13,6 +13,14 @@ and before the first `/implement`, `/review-implementation` after a ticket's
 `/code-review` and before its commit, `/critique-adrs` when the owner asks
 for a review of the decision records), which tells you how to drive it.
 
+## Model tier
+
+The critique stages run on the tier `tier-review`: a stage skill names it and never a model. The runner's
+critics keep their `routing.json` clients, because each stage needs critics of other families than the
+writer's, and a tier hides the family. Work a stage skill hands off beyond the runner runs as
+`model-gateway run --tier tier-review`. The run writes its routing record on its ledger line (`$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl`, else `~/.local/state/agent-kit/model-gateway/ledger.jsonl`; the line whose `run_id` is the run's): `tier`, `harness`, `served_model`, `attempted_fallbacks`, `fallback_fired`, `cost_usd` and `routing_capture`. Read that line instead of guessing, and say in your report which tier ran, which model served it and whether a fallback fired. A `null` field is reported as unknown, with the `routing_capture` that explains it.
+Claude Code stays the interactive author and the orchestrator that rules on findings. Never send Claude traffic through LiteLLM: a tier run takes no `client`, `model`, `profile` or `harness`, so it cannot name a Claude model.
+
 ## What is here
 
 | path | what it is |

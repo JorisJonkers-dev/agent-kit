@@ -325,3 +325,13 @@ fn a_definition_without_nodes_or_edges_is_shaped_as_empty() {
     assert!(found.iter().any(|line| line.contains("nodes-required")), "{found:?}");
     assert_eq!(crate::shape_of_definition(&serde_json::json!({"id": "w", "nodes": [], "edges": []})), crate::shape::shape(&serde_json::json!({"id": "w"}), &[], &[]));
 }
+
+#[test]
+fn a_pi_node_that_names_an_unknown_tier_is_refused_and_a_known_one_passes() {
+    let found = lint_nodes(&worker("fetch", "pi", "litellm-free/tier-cheapest"));
+    assert_eq!(rules(&found), ["fetch: unknown-tier"], "{found:?}");
+    assert!(found[0].contains("tier tier-cheapest is not a LiteLLM tier"), "{found:?}");
+    assert!(lint_nodes(&worker("fetch", "pi", "litellm-free/tier-free")).is_empty());
+    // Another agent's model of that name is no tier binding.
+    assert!(lint_nodes(&worker("fetch", "vibe", "tier-cheapest")).is_empty());
+}

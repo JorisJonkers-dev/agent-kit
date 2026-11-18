@@ -221,3 +221,12 @@ fn a_confinement_grants_files_and_directories_and_names_one_it_cannot_open() {
     let message = Landlock.prepare(&missing).err().unwrap();
     assert!(message.contains("cannot open readable path /nonexistent/agent-launcher-read"), "{message}");
 }
+
+#[test]
+fn loopback_at_any_port_is_refused_because_landlock_cannot_name_a_port_chosen_at_run_time() {
+    let policy = Policy { loopback: true, ..confined(Some(vec![443])) };
+    for abi in [3, 4, 10] {
+        let message = handled_for(&policy, abi).unwrap_err();
+        assert!(message.contains("--net-loopback cannot be held by Landlock"), "{message}");
+    }
+}

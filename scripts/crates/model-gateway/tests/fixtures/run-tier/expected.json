@@ -18,7 +18,7 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n",
         "state/agent-kit/model-gateway/runs/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"pi-free\",\n  \"mode\": \"read-only\",\n  \"model\": \"tier-free\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"escalate\": false,\n  \"profile\": \"tier-free\"\n}\n",
@@ -28,7 +28,9 @@
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/vibe/": null,
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
-        "work/": null
+        "work/": null,
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -48,7 +50,7 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n",
         "state/agent-kit/model-gateway/runs/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND2@/input.json": "{\n  \"client\": \"pi-free\",\n  \"mode\": \"read-only\",\n  \"model\": \"tier-free\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"escalate\": false,\n  \"profile\": \"tier-free\"\n}\n",
@@ -65,7 +67,9 @@
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
         "work/": null,
-        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Looked.\\nSUMMARY: pi is fine\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}}}}\n"
+        "home/canned/pi.out": "{\"type\":\"tool_execution_start\",\"toolName\":\"read\",\"args\":{\"path\":\"README.md\"}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"ignored\"}]}}\n{\"type\":\"message_end\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Looked.\\nSUMMARY: pi is fine\"}],\"stopReason\":\"stop\",\"usage\":{\"input\":100,\"output\":40,\"cacheRead\":30,\"cost\":{\"total\":0.002}}}}\n",
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -85,7 +89,7 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n",
         "state/agent-kit/model-gateway/runs/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"pi-free\",\n  \"mode\": \"read-only\",\n  \"model\": \"tier-free\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"escalate\": false,\n  \"profile\": \"tier-free\"\n}\n",
@@ -101,7 +105,9 @@
         "state/agent-kit/model-gateway/runs/20261103T120100Z-@RAND2@/vibe/": null,
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
-        "work/": null
+        "work/": null,
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -121,7 +127,7 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n",
         "state/agent-kit/model-gateway/runs/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"pi-free\",\n  \"mode\": \"read-only\",\n  \"model\": \"tier-free\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"escalate\": false,\n  \"profile\": \"tier-free\"\n}\n",
@@ -137,7 +143,9 @@
         "state/agent-kit/model-gateway/runs/20261103T120100Z-@RAND2@/vibe/": null,
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
-        "work/": null
+        "work/": null,
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     },
     {
@@ -157,7 +165,7 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]}}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120000Z-@RAND1@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n{\"at\":\"2026-11-03T12:01:00.000Z\",\"attempted_fallbacks\":null,\"client\":\"pi-free\",\"cost_class\":\"subsidised\",\"cost_usd\":0.002,\"duration_s\":0,\"fallback_fired\":null,\"family\":\"litellm-tier\",\"harness\":\"pi\",\"litellm_model_id\":null,\"mode\":\"read-only\",\"model\":\"tier-free\",\"outcome\":\"ok\",\"repository\":null,\"routing_capture\":\"no-request\",\"run_id\":\"20261103T120100Z-@RAND2@\",\"served_model\":null,\"tier\":\"tier-free\",\"tokens\":{\"cached\":30,\"input\":130,\"output\":40},\"workflow\":\"w\",\"profile\":\"tier-free\",\"tool_scope\":{\"mcp\":[],\"plugins\":[],\"skills\":[]},\"tier_decision\":{\"requested\":\"tier-free\",\"chosen\":\"tier-free\",\"reason\":\"no-signal\",\"signals\":[{\"tier\":\"tier-free\",\"source\":\"none\"}]}}\n",
         "state/agent-kit/model-gateway/runs/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/": null,
         "state/agent-kit/model-gateway/runs/20261103T120000Z-@RAND1@/input.json": "{\n  \"client\": \"pi-free\",\n  \"mode\": \"read-only\",\n  \"model\": \"tier-free\",\n  \"prompt\": \"Look it up.\",\n  \"time_limit_s\": 900,\n  \"workflow\": \"w\",\n  \"escalate\": false,\n  \"profile\": \"tier-free\"\n}\n",
@@ -173,7 +181,9 @@
         "state/agent-kit/model-gateway/runs/20261103T120100Z-@RAND2@/vibe/": null,
         "state/agent-kit/model-gateway/workflows.json": "{\n  \"version\": 1,\n  \"workflows\": [\n    {\n      \"name\": \"w\",\n      \"started_at\": \"2026-11-03T12:00:00.000Z\"\n    }\n  ]\n}\n",
         "tmp/": null,
-        "work/": null
+        "work/": null,
+        "state/agent-kit/model-gateway/tier-slots/": null,
+        "state/agent-kit/model-gateway/tier-slots/tier-free.0": ""
       }
     }
   ]

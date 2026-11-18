@@ -48,6 +48,7 @@ fn settings() -> Settings {
         max_batch_delegations: 50.0,
         availability_window_minutes: 60.0,
         metered_personal_caps: MeteredPersonalCaps { per_workflow_usd: 2.0, per_day_usd: 5.0 },
+        quota: crate::quota::QuotaSettings::default(),
         output_allowance_tokens: [500.0, 2000.0, 6000.0, 16000.0],
     }
 }

@@ -203,6 +203,8 @@ fn agys_findings_come_from_its_structured_output_alone() {
 fn prompt_files() -> FakeFiles {
     let files = FakeFiles::default();
     files.put("/run/c1/prompt.md", "the prompt");
+    // A confined Codex run links its home to the owner's login.
+    files.put("/home/owner/.codex/auth.json", "{}");
     files
 }
 

@@ -161,6 +161,8 @@ impl Git for FakeGit {
 struct FakeProcess {
     answers: Arc<Mutex<HashMap<String, Result<ProcessResult, String>>>>,
     commands: Arc<Mutex<Vec<ProcessCommand>>>,
+    /// The grants the launcher was given for each launch of the client.
+    grants: Arc<Mutex<Vec<Vec<String>>>>,
     clock: Arc<AtomicI64>,
     jump: Arc<Mutex<Option<i64>>>,
 }
@@ -200,7 +202,11 @@ impl Process for FakeProcess {
     }
 
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let (command, grants) = &super::confined::unwrapped(command);
         self.commands.lock().expect("the launches").push(command.clone());
+        if !grants.is_empty() {
+            self.grants.lock().expect("the grants").push(grants.clone());
+        }
         if command.command != "sh" {
             let jump = *self.jump.lock().expect("the jump");
             if let Some(at) = jump {
@@ -279,6 +285,9 @@ fn machine() -> WriteMachine {
     machine.runtime.clock = Box::new(Movable(Arc::clone(&clock)));
     machine.runtime.process = Box::new(process.clone());
     machine.runtime.git = Box::new(git.clone());
+    // A confined Codex run links its home to the owner's login, which the owner has.
+    std::fs::create_dir_all(format!("{root}/home/.codex")).expect("codex home");
+    std::fs::write(format!("{root}/home/.codex/auth.json"), "{}").expect("codex login");
     WriteMachine { machine, git, process }
 }
 
@@ -292,7 +301,7 @@ impl WriteMachine {
     }
 
     fn run(&self, input: &str) -> Result<Value, GatewayError> {
-        RunCommand { runtime: &self.machine.runtime }.run(&parse(input).expect("JSON"))
+        RunCommand { runtime: &self.machine.runtime, decision: None }.run(&parse(input).expect("JSON"))
     }
 
     /// The prompt the delegate was given.
@@ -437,14 +446,16 @@ fn a_codex_writing_run_gets_the_git_directories_it_may_write_and_the_brief_cut_a
 
     assert_eq!(text(&result, "status"), "ok");
     let launch = write.process.launch();
-    let dirs = vec![
+    let dirs = [
         format!("{common}/repo/.git/worktrees/one"),
         format!("{common}/objects"),
         format!("{common}/refs"),
         format!("{common}/logs"),
     ];
-    let added: Vec<String> = launch.args.windows(2).filter(|pair| pair[0] == "--add-dir").map(|pair| pair[1].clone()).collect();
-    assert_eq!(added, dirs);
+    // Codex's own sandbox is off inside the launcher's, which is told the worktree and these git directories are writable.
+    assert!(!launch.args.contains(&"--add-dir".to_string()));
+    let granted = super::confined::grant_values(&write.process.grants.lock().expect("the grants")[0], "--write");
+    assert_eq!(granted[1..1 + dirs.len()], dirs[..]);
     // The brief comes first, cut at the limit, and the rule says the delegate commits its own change.
     let prompt = write.prompt(&result);
     assert!(prompt.starts_with(&"x".repeat(20_000)), "{}", &prompt[..40]);
@@ -469,6 +480,8 @@ fn a_codex_run_whose_git_directories_cannot_be_read_gets_neither_the_directories
 
     assert_eq!(text(&result, "status"), "ok");
     assert!(!write.process.launch().args.contains(&"--add-dir".to_string()));
+    let granted = super::confined::grant_values(&write.process.grants.lock().expect("the grants")[0], "--write");
+    assert!(!granted.iter().any(|path| path.contains("/objects") || path.contains("/refs")), "{granted:?}");
     let prompt = write.prompt(&result);
     assert!(!prompt.contains("the brief"), "{prompt}");
     assert!(prompt.contains("Do not commit."), "{prompt}");

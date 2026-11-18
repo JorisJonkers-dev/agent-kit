@@ -20,6 +20,9 @@
 //! * `memory-write-outside-judgment`: a node binds a memory-writing agent
 //!   and its id does not end in `-acceptance` or `-escalation` (ADR-0012:
 //!   every other node reads memory only);
+//! * `unknown-tier` (#914): a Pi node binds a model named `tier-*` that is not a LiteLLM tier of
+//!   `registry/litellm-tiers.json`, or names a tier through a provider other than the one the
+//!   tier's profile in the model gateway's defaults is called through (`litellm-<route>/<tier>`);
 //! * `loop-not-unrolled`: the node-to-node edges contain a cycle, or an
 //!   edge targets `$new-round`. A repair or review loop must be unrolled
 //!   into fixed nodes (`review-1`, `repair-1`, `review-2`, ...), so the
@@ -59,6 +62,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 
+use model_family::tier::Tiers;
 use serde_json::Value;
 
 mod critique;
@@ -70,6 +74,8 @@ const BANNED_BINDING: &str = "banned-binding";
 const OPUS_OUTSIDE_JUDGMENT: &str = "opus-outside-judgment";
 /// Rule: a node binds a memory-writing agent outside -acceptance/-escalation.
 const MEMORY_WRITE_OUTSIDE_JUDGMENT: &str = "memory-write-outside-judgment";
+/// Rule: a node names a tier that does not resolve.
+const UNKNOWN_TIER: &str = "unknown-tier";
 /// Rule: a loop that is not unrolled into fixed nodes.
 const LOOP_NOT_UNROLLED: &str = "loop-not-unrolled";
 /// The subject for a problem no single node owns.
@@ -214,6 +220,9 @@ fn node_problems<'a>(
              or -planning may; bind a cheaper model or rename the judgment node"
                 .to_string(),
         ));
+    }
+    for why in Tiers::shipped().problems(&agents, &models) {
+        problems.push((id, UNKNOWN_TIER, why));
     }
     if any_mentions(&agents, MEMORY_WRITE) && !ends_with_any(id, &MEMORY_SUFFIXES) {
         problems.push((

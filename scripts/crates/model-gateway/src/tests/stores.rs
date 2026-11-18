@@ -374,6 +374,9 @@ fn parse_ledger_line_reads_a_run_line_leniently() {
         Some(LedgerEntry::Run(LedgerRecord {
             batch_id: None,
             delegation: None,
+            allowance_usd: None,
+            litellm_cost_usd: None,
+            litellm_model_id: None,
             at: "2026-11-03T12:00:00.000Z".to_string(),
             client: "vibe".to_string(),
             cost_class: Some(CostClass::Subsidised),
@@ -393,6 +396,9 @@ fn parse_ledger_line_reads_a_run_line_leniently() {
         Some(LedgerEntry::Run(LedgerRecord {
             batch_id: None,
             delegation: None,
+            allowance_usd: None,
+            litellm_cost_usd: None,
+            litellm_model_id: None,
             at: String::new(),
             client: String::new(),
             cost_class: None,

@@ -254,6 +254,8 @@ pub(crate) struct Delegated<'a> {
 
 pub struct RunCommand<'a> {
     pub runtime: &'a Runtime,
+    /// How a `--tier` run's tier was chosen, written on the run's ledger line; `None` for a run that named none.
+    pub decision: Option<Value>,
 }
 
 impl RunCommand<'_> {
@@ -786,6 +788,11 @@ impl RunCommand<'_> {
             // The profile a run was held to and the tool scope it ran with.
             ("profile", profile.0.map(Value::str)),
             ("tool_scope", profile.1.as_ref().map(tools_json)),
+            // What the run drew on the plan it ran against, which the quota check of a later `--tier` run sums.
+            ("allowance_usd", routing.allowance_usd.map(Value::Num)),
+            ("litellm_cost_usd", routing.litellm_cost_usd.map(Value::Num)),
+            // How the tier of a `--tier` run was chosen: asked for, chosen, why, and the signals read.
+            ("tier_decision", self.decision.clone()),
         ];
         members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
         // A batch's tag goes last, as the node runner spreads it.

@@ -69,7 +69,7 @@ impl Capture {
 }
 
 /// What the proxy noted of one answered request.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Seen {
     pub model_id: Option<String>,
     /// The largest integer any `x-litellm-attempted-fallbacks` line of the response carried.
@@ -77,6 +77,11 @@ pub struct Seen {
     /// The response had an `x-litellm-attempted-fallbacks` line, and none of them was an integer.
     pub fallbacks_unreadable: bool,
     pub served_model: Option<String>,
+    /// The allowance of OpenCode Go's plan the request drew on: `usage.opencode.allowance` of the response body,
+    /// in USD. `None` for a response that carries none (every route that is not OpenCode Go's).
+    pub allowance_usd: Option<f64>,
+    /// What LiteLLM priced the request at: its `x-litellm-response-cost` header, in USD.
+    pub cost_usd: Option<f64>,
 }
 
 impl Seen {
@@ -87,19 +92,23 @@ impl Seen {
 }
 
 /// A run's routing, as the ledger line writes it: `None` is a value the gateway could not see.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Routing {
     pub capture: Capture,
     pub model_id: Option<String>,
     pub served_model: Option<String>,
     pub attempted_fallbacks: Option<u64>,
+    /// The Go allowance the run's requests drew on, summed; `None` when no response carried one.
+    pub allowance_usd: Option<f64>,
+    /// What LiteLLM priced the run's requests at, summed; `None` when no response carried a price.
+    pub litellm_cost_usd: Option<f64>,
 }
 
 impl Routing {
     /// The routing of a run the gateway did not stand in front of: nothing seen, and why.
     pub fn unseen(client: &str) -> Routing {
         let capture = if NOT_LITELLM.contains(&client) { Capture::NotLitellm } else { Capture::Hidden };
-        Routing { capture, model_id: None, served_model: None, attempted_fallbacks: None }
+        Routing { capture, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None }
     }
 
     /// The routing of what the proxy saw: the last answered request names the serving model, and the most
@@ -108,11 +117,11 @@ impl Routing {
     /// all are `no-litellm-headers`, not a recording.
     pub fn of(seen: &[Seen]) -> Routing {
         let Some(last) = seen.last() else {
-            return Routing { capture: Capture::NoRequest, model_id: None, served_model: None, attempted_fallbacks: None };
+            return Routing { capture: Capture::NoRequest, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None };
         };
         let served_model = last.served_model.clone();
         if !seen.iter().any(Seen::answered_by_litellm) {
-            return Routing { capture: Capture::NoHeaders, model_id: None, served_model, attempted_fallbacks: None };
+            return Routing { capture: Capture::NoHeaders, model_id: None, served_model, attempted_fallbacks: None, allowance_usd: sum_of(seen, |one| one.allowance_usd), litellm_cost_usd: sum_of(seen, |one| one.cost_usd) };
         }
         let counted = seen.iter().filter_map(|one| one.attempted_fallbacks).max();
         let unreadable = seen.iter().any(|one| one.fallbacks_unreadable);
@@ -121,6 +130,8 @@ impl Routing {
             model_id: seen.iter().rev().find_map(|one| one.model_id.clone()),
             served_model,
             attempted_fallbacks: counted.or(if unreadable { None } else { Some(0) }),
+            allowance_usd: sum_of(seen, |one| one.allowance_usd),
+            litellm_cost_usd: sum_of(seen, |one| one.cost_usd),
         }
     }
 
@@ -128,6 +139,22 @@ impl Routing {
     pub fn fallback_fired(&self) -> Option<bool> {
         self.attempted_fallbacks.map(|count| count >= 1)
     }
+}
+
+/// The sum of one reading over the requests that carried it; `None` when none did.
+fn sum_of(seen: &[Seen], reading: impl Fn(&Seen) -> Option<f64>) -> Option<f64> {
+    let readings: Vec<f64> = seen.iter().filter_map(reading).collect();
+    (!readings.is_empty()).then(|| readings.iter().sum())
+}
+
+/// The allowance a response body reports: the number after the last `"allowance":` in `body`. OpenCode Go puts it in
+/// `usage.opencode`, in the JSON body or in the last event of a stream, so the last one is the request's.
+pub fn allowance_of(body: &str) -> Option<f64> {
+    let key = "\"allowance\"";
+    let at = body.rfind(key)? + key.len();
+    let rest = body[at..].trim_start().strip_prefix(':')?.trim_start();
+    let end = rest.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e' | 'E'))).unwrap_or(rest.len());
+    rest[..end].parse::<f64>().ok().filter(|number| number.is_finite() && *number >= 0.0)
 }
 
 /// The model a response's body names: the first `"model"` string in what the proxy has of it, in JSON or in the
@@ -161,6 +188,8 @@ pub fn seen_of(headers: &[(String, String)], body_prefix: &str) -> Seen {
         attempted_fallbacks: parsed,
         fallbacks_unreadable: !counts.is_empty() && parsed.is_none(),
         served_model: served_model_of(body_prefix),
+        allowance_usd: allowance_of(body_prefix),
+        cost_usd: header_values(headers, "x-litellm-response-cost").find_map(|value| value.parse::<f64>().ok()).filter(|cost| cost.is_finite() && *cost >= 0.0),
     }
 }
 
@@ -257,7 +286,7 @@ struct Upstream {
 }
 
 /// A value as a curl config file reads it between double quotes: backslash and quote escaped.
-fn quoted(value: &str) -> String {
+pub(crate) fn quoted(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
@@ -343,10 +372,15 @@ fn forward(stream: &mut TcpStream, request: &Request, upstream: &Upstream, seen:
     let reason = status_line.splitn(3, ' ').nth(2).unwrap_or("");
     // The headers are noted before the client is told anything of the answer, so a client that has read the answer
     // and goes away is already in the record; the model the body names is added once more of it has been read.
-    let named = |prefix: &[u8]| seen_of(&headers, &String::from_utf8_lossy(&prefix[..prefix.len().min(BODY_PREFIX)]));
+    let named = |prefix: &[u8], tail: &[u8]| {
+        let mut one = seen_of(&headers, &String::from_utf8_lossy(&prefix[..prefix.len().min(BODY_PREFIX)]));
+        // A stream reports its usage in its last event, which the prefix has not reached.
+        one.allowance_usd = one.allowance_usd.or_else(|| allowance_of(&String::from_utf8_lossy(tail)));
+        one
+    };
     let at = {
         let mut noted = seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        noted.push(named(&rest));
+        noted.push(named(&rest, &rest));
         noted.len() - 1
     };
     let mut head = format!("HTTP/1.1 {code} {reason}\r\n");
@@ -356,6 +390,7 @@ fn forward(stream: &mut TcpStream, request: &Request, upstream: &Upstream, seen:
     head.push_str("Connection: close\r\n\r\n");
     let mut relayed = stream.write_all(head.as_bytes()).is_ok();
     let mut prefix: Vec<u8> = rest.clone();
+    let mut tail: Vec<u8> = rest.clone();
     relayed = relayed && stream.write_all(&rest).is_ok();
     while relayed && !stop.load(Ordering::Relaxed) {
         match out.read(&mut chunk) {
@@ -363,6 +398,10 @@ fn forward(stream: &mut TcpStream, request: &Request, upstream: &Upstream, seen:
             Ok(count) => {
                 if prefix.len() < BODY_PREFIX {
                     prefix.extend_from_slice(&chunk[..count]);
+                }
+                tail.extend_from_slice(&chunk[..count]);
+                if tail.len() > 2 * BODY_PREFIX {
+                    tail.drain(..tail.len() - BODY_PREFIX);
                 }
                 relayed = stream.write_all(&chunk[..count]).is_ok();
             }
@@ -372,7 +411,7 @@ fn forward(stream: &mut TcpStream, request: &Request, upstream: &Upstream, seen:
         let _ = child.kill();
     }
     let _ = child.wait();
-    seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner)[at] = named(&prefix);
+    seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner)[at] = named(&prefix, &tail);
     Ok(())
 }
 

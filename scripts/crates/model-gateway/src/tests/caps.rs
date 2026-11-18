@@ -13,6 +13,9 @@ fn record(run_id: &str, at: &str, cost_usd: f64, cost_class: Option<CostClass>) 
     LedgerRecord {
         batch_id: None,
         delegation: None,
+        allowance_usd: None,
+        litellm_cost_usd: None,
+        litellm_model_id: None,
         at: at.to_string(),
         client: "codex".to_string(),
         cost_class,

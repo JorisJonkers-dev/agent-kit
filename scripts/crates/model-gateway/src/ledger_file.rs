@@ -173,6 +173,9 @@ fn run_record(object: &Object) -> LedgerRecord {
         workflow: string_member(object, "workflow").unwrap_or_default(),
         batch_id: string_member(object, "batch_id"),
         delegation: string_member(object, "delegation"),
+        allowance_usd: number_member(object, "allowance_usd"),
+        litellm_cost_usd: number_member(object, "litellm_cost_usd"),
+        litellm_model_id: string_member(object, "litellm_model_id"),
     }
 }
 

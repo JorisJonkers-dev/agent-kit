@@ -1,4 +1,5 @@
 mod scenarios;
+mod confined;
 mod units;
 mod adapters;
 mod caps;
@@ -32,3 +33,5 @@ mod matrix;
 mod routing;
 mod tier;
 mod run_home;
+mod quota;
+mod tier_slots;

@@ -9,11 +9,25 @@ use crate::error::GatewayError;
 use crate::config::DelegationProfile;
 use crate::json::{self, Object, Value};
 use crate::ports::Runtime;
+use crate::quota;
+use crate::tier_slots::SlotPlan;
 
-/// The run input with `profile` and `harness` filled in from `tier`, or the input untouched when it names none.
-pub fn choose(input: &Object, runtime: &Runtime) -> Result<Object, GatewayError> {
+/// What `run --tier` resolved: the run input, how the tier was chosen, and the slot the run must hold.
+pub struct Chosen {
+    /// The run input with `profile` and `harness` filled in from the chosen tier, or untouched when it names none.
+    pub input: Object,
+    /// How the tier was chosen, for the run's ledger line; `None` when the input names no tier.
+    pub decision: Option<Value>,
+    /// The slot of the chosen tier the run holds while it runs; `None` when the input names no tier.
+    pub slot: Option<SlotPlan>,
+}
+
+/// Chooses the tier a run is made as. The tier asked for is held to its quota (see `quota`): at the threshold of
+/// a window it is dropped to the next cheaper tier on the ladder that has quota, never to a dearer one. The profile
+/// and harness are those of the tier chosen.
+pub fn choose(input: &Object, runtime: &Runtime) -> Result<Chosen, GatewayError> {
     let Some(raw) = input.get("tier") else {
-        return Ok(input.clone());
+        return Ok(Chosen { input: input.clone(), decision: None, slot: None });
     };
     let tier = match raw {
         Value::Str(text) if !text.is_empty() => text.as_str(),
@@ -36,11 +50,26 @@ pub fn choose(input: &Object, runtime: &Runtime) -> Result<Object, GatewayError>
             format!("no LiteLLM key for {tier} on this machine: Pi's models.json has no {missing} provider, and the tier needs a key{needs}; a tier no workstation key calls (an escalation tier) is run only once such a key is provisioned"),
         ));
     }
+    let settings = &config.settings.quota;
+    // A cheaper tier is a candidate only when the defaults state it and this machine holds its key.
+    let usable: Vec<String> = quota::candidates(tier)
+        .into_iter()
+        .filter(|name| name == tier || config.profiles.values().any(|other| other.tier.as_deref() == Some(name) && missing_provider(runtime, other).is_none()))
+        .collect();
+    let now_ms = runtime.clock.now_ms();
+    let drawn = quota::draws(runtime, now_ms);
+    let profile_of = |name: &str| config.profiles.values().find(|other| other.tier.as_deref() == Some(name)).expect("a usable tier has a profile");
+    let decision = quota::walk(&usable, settings.threshold, &mut |name| {
+        let client = profile_of(name).models.first().and_then(|model| model.split(':').next()).unwrap_or("");
+        quota::reading_of(name, &drawn, now_ms, settings, &mut || quota::key_info(runtime, &crate::run::pi_provider(client)))
+    });
+    let profile = profile_of(&decision.chosen);
     let mut object = input.clone();
     object.remove("tier");
     object.set("profile", Value::str(&profile.name));
     object.set("harness", Value::str("pi"));
-    Ok(object)
+    let slot = SlotPlan { tier: decision.chosen.clone(), limit: settings.parallel_of(&decision.chosen), wait_s: settings.slot_wait_s };
+    Ok(Chosen { input: object, decision: Some(decision.to_json()), slot: Some(slot) })
 }
 
 /// The Pi provider of the tier's route when Pi's `models.json` is readable and does not have it: no key for the
