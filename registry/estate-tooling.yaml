@@ -1065,7 +1065,7 @@ marketplaces:
   - name: drawio
     repo: jgraph/drawio-mcp
     ref: main
-    commit: 9bd19b362038593bc8611d426c92cd62dc222302
+    commit: a7d1ead5397200659239269a6fe9ae431cbfe27d
   - name: kubernetes-skill
     repo: LukasNiessen/kubernetes-skill
     ref: main
@@ -2215,7 +2215,7 @@ skill_sources:
   - name: drawio
     repo: https://github.com/jgraph/drawio-mcp
     ref: main
-    commit: 9bd19b362038593bc8611d426c92cd62dc222302
+    commit: a7d1ead5397200659239269a6fe9ae431cbfe27d
     license: Apache-2.0
     # Published three times, once per host CLI. The explicit path is what
     # keeps the duplicate-name refusal from rejecting two of them.
