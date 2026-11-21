@@ -14,8 +14,8 @@ dev = [
   "mypy==1.20.2",
   "pytest==8.4.2",
   "pytest-xdist==3.8.0",
-  "ruff==0.17.4",
-  "types-PyYAML==6.0.12.20261103",
+  "ruff==0.17.5",
+  "types-PyYAML==6.0.12.20261113",
 ]
 
 [tool.uv]
