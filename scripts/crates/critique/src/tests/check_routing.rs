@@ -61,7 +61,7 @@ fn the_snapshot_still_calls_the_retired_gemini_model_unusable() {
     let defaults = json("{\"profiles\":{\"p\":{\"models\":[\"pi-public:public/gemini-3.8-flash\"]}}}");
     assert_eq!(
         profile_problems(&found, &defaults),
-        vec!["profile p: pi-public:public/gemini-3.8-flash cannot run: the LiteLLM catalogue marks it error on route google".to_string()]
+        vec!["profile p: pi-public:public/gemini-3.8-flash cannot run: the LiteLLM catalogue marks it error on route google: HTTP 503 with no reason text".to_string()]
     );
 }
 

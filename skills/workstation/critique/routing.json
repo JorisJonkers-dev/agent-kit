@@ -74,8 +74,8 @@
     },
     "pi-free-gemma": {
       "kind": "pi",
-      "provider": "litellm-openrouter",
-      "model": "openrouter/gemma-4-26b-a4b-it",
+      "provider": "litellm-free",
+      "model": "requesty/gemma-4-31b-it",
       "family": "google",
       "data_scope": "public",
       "free": true
