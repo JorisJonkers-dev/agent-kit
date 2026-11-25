@@ -27,7 +27,7 @@ ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 # Free-only routes the litellm repository adds in its wave 1 (litellm#66) whose groups the snapshot does not
 # list until the catalogue sync has run and the snapshot is refreshed. Their defaults are declared ahead of
 # the refresh; once the snapshot lists a route as a provider, its defaults must resolve like any other.
-AWAITING_SYNC = {"groq", "zai", "nvidia", "kilo", "requesty", "naga", "routeway", "ovh"}
+AWAITING_SYNC: set[str] = set()
 NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes", "opencode-free"}
 
 

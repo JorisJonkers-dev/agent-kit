@@ -1,7 +1,7 @@
 {
   "comment": "A trimmed snapshot of the live LiteLLM catalogue (JorisJonkers-dev/litellm-model-catalog, model-catalog.json), in its own shape: every probed model per provider route with its status, reason, free mark and modality and context_length (unprobed ones left out), and the canonical groups. scripts/litellm_catalogue.py reads it when setup has fetched no live copy, and tests/test_litellm_models.py checks the gateway defaults against it. Refresh: gh api -H \"Accept: application/vnd.github.raw\" repos/JorisJonkers-dev/litellm-model-catalog/contents/model-catalog.json | jq --arg comment \"$(jq -r .comment registry/litellm-catalogue.json)\" '{comment: $comment, version, updated_at, providers: (.providers | map_values({models: [.models[] | select(.metadata.status != \"unprobed\") | {id, metadata: (.metadata | {status, reason, free, modality, context_length})}]})), groups}' > registry/litellm-catalogue.json.new && mv registry/litellm-catalogue.json.new registry/litellm-catalogue.json",
   "version": 1,
-  "updated_at": "2026-11-15T21:17:08Z",
+  "updated_at": "2026-11-25T22:17:00Z",
   "providers": {
     "vibe": {
       "models": [
@@ -66,23 +66,13 @@
           }
         },
         {
-          "id": "vibe/labs-leanstral-1-5",
+          "id": "vibe/glm-5-latest",
           "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "status": "usable",
+            "reason": "",
             "free": false,
             "modality": "chat",
-            "context_length": 262144
-          }
-        },
-        {
-          "id": "vibe/labs-leanstral-1-5-1",
-          "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
-            "free": false,
-            "modality": "chat",
-            "context_length": 262144
+            "context_length": 1048576
           }
         },
         {
@@ -312,7 +302,7 @@
             "reason": "",
             "free": false,
             "modality": "embedding",
-            "context_length": 131071
+            "context_length": 131072
           }
         },
         {
@@ -710,23 +700,13 @@
           }
         },
         {
-          "id": "vibe-study/labs-leanstral-1-5",
+          "id": "vibe-study/glm-5-latest",
           "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "status": "usable",
+            "reason": "",
             "free": false,
             "modality": "chat",
-            "context_length": 262144
-          }
-        },
-        {
-          "id": "vibe-study/labs-leanstral-1-5-1",
-          "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
-            "free": false,
-            "modality": "chat",
-            "context_length": 262144
+            "context_length": 1048576
           }
         },
         {
@@ -956,7 +936,7 @@
             "reason": "",
             "free": false,
             "modality": "embedding",
-            "context_length": 131071
+            "context_length": 131072
           }
         },
         {
@@ -1354,23 +1334,13 @@
           }
         },
         {
-          "id": "vibe-api/labs-leanstral-1-5",
+          "id": "vibe-api/glm-5-latest",
           "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "status": "usable",
+            "reason": "",
             "free": false,
             "modality": "chat",
-            "context_length": 262144
-          }
-        },
-        {
-          "id": "vibe-api/labs-leanstral-1-5-1",
-          "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
-            "free": false,
-            "modality": "chat",
-            "context_length": 262144
+            "context_length": 1048576
           }
         },
         {
@@ -1600,7 +1570,7 @@
             "reason": "",
             "free": false,
             "modality": "embedding",
-            "context_length": 131071
+            "context_length": 131072
           }
         },
         {
@@ -1998,23 +1968,13 @@
           }
         },
         {
-          "id": "vibe-study-api/labs-leanstral-1-5",
+          "id": "vibe-study-api/glm-5-latest",
           "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
+            "status": "usable",
+            "reason": "",
             "free": false,
             "modality": "chat",
-            "context_length": 262144
-          }
-        },
-        {
-          "id": "vibe-study-api/labs-leanstral-1-5-1",
-          "metadata": {
-            "status": "blocked",
-            "reason": "Model labs-leanstral-1-5-1 is a Labs model. To use Labs models, an admin must enable them in your organization settings at https://admin.mistral.ai/plateforme/privacy.",
-            "free": false,
-            "modality": "chat",
-            "context_length": 262144
+            "context_length": 1048576
           }
         },
         {
@@ -2244,7 +2204,7 @@
             "reason": "",
             "free": false,
             "modality": "embedding",
-            "context_length": 131071
+            "context_length": 131072
           }
         },
         {
@@ -2592,6 +2552,46 @@
           }
         },
         {
+          "id": "opencode-go/deepseek-v4.1-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/gemini-decision-1",
+          "metadata": {
+            "status": "error",
+            "reason": "ModelProtocolUnsupported Model does not support this protocol.",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/gemini-embedding-2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/glm-5.3-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
           "id": "opencode-go/gpt-6-luna",
           "metadata": {
             "status": "usable",
@@ -2602,11 +2602,41 @@
           }
         },
         {
+          "id": "opencode-go/gpt-6-luna-decision",
+          "metadata": {
+            "status": "error",
+            "reason": "ModelProtocolUnsupported Model does not support this protocol.",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/hungerg-free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
           "id": "opencode-go/hy3",
           "metadata": {
             "status": "usable",
             "reason": "",
             "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/hy4-flash-free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
             "modality": "chat",
             "context_length": null
           }
@@ -2624,9 +2654,19 @@
         {
           "id": "opencode-go/iceman-contributor-free",
           "metadata": {
-            "status": "blocked",
-            "reason": "invalid_request_error This OpenCode Go model trains on request data. Turn on \"Allow paid endpoints that train on request data\" at https://opencode.ai/console/org_01M6K4QA9F3FF8C4SK8MWV0K5F/settings/privacy#training to use it.",
+            "status": "usable",
+            "reason": "",
             "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/jev-1.14",
+          "metadata": {
+            "status": "error",
+            "reason": "ModelProtocolUnsupported Model does not support this protocol.",
+            "free": false,
             "modality": "chat",
             "context_length": null
           }
@@ -2643,6 +2683,16 @@
         },
         {
           "id": "opencode-go/longcat-2.0",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/longcat-2.5",
           "metadata": {
             "status": "usable",
             "reason": "",
@@ -2682,6 +2732,36 @@
           }
         },
         {
+          "id": "opencode-go/muse-spark-1.2-contributor",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/muse-spark-1.3-contributor",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/qwen3-embedding-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
           "id": "opencode-go/qwen3.8-flash",
           "metadata": {
             "status": "usable",
@@ -2698,6 +2778,16 @@
             "reason": "",
             "free": false,
             "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "opencode-go/text-embedding-3-small",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
             "context_length": null
           }
         }
@@ -2738,8 +2828,8 @@
         {
           "id": "openrouter/google/gemma-4-26b-a4b-it:free",
           "metadata": {
-            "status": "usable",
-            "reason": "",
+            "status": "error",
+            "reason": "Provider returned error",
             "free": true,
             "modality": "chat",
             "context_length": 262144
@@ -2897,7 +2987,7 @@
           "id": "google/antigravity-preview-05-2026",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2907,7 +2997,7 @@
           "id": "google/antigravity-preview-09-2026",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2917,7 +3007,7 @@
           "id": "google/antigravity-preview-latest",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2927,7 +3017,7 @@
           "id": "google/aqa",
           "metadata": {
             "status": "unknown",
-            "reason": "",
+            "reason": "HTTP 404 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2937,7 +3027,7 @@
           "id": "google/deep-research-max-preview-04-2026",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2947,7 +3037,7 @@
           "id": "google/deep-research-preview-04-2026",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2967,7 +3057,7 @@
           "id": "google/gemini-2.5-computer-use-preview-10-2025",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2977,7 +3067,7 @@
           "id": "google/gemini-2.5-flash",
           "metadata": {
             "status": "unknown",
-            "reason": "",
+            "reason": "HTTP 404 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2987,7 +3077,7 @@
           "id": "google/gemini-2.5-flash-image",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -2997,7 +3087,7 @@
           "id": "google/gemini-2.5-flash-lite",
           "metadata": {
             "status": "unknown",
-            "reason": "",
+            "reason": "HTTP 404 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3007,7 +3097,7 @@
           "id": "google/gemini-2.5-flash-native-audio-latest",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3017,7 +3107,7 @@
           "id": "google/gemini-2.5-flash-native-audio-preview-09-2025",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3027,7 +3117,7 @@
           "id": "google/gemini-2.5-flash-native-audio-preview-12-2025",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3037,7 +3127,7 @@
           "id": "google/gemini-2.5-flash-preview-tts",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3047,7 +3137,7 @@
           "id": "google/gemini-2.5-pro",
           "metadata": {
             "status": "unknown",
-            "reason": "",
+            "reason": "HTTP 404 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3057,7 +3147,7 @@
           "id": "google/gemini-2.5-pro-preview-tts",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3077,7 +3167,7 @@
           "id": "google/gemini-3-pro-image",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3087,7 +3177,7 @@
           "id": "google/gemini-3-pro-image-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3097,7 +3187,7 @@
           "id": "google/gemini-3.1-flash-image",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3107,7 +3197,7 @@
           "id": "google/gemini-3.1-flash-image-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3127,7 +3217,7 @@
           "id": "google/gemini-3.1-flash-lite-image",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3147,7 +3237,7 @@
           "id": "google/gemini-3.1-flash-live-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3157,7 +3247,7 @@
           "id": "google/gemini-3.1-flash-tts-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3167,7 +3257,7 @@
           "id": "google/gemini-3.1-pro-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3177,7 +3267,7 @@
           "id": "google/gemini-3.1-pro-preview-customtools",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3207,7 +3297,7 @@
           "id": "google/gemini-3.5-live-translate-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3227,7 +3317,7 @@
           "id": "google/gemini-3.5-transcribe-live",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3247,7 +3337,7 @@
           "id": "google/gemini-3.7-flash",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "The read operation timed out",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3257,7 +3347,7 @@
           "id": "google/gemini-3.8-flash",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 503 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3267,7 +3357,7 @@
           "id": "google/gemini-3.8-flash-lite-tts",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3277,7 +3367,7 @@
           "id": "google/gemini-3.8-flash-tts",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3287,7 +3377,7 @@
           "id": "google/gemini-3.8-live",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3297,7 +3387,7 @@
           "id": "google/gemini-3.8-live-extended-thinking",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3307,7 +3397,7 @@
           "id": "google/gemini-4-argon",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3317,7 +3407,7 @@
           "id": "google/gemini-4-carbon",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3334,10 +3424,20 @@
           }
         },
         {
+          "id": "google/gemini-4-neon",
+          "metadata": {
+            "status": "error",
+            "reason": "HTTP 429 with no reason text",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
           "id": "google/gemini-decision-1",
           "metadata": {
             "status": "unknown",
-            "reason": "",
+            "reason": "HTTP 404 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3377,7 +3477,7 @@
           "id": "google/gemini-flash-latest",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 503 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3397,7 +3497,7 @@
           "id": "google/gemini-nano-banana-2.1",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3407,7 +3507,7 @@
           "id": "google/gemini-omni-1.1-flash",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3417,7 +3517,7 @@
           "id": "google/gemini-omni-1.2-flash",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3427,7 +3527,7 @@
           "id": "google/gemini-omni-flash-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3437,7 +3537,7 @@
           "id": "google/gemini-pro-latest",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3457,7 +3557,7 @@
           "id": "google/gemini-robotics-er-2-streaming-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3484,10 +3584,20 @@
           }
         },
         {
+          "id": "google/genie-4",
+          "metadata": {
+            "status": "error",
+            "reason": "HTTP 400 with no reason text",
+            "free": false,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
           "id": "google/lyria-3-clip-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3497,7 +3607,7 @@
           "id": "google/lyria-3-pro-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3507,7 +3617,7 @@
           "id": "google/lyria-3.5",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3517,7 +3627,7 @@
           "id": "google/lyria-realtime-exp",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 400 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3527,7 +3637,7 @@
           "id": "google/nano-banana-pro-preview",
           "metadata": {
             "status": "error",
-            "reason": "",
+            "reason": "HTTP 429 with no reason text",
             "free": false,
             "modality": "chat",
             "context_length": null
@@ -3678,6 +3788,3197 @@
           }
         }
       ]
+    },
+    "groq": {
+      "models": [
+        {
+          "id": "groq/openai/gpt-oss-120b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "groq/openai/gpt-oss-20b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "groq/qwen/qwen3.8-27b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "cloudflare": {
+      "models": []
+    },
+    "nvidia": {
+      "models": [
+        {
+          "id": "nvidia/bigcode/starcoder2-15b",
+          "metadata": {
+            "status": "unknown",
+            "reason": "404 page not found\n",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/fastino/gliner2-pii",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Unauthorized Invalid JWT serialization: Missing dot delimiter(s)",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/google/gemma-3-12b-it",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/google/gemma-3-4b-it",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/google/gemma-4-31b-it",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/meta/muse-glimmer-30b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/minimaxai/minimax-m3.1-flash",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/mistralai/mistral-large-4-1t-a52b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/moonshotai/kimi-k3.1-pro",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/ai-synthetic-video-detector",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/cosmos-reason2-8b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/embed-qa-4",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/ising-calibration-1.5-31b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/llama-3.1-nemoguard-8b-topic-control",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3-embed-1b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3.5-bolt-e4b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3.5-content-safety",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3.5-embed-1b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3.5-embed-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+          "metadata": {
+            "status": "blocked",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/nvclip",
+          "metadata": {
+            "status": "unknown",
+            "reason": "404 page not found\n",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/nvidia/riva-translate-4b-instruct-v2",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Unauthorized Invalid JWT serialization: Missing dot delimiter(s)",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/poolside/laguna-xs-2.1",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Unauthorized Invalid JWT serialization: Missing dot delimiter(s)",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/snowflake/arctic-embed-l",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/stepfun-ai/step-5-preview",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Unauthorized Invalid JWT serialization: Missing dot delimiter(s)",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "nvidia/z-ai/glm-5.3-flash",
+          "metadata": {
+            "status": "blocked",
+            "reason": "Unauthorized Invalid JWT serialization: Missing dot delimiter(s)",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "zai": {
+      "models": [
+        {
+          "id": "zai/glm-4.5-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "zai/glm-4.6v-flash",
+          "metadata": {
+            "status": "error",
+            "reason": "The service may be temporarily overloaded, please try again later",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "zai/glm-4.7-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "kilo": {
+      "models": [
+        {
+          "id": "kilo/baidu/ernie-5.5-flash-preview:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1024000
+          }
+        },
+        {
+          "id": "kilo/cohere/north-mini-code:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 256000
+          }
+        },
+        {
+          "id": "kilo/dots-studio/dots-3-note-preview:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 512000
+          }
+        },
+        {
+          "id": "kilo/inclusionai/ling-3.2-flash:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1048576
+          }
+        },
+        {
+          "id": "kilo/kilo-auto/free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 256000
+          }
+        },
+        {
+          "id": "kilo/liquid/lfm-3-1.7b:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 262144
+          }
+        },
+        {
+          "id": "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 256000
+          }
+        },
+        {
+          "id": "kilo/nvidia/nemotron-3-ultra-550b-a55b:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1000000
+          }
+        },
+        {
+          "id": "kilo/nvidia/nemotron-3.5-lightning:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1000000
+          }
+        },
+        {
+          "id": "kilo/nvidia/nemotron-3.5-super-vl:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1000000
+          }
+        },
+        {
+          "id": "kilo/openrouter/free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 200000
+          }
+        },
+        {
+          "id": "kilo/particle-ai/particle-1:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1048576
+          }
+        },
+        {
+          "id": "kilo/recursive/flint-v1.0:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 262144
+          }
+        },
+        {
+          "id": "kilo/reflection/beam-free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1048576
+          }
+        },
+        {
+          "id": "kilo/stealth/glyph-cluster",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 256000
+          }
+        }
+      ]
+    },
+    "ovh": {
+      "models": [
+        {
+          "id": "ovh/Olala-v1.0-mini-7A1B",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/Olala-v1.0-summarise",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/Olala-v1.0-summarize",
+          "metadata": {
+            "status": "error",
+            "reason": "something went wrong",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/Olala-v1.0-translate",
+          "metadata": {
+            "status": "error",
+            "reason": "The `source_language` field is required",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/Qwen3-Embedding-8B",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/Qwen3Guard-Gen-0.6B",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/Qwen3Guard-Gen-8B",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/nvr-tts-de-de",
+          "metadata": {
+            "status": "unknown",
+            "reason": "invalid_request_error The model `nvr-tts-de-de` does not exist.",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/nvr-tts-en-us",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/nvr-tts-es-es",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/nvr-tts-it-it",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/solaria-3",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/stable-diffusion-xl-base-v10",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/whisper-large-v3",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "ovh/whisper-large-v3-turbo",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "requesty": {
+      "models": [
+        {
+          "id": "requesty/google/gemma-4-31b-it",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 262144
+          }
+        },
+        {
+          "id": "requesty/mistral/leanstral-1-5",
+          "metadata": {
+            "status": "unknown",
+            "reason": "Invalid model: labs-leanstral-1-5",
+            "free": true,
+            "modality": "chat",
+            "context_length": 262144
+          }
+        },
+        {
+          "id": "requesty/novita/ling-3.1-flash",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 262144
+          }
+        },
+        {
+          "id": "requesty/nvidia/muse-glimmer-30b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 131072
+          }
+        },
+        {
+          "id": "requesty/nvidia/nemotron-3-nano-30b-a3b",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": 262144
+          }
+        },
+        {
+          "id": "requesty/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 131072
+          }
+        },
+        {
+          "id": "requesty/nvidia/nemotron-3-ultra-550b-a55b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1048576
+          }
+        },
+        {
+          "id": "requesty/nvidia/nemotron-3.5-lightning-30b-a3b",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": 1048576
+          }
+        }
+      ]
+    },
+    "axforge": {
+      "models": []
+    },
+    "naga": {
+      "models": [
+        {
+          "id": "naga/amazon/titan-embed-image-v1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/amazon/titan-embed-text-v1",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/amazon/titan-embed-text-v2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/baidu/ernie-5.5-flash-preview:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/cohere/embed-5-fast",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/cohere/embed-5-pro",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/cohere/north-mini-code:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/dots-studio/dots-3-note-preview:free",
+          "metadata": {
+            "status": "error",
+            "reason": "server_error The upstream provider is temporarily unavailable. Please retry later.",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/fish-audio/s2.1-pro-free:free",
+          "metadata": {
+            "status": "unknown",
+            "reason": "model_not_found The 'fish-audio/s2.1-pro-free:free' model was not found. Make sure you are using the correct endpoint and model name.",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemini-2.5-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemini-3.8-flash-lite-tts:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemini-3.8-flash-tts:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemini-embedding-001",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemini-embedding-2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemini-embedding-2-preview",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemma-4-26b-a4b-it:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/google/gemma-4-31b-it:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/inclusionai/ling-3.2-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/liquid/lfm-3-1.7b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/mistralai/codestral-embed-2505",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/mistralai/mistral-embed-2312",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3-embed-1b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3-ultra-550b-a55b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-embed-1b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-embed-1b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-embed-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-embed-8b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-lightning:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-rerank-8b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/nvidia/nemotron-3.5-super-vl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/openai/text-embedding-3-large",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/openai/text-embedding-3-small",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/particle-ai/particle-1:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/perplexity/pplx-embed-v1-0.6b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/perplexity/pplx-embed-v1-4b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/perplexity/pplx-embed-v2-context-0.6b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/perplexity/pplx-embed-v2-context-9b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/qwen/qwen3-embedding-0.6b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/qwen/qwen3-embedding-4b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/qwen/qwen3-embedding-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "naga/recursive/flint-v1.0:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "routeway": {
+      "models": [
+        {
+          "id": "routeway/deepseek-v4.1-flash:free",
+          "metadata": {
+            "status": "error",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/gemma-4-26b-a4b-it-chimerax:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/gemma-4-26b-a4b-it-darksoul:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/gemma-4-26b-a4b-it-luminous:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/gemma-4-26b-a4b-it-meromero:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/gemma-4-26b-a4b-it-moonlight:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/gemma-4-26b-a4b-it-musica:free",
+          "metadata": {
+            "status": "usable",
+            "reason": "",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/minimax-m3.1-flash:free",
+          "metadata": {
+            "status": "error",
+            "reason": "Error 502: Bad gateway The origin web server returned an invalid or incomplete response to Cloudflare. This typically indicates the origin is overloaded or misconfigured.",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "routeway/muse-glimmer-30b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "inferbase": {
+      "models": [
+        {
+          "id": "inferbase/google-embeddinggemma-2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/google-embeddinggemma-300m",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/nvidia-llama-nemotron-embed-vl-1b-v2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/nvidia-nemotron-3-5-embed-1b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/nvidia-nemotron-3-5-embed-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/nvidia-nemotron-3-embed-1b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/nvidia-nemotron-3-embed-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/qwen3-embedding-0-6b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/qwen3-embedding-4b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "inferbase/qwen3-embedding-8b",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "bazaarlink": {
+      "models": []
+    },
+    "cohere": {
+      "models": []
+    },
+    "plugsky": {
+      "models": []
+    },
+    "poe": {
+      "models": []
+    },
+    "watsonx": {
+      "models": []
+    },
+    "together": {
+      "models": []
+    },
+    "typhoon": {
+      "models": []
+    },
+    "sealion": {
+      "models": []
+    },
+    "gonka": {
+      "models": []
+    },
+    "longcat": {
+      "models": []
+    },
+    "neosantara": {
+      "models": []
+    },
+    "electronhub": {
+      "models": []
+    },
+    "unorouter": {
+      "models": [
+        {
+          "id": "unorouter/absolutereality:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/agnes-2.5-flash:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/agnes-3.0-flash:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/agnes-image-2.0-flash:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/agnes-image-2.1-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/agnes-image-2.5-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/albedobase-xl-31:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/albedobase-xl-sdxl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/allam-2-7b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/amponyxl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/anything-v5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/aura-1:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/beam:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/bge-base-en-v1.5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/bge-large-en-v1.5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/bge-multilingual-gemma2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/bge-small-en-v1.5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/big-pickle:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/claude-haiku-5-5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/codestral-latest:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/cohere-command-a:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/cyberrealistic-pony:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/deepseek-r1-distill-qwen-32b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/deepseek-v4-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/deepseek-v4.1-flash-1017:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/deliberate:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/dots-3-note-preview:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/dreamshaper:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/embeddinggemma-300m:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/flat-2d-animerge:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/flint-v1.0:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/flux-2-dev:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/flux-2-klein-4b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/flux-2-klein-9b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/flux.1-schnell:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/fustercluck:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-2.5-flash-lite:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-3-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-3.1-flash-lite:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-3.5-flash-lite:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-3.6-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-3.8-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-embedding-001",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-embedding-001:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-embedding-2",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-embedding-2:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemini-robotics-er-2-preview:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-12b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-26b-a4b-it-chimerax:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-26b-a4b-it-darksoul:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-26b-a4b-it-luminous:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-26b-a4b-it-meromero:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-26b-a4b-it-moonlight:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-26b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gemma-4-31b-it:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-4.1v-thinking-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-4.5-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-4.7-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-5.3-flash-search:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-5.3-flash-think-search:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-5.3-flash-thinking:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glm-5.3-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/glyph-cluster:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gpt-4o:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gpt-6-luna:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gpt-oss-120b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gpt-oss-20b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/gpt-oss-safeguard-20b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/granite-4.0-micro:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/hy3:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/hy4flash:free",
+          "metadata": {
+            "status": "blocked",
+            "reason": "invalid_request_error Missing or invalid API key. Send it as: Authorization: Bearer <your UnoRouter key>. Create one at https://unorouter.com/en/token",
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/icbinp-i-cant-believe-its-not-photography:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/ising-calibration-1.5-31b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-code-embeddings-0.5b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-code-embeddings-1.5b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-embeddings-v3:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-embeddings-v4:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-embeddings-v5-omni-nano:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-embeddings-v5-omni-small:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-embeddings-v5-text-nano:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/jina-embeddings-v5-text-small:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/juggernaut-xl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/k-exaone-2.5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/k2-horizon:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/kimi-k2.6:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/kimi-k3.1-pro:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/l3.3-ms-nevoria-70b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/laguna-xs-2.1:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/lfm-2.5-embedding-350m:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/ling-3.1-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/llama-3.1-8b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/llama-3.2-11b-vision:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/llama-3.3-70b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/lucid-origin:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/lyria-3-pro-preview:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/manta-flash-1.0:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/manta-mini-1.0:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mercury-3:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mercury-decide:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mimo-v2.6-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mindshub-air:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/minicpm5-2b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/minimax-m2.5:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/minimax-m2.7:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/minimax-m3.1-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mistral-small-3.2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mistral-small:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/mn-violet-lotus-12b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/muse-glimmer-30b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-3-super-120b-a12b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-3-ultra-550b-a55b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-3.5-bolt-e4b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-3.5-lightning-30b-a3b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-3.5-super-vl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nemotron-sea-lion-v4.8-120b-a12b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/north-mini-code:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nova-anime-xl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/nova-furry-pony:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/ntr-mix-il-noob-xl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/phoenix-1.0:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/plamo-embedding-1b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/prefect-pony:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/quiet-goodnight-xl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen-sea-lion-v4-32b-it:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen-sea-lion-v4.5-27b-it:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen2.5-coder-32b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen2.5-vl-72b-instruct:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen2.5-vl-7b-instruct-awq:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3-embedding-0.6b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3-embedding-8b:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.5-397b-a17b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.5-9b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.5-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.5-plus:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.6-27b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.7-flash:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwen3.8-27b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/qwq-32b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/rev-animated:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/riva-translate-4b-instruct-v2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/sea-lion-e5-embedding-600m:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/sea-lion-modernbert-embedding-300m:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/sea-lion-modernbert-embedding-600m:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/sensenova-6.8-flash-lite:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/step-5-preview:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/swamponyxl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/swe-1-6-slow:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/syn-pro:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/tagflow-code-27b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/text-embedding-3-large",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": false,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/text-embedding-3-large:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/text-embedding-3-small-databricks-new:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/text-embedding-3-small-databricks:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/text-embedding-3-small:free",
+          "metadata": {
+            "status": "not-chat",
+            "reason": "",
+            "free": true,
+            "modality": "embedding",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/tunix-pony:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/typhoon-v2.5-30b-a3b-instruct:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-4-large:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-4-lite:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-4:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-code-2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-code-4:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-finance-2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-law-2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/voyage-multilingual-2:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/wai-cute-pony:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/wai-nsfw-illustrious-sdxl:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/whisper-large-v3-turbo:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/whisper-large-v3:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/whisper-tiny-en:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/whisper:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        },
+        {
+          "id": "unorouter/xing4.0-29b-a4b:free",
+          "metadata": {
+            "status": "pending",
+            "reason": null,
+            "free": true,
+            "modality": "chat",
+            "context_length": null
+          }
+        }
+      ]
+    },
+    "airforce": {
+      "models": []
+    },
+    "vercel": {
+      "models": []
+    },
+    "novita": {
+      "models": []
     }
   },
   "groups": {
@@ -3906,18 +7207,6 @@
           "upstream_id": "codestral-2508",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "codestral-2508",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "codestral-2508",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -3954,19 +7243,694 @@
           "upstream_id": "deepseek-v4-1-flash-1017",
           "order": 1,
           "weight": 1
+        }
+      ]
+    },
+    "free/beam-1.0-501b-a23b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "beam-free",
+          "order": 8,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/beam-free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "reflection/beam-free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/dots-3-note-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "dots-studio/dots-3-note-preview:free",
+          "order": 1,
+          "weight": 1
         },
         {
-          "route": "vibe-api",
-          "upstream_id": "deepseek-v4-1-flash-1017",
-          "order": 2,
-          "weight": 2
+          "route": "kilo",
+          "upstream_id": "dots-studio/dots-3-note-preview:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/ernie-5.5-flash-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "baidu/ernie-5.5-flash-preview:free",
+          "order": 1,
+          "weight": 1
         },
         {
-          "route": "vibe-study-api",
-          "upstream_id": "deepseek-v4-1-flash-1017",
+          "route": "kilo",
+          "upstream_id": "baidu/ernie-5.5-flash-preview:free",
+          "order": 3,
+          "weight": 1
+        },
+        {
+          "route": "naga",
+          "upstream_id": "baidu/ernie-5.5-flash-preview:free",
+          "order": 7,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/flint-v1.0": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "recursive/flint-v1.0:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "recursive/flint-v1.0:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "openrouter/free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "kilo-auto/free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "google/gemma-4-26b-a4b-it:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it-chimerax": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-chimerax:free",
+          "order": 6,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it-darksoul": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-darksoul:free",
+          "order": 6,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it-luminous": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-luminous:free",
+          "order": 6,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it-meromero": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-meromero:free",
+          "order": 6,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it-moonlight": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-moonlight:free",
+          "order": 6,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-26b-a4b-it-musica": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-musica:free",
+          "order": 6,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gemma-4-31b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "google/gemma-4-31b-it:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "requesty",
+          "upstream_id": "google/gemma-4-31b-it",
           "order": 2,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/glm-4.5-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "zai",
+          "upstream_id": "glm-4.5-flash",
+          "order": 5,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/glm-4.7-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "zai",
+          "upstream_id": "glm-4.7-flash",
+          "order": 5,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/glyph-cluster": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "stealth/glyph-cluster",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gpt-oss-120b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "groq",
+          "upstream_id": "openai/gpt-oss-120b",
+          "order": 5,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/gpt-oss-20b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "groq",
+          "upstream_id": "openai/gpt-oss-20b",
+          "order": 5,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/hungerg-free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "hungerg-free",
+          "order": 8,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/hy4-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "hy4-flash-free",
+          "order": 8,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/iceman-contributor-free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "iceman-contributor-free",
+          "order": 8,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/lfm-3-1.7b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "liquid/lfm-3-1.7b:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "liquid/lfm-3-1.7b:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/ling-3.1-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "novita/ling-3.1-flash",
+          "order": 2,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/ling-3.2-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "inclusionai/ling-3.2-flash:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "inclusionai/ling-3.2-flash:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/lyria-3-pro-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "google/lyria-3-pro-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/muse-glimmer-30b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/muse-glimmer-30b",
+          "order": 2,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/nemotron-3-nano-omni-30b-a3b-reasoning": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+          "order": 2,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/nemotron-3-ultra-550b-a55b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/nemotron-3-ultra-550b-a55b",
+          "order": 2,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/nemotron-3.5-lightning": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3.5-lightning:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3.5-lightning:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/nemotron-3.5-lightning-30b-a3b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/nemotron-3.5-lightning-30b-a3b",
+          "order": 2,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/nemotron-3.5-super-vl": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "nvidia/nemotron-3.5-super-vl:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3.5-super-vl:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/north-mini-code": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "cohere/north-mini-code:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "cohere/north-mini-code:free",
+          "order": 3,
+          "weight": 1
+        },
+        {
+          "route": "naga",
+          "upstream_id": "cohere/north-mini-code:free",
+          "order": 7,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/olala-v1.0-mini-7a1b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Olala-v1.0-mini-7A1B",
+          "order": 4,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/olala-v1.0-summarise": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Olala-v1.0-summarise",
+          "order": 4,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/particle-1": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "openrouter",
+          "upstream_id": "particle-ai/particle-1:free",
+          "order": 1,
+          "weight": 1
+        },
+        {
+          "route": "kilo",
+          "upstream_id": "particle-ai/particle-1:free",
+          "order": 3,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/qwen3.8-27b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "groq",
+          "upstream_id": "qwen/qwen3.8-27b",
+          "order": 5,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/qwen3guard-gen-0.6b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Qwen3Guard-Gen-0.6B",
+          "order": 4,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "free/qwen3guard-gen-8b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Qwen3Guard-Gen-8B",
+          "order": 4,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
       ]
     },
     "glm-5": {
@@ -3983,18 +7947,6 @@
           "route": "vibe-study",
           "upstream_id": "zai-glm-5",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "zai-glm-5",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "zai-glm-5",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4014,18 +7966,6 @@
           "upstream_id": "glm-5-2",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "glm-5-2",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "glm-5-2",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4043,18 +7983,6 @@
           "route": "vibe-study",
           "upstream_id": "zai-glm-5-3",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "zai-glm-5-3",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "zai-glm-5-3",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4074,19 +8002,232 @@
           "upstream_id": "zai-glm-5-3-flash",
           "order": 1,
           "weight": 1
-        },
+        }
+      ]
+    },
+    "google-free/gemini-3-flash-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
         {
-          "route": "vibe-api",
-          "upstream_id": "zai-glm-5-3-flash",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "zai-glm-5-3-flash",
-          "order": 2,
+          "route": "google",
+          "upstream_id": "gemini-3-flash-preview",
+          "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.1-flash-lite": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.1-flash-lite",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.1-flash-lite-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.1-flash-lite-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.5-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.5-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.5-flash-lite": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.5-flash-lite",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.5-transcribe": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.5-transcribe",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.6-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.6-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.7-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.7-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-3.8-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-3.8-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-4-hydrogen": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-4-hydrogen",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-flash-latest",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-flash-lite": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-flash-lite-latest",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemini-robotics-er-2-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-robotics-er-2-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemma-4-26b-a4b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemma-4-26b-a4b-it",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
+      ]
+    },
+    "google-free/gemma-4-31b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemma-4-31b-it",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "free"
       ]
     },
     "gpt-6-luna": {
@@ -4099,6 +8240,54 @@
           "order": 1,
           "weight": 1
         }
+      ]
+    },
+    "groq/gpt-oss-120b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "groq",
+          "upstream_id": "openai/gpt-oss-120b",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "groq-free-public",
+        "free"
+      ]
+    },
+    "groq/gpt-oss-20b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "groq",
+          "upstream_id": "openai/gpt-oss-20b",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "groq-free-public",
+        "free"
+      ]
+    },
+    "groq/qwen3.8-27b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "groq",
+          "upstream_id": "qwen/qwen3.8-27b",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "groq-free-public",
+        "free"
       ]
     },
     "hy3": {
@@ -4125,6 +8314,230 @@
         }
       ]
     },
+    "kilo/beam-free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "reflection/beam-free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/dots-3-note-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "dots-studio/dots-3-note-preview:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/ernie-5.5-flash-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "baidu/ernie-5.5-flash-preview:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/flint-v1.0": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "recursive/flint-v1.0:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "kilo-auto/free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/glyph-cluster": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "stealth/glyph-cluster",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/lfm-3-1.7b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "liquid/lfm-3-1.7b:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/ling-3.2-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "inclusionai/ling-3.2-flash:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/nemotron-3-nano-omni-30b-a3b-reasoning": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/nemotron-3-ultra-550b-a55b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/nemotron-3.5-lightning": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3.5-lightning:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/nemotron-3.5-super-vl": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "nvidia/nemotron-3.5-super-vl:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/north-mini-code": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "cohere/north-mini-code:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
+    "kilo/particle-1": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "kilo",
+          "upstream_id": "particle-ai/particle-1:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "kilo-free-public",
+        "free"
+      ]
+    },
     "kimi-k2.7-code": {
       "modality": "chat",
       "public": false,
@@ -4149,6 +8562,18 @@
         }
       ]
     },
+    "longcat-2.5": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "longcat-2.5",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
     "magistral-medium": {
       "modality": "chat",
       "public": false,
@@ -4163,18 +8588,6 @@
           "route": "vibe-study",
           "upstream_id": "magistral-medium-latest",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "magistral-medium-latest",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "magistral-medium-latest",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4193,18 +8606,6 @@
           "route": "vibe-study",
           "upstream_id": "magistral-small-latest",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "magistral-small-latest",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "magistral-small-latest",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4260,18 +8661,6 @@
           "upstream_id": "ministral-14b-2512",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "ministral-14b-2512",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "ministral-14b-2512",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4289,18 +8678,6 @@
           "route": "vibe-study",
           "upstream_id": "ministral-3b-2512",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "ministral-3b-2512",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "ministral-3b-2512",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4320,18 +8697,6 @@
           "upstream_id": "ministral-8b-2512",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "ministral-8b-2512",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "ministral-8b-2512",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4350,18 +8715,6 @@
           "upstream_id": "mistral-code-latest",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-code-latest",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-code-latest",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4379,18 +8732,6 @@
           "route": "vibe-study",
           "upstream_id": "mistral-code-fim-latest",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-code-fim-latest",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-code-fim-latest",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4428,18 +8769,6 @@
           "upstream_id": "mistral-large-2512",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-large-2512",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-large-2512",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4457,18 +8786,6 @@
           "route": "vibe-study",
           "upstream_id": "mistral-large-4",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-large-4",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-large-4",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4488,18 +8805,6 @@
           "upstream_id": "mistral-large-4-0",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-large-4-0",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-large-4-0",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4517,18 +8822,6 @@
           "route": "vibe-study",
           "upstream_id": "mistral-medium",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-medium",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-medium",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4548,18 +8841,6 @@
           "upstream_id": "mistral-medium-3",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-medium-3",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-medium-3",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4577,18 +8858,6 @@
           "route": "vibe-study",
           "upstream_id": "mistral-medium-3-5",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-medium-3-5",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-medium-3-5",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4716,18 +8985,6 @@
           "upstream_id": "mistral-small-2603",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-small-2603",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-small-2603",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4745,18 +9002,6 @@
           "route": "vibe-study",
           "upstream_id": "mistral-vibe-cli-latest",
           "order": 1,
-          "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-vibe-cli-latest",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-vibe-cli-latest",
-          "order": 2,
           "weight": 1
         }
       ]
@@ -4776,18 +9021,6 @@
           "upstream_id": "mistral-vibe-cli-fast",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "mistral-vibe-cli-fast",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-vibe-cli-fast",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -4806,19 +9039,63 @@
           "upstream_id": "mistral-vibe-cli-with-tools",
           "order": 1,
           "weight": 1
-        },
+        }
+      ]
+    },
+    "muse-spark-1.2": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
         {
-          "route": "vibe-api",
-          "upstream_id": "mistral-vibe-cli-with-tools",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "mistral-vibe-cli-with-tools",
-          "order": 2,
+          "route": "opencode-go",
+          "upstream_id": "muse-spark-1.2-contributor",
+          "order": 1,
           "weight": 1
         }
+      ]
+    },
+    "muse-spark-1.3": {
+      "modality": "chat",
+      "public": false,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "muse-spark-1.3-contributor",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "naga/ernie-5.5-flash-preview": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "naga",
+          "upstream_id": "baidu/ernie-5.5-flash-preview:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "naga-free-public",
+        "free"
+      ]
+    },
+    "naga/north-mini-code": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "naga",
+          "upstream_id": "cohere/north-mini-code:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "naga-free-public",
+        "free"
       ]
     },
     "opencode-go-free/beam-1.0-501b-a23b": {
@@ -4828,6 +9105,106 @@
         {
           "route": "opencode-go",
           "upstream_id": "beam-free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "opencode-go-free-public",
+        "free"
+      ]
+    },
+    "opencode-go-free/hungerg-free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "hungerg-free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "opencode-go-free-public",
+        "free"
+      ]
+    },
+    "opencode-go-free/hy4-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "hy4-flash-free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "opencode-go-free-public",
+        "free"
+      ]
+    },
+    "opencode-go-free/iceman-contributor-free": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "iceman-contributor-free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "opencode-go-free-public",
+        "free"
+      ]
+    },
+    "opencode-go-tier/gpt-6-luna": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "gpt-6-luna",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "opencode-go-tier/mimo-v2.6-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "mimo-v2.6-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "opencode-go-tier/minimax-m3.1-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "minimax-m3.1-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "opencode-go-tier/qwen3.8-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "opencode-go",
+          "upstream_id": "qwen3.8-flash",
           "order": 1,
           "weight": 1
         }
@@ -4843,6 +9220,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/ernie-5.5-flash-preview": {
@@ -4855,6 +9236,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/flint-v1.0": {
@@ -4867,6 +9252,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/free": {
@@ -4879,6 +9268,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/gemma-4-26b-a4b-it": {
@@ -4891,6 +9284,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/gemma-4-31b-it": {
@@ -4903,6 +9300,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/lfm-3-1.7b": {
@@ -4915,6 +9316,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/ling-3.2-flash": {
@@ -4927,6 +9332,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/lyria-3-pro-preview": {
@@ -4939,6 +9348,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/nemotron-3-nano-omni-30b-a3b-reasoning": {
@@ -4951,6 +9364,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/nemotron-3-ultra-550b-a55b": {
@@ -4963,6 +9380,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/nemotron-3.5-lightning": {
@@ -4975,6 +9396,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/nemotron-3.5-super-vl": {
@@ -4987,6 +9412,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/north-mini-code": {
@@ -4999,6 +9428,10 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
       ]
     },
     "openrouter/particle-1": {
@@ -5011,6 +9444,74 @@
           "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "openrouter-free-public",
+        "free"
+      ]
+    },
+    "ovh/olala-v1.0-mini-7a1b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Olala-v1.0-mini-7A1B",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "ovh-free-public",
+        "free"
+      ]
+    },
+    "ovh/olala-v1.0-summarise": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Olala-v1.0-summarise",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "ovh-free-public",
+        "free"
+      ]
+    },
+    "ovh/qwen3guard-gen-0.6b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Qwen3Guard-Gen-0.6B",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "ovh-free-public",
+        "free"
+      ]
+    },
+    "ovh/qwen3guard-gen-8b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "ovh",
+          "upstream_id": "Qwen3Guard-Gen-8B",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "ovh-free-public",
+        "free"
       ]
     },
     "public/gemini-3-flash-preview": {
@@ -5133,6 +9634,18 @@
         }
       ]
     },
+    "public/gemini-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "google",
+          "upstream_id": "gemini-flash-latest",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
     "public/gemini-flash-lite": {
       "modality": "chat",
       "public": true,
@@ -5205,6 +9718,198 @@
         }
       ]
     },
+    "requesty/gemma-4-31b-it": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "google/gemma-4-31b-it",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "requesty-free-public",
+        "free"
+      ]
+    },
+    "requesty/ling-3.1-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "novita/ling-3.1-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "requesty-free-public",
+        "free"
+      ]
+    },
+    "requesty/muse-glimmer-30b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/muse-glimmer-30b",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "requesty-free-public",
+        "free"
+      ]
+    },
+    "requesty/nemotron-3-nano-omni-30b-a3b-reasoning": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "requesty-free-public",
+        "free"
+      ]
+    },
+    "requesty/nemotron-3-ultra-550b-a55b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/nemotron-3-ultra-550b-a55b",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "requesty-free-public",
+        "free"
+      ]
+    },
+    "requesty/nemotron-3.5-lightning-30b-a3b": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "requesty",
+          "upstream_id": "nvidia/nemotron-3.5-lightning-30b-a3b",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "requesty-free-public",
+        "free"
+      ]
+    },
+    "routeway/gemma-4-26b-a4b-it-chimerax": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-chimerax:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "routeway-free-public",
+        "free"
+      ]
+    },
+    "routeway/gemma-4-26b-a4b-it-darksoul": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-darksoul:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "routeway-free-public",
+        "free"
+      ]
+    },
+    "routeway/gemma-4-26b-a4b-it-luminous": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-luminous:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "routeway-free-public",
+        "free"
+      ]
+    },
+    "routeway/gemma-4-26b-a4b-it-meromero": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-meromero:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "routeway-free-public",
+        "free"
+      ]
+    },
+    "routeway/gemma-4-26b-a4b-it-moonlight": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-moonlight:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "routeway-free-public",
+        "free"
+      ]
+    },
+    "routeway/gemma-4-26b-a4b-it-musica": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "routeway",
+          "upstream_id": "gemma-4-26b-a4b-it-musica:free",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "routeway-free-public",
+        "free"
+      ]
+    },
     "step-5-preview": {
       "modality": "chat",
       "public": false,
@@ -5212,6 +9917,54 @@
         {
           "route": "opencode-go",
           "upstream_id": "step-5-preview",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "vibe-tier/deepseek-v4-1-flash-1017": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "deepseek-v4-1-flash-1017",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "vibe-tier/mistral-small-2603": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "mistral-small-2603",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "vibe-tier/zai-glm-5-3": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "zai-glm-5-3",
+          "order": 1,
+          "weight": 1
+        }
+      ]
+    },
+    "vibe-tier/zai-glm-5-3-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "vibe",
+          "upstream_id": "zai-glm-5-3-flash",
           "order": 1,
           "weight": 1
         }
@@ -5340,18 +10093,6 @@
           "upstream_id": "voxtral-small-2507",
           "order": 1,
           "weight": 1
-        },
-        {
-          "route": "vibe-api",
-          "upstream_id": "voxtral-small-2507",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "voxtral-small-2507",
-          "order": 2,
-          "weight": 1
         }
       ]
     },
@@ -5406,19 +10147,39 @@
           "upstream_id": "zai-glm-latest",
           "order": 1,
           "weight": 1
-        },
+        }
+      ]
+    },
+    "zai/glm-4.5-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
         {
-          "route": "vibe-api",
-          "upstream_id": "zai-glm-latest",
-          "order": 2,
-          "weight": 2
-        },
-        {
-          "route": "vibe-study-api",
-          "upstream_id": "zai-glm-latest",
-          "order": 2,
+          "route": "zai",
+          "upstream_id": "glm-4.5-flash",
+          "order": 1,
           "weight": 1
         }
+      ],
+      "access_groups": [
+        "zai-free-public",
+        "free"
+      ]
+    },
+    "zai/glm-4.7-flash": {
+      "modality": "chat",
+      "public": true,
+      "deployments": [
+        {
+          "route": "zai",
+          "upstream_id": "glm-4.7-flash",
+          "order": 1,
+          "weight": 1
+        }
+      ],
+      "access_groups": [
+        "zai-free-public",
+        "free"
       ]
     }
   }
