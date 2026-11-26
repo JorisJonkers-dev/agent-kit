@@ -218,6 +218,7 @@ profiles:
       - pi-vibe:glm-5.3-flash
       - pi-vibe:mistral-small
       - pi-vibe:deepseek-v4.1-flash
+      - pi-opencode-go:qwen3.8-flash
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
@@ -243,6 +244,7 @@ profiles:
     models:
       - pi-vibe:glm-5.3-flash
       - pi-vibe:mistral-small
+      - pi-opencode-go:qwen3.8-flash
       - agy:gemini-3.8-flash-medium
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
