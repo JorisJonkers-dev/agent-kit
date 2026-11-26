@@ -80,8 +80,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile cross-critic has no allowed model once the writer's family zhipu is left out\"}\n",
-      "stderr": "model-gateway run: profile cross-critic has no allowed model once the writer's family zhipu is left out\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.models names pi-vibe:glm-5.3, which profile cross-critic does not allow: a request may narrow a profile, never widen it\"}\n",
+      "stderr": "model-gateway run: narrow.models names pi-vibe:glm-5.3, which profile cross-critic does not allow: a request may narrow a profile, never widen it\n",
       "files": {
         "home/": null,
         "home/.pi/": null,
