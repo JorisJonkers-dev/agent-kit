@@ -475,10 +475,11 @@ agent-kit-keys --table registry/generated/workstation-secrets.json status       
 token, so `invalid` is that host refusing it. Other hosts' tokens keep working. Running
 setup afterwards sees the refused value and mints a fresh one (`ensure`).
 
-**OpenRouter goes through LiteLLM.** A workstation reaches OpenRouter only through the
-LiteLLM proxy's `openrouter` route (its key, `LITELLM_OPENROUTER_KEY`, is minted by setup; the
-proxy holds the OpenRouter credential). The per-host `OPENROUTER_API_KEY` is retired: setup
-removes it from the secret store. Delete the old host keys on openrouter.ai/settings/keys.
+**OpenRouter goes through LiteLLM.** A workstation reaches OpenRouter's free models only
+through the LiteLLM proxy's `free/<model>` groups, with the `free` route's key
+(`LITELLM_FREE_KEY`, minted by setup; the proxy holds the OpenRouter credential). The per-host
+`OPENROUTER_API_KEY` and the old `LITELLM_OPENROUTER_KEY` and `LITELLM_PUBLIC_KEY` are retired:
+setup removes them from the secret store. Delete the old host keys on openrouter.ai/settings/keys.
 
 **Overleaf CLI login decision.** The options for how `olcli` logs in to
 `overleaf.jorisjonkers.dev`: (1) `olcli --base-url https://overleaf.jorisjonkers.dev --cookie-name overleaf.sid auth`

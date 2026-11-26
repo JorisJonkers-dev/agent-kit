@@ -237,12 +237,21 @@ def public_groups_of(routes: Sequence[Mapping[str, Any]]) -> frozenset[str]:
     return frozenset(public - other - {CANONICAL})
 
 
-def _group_free(catalogue: Catalogue, deployments: Sequence[Mapping[str, Any]]) -> bool:
+# The access group of the proxy's `free/<model>` groups (litellm#106): the litellm sync puts a group in it
+# alone only when every deployment is priced at zero with no budget, so such a group is free whatever a
+# provider's probe says of its free tier.
+FREE_ACCESS_GROUP = "free"
+
+
+def _group_free(catalogue: Catalogue, deployments: Sequence[Mapping[str, Any]], own: object = None) -> bool:
     """Whether every deployment of a group, fallbacks included, is a model its provider marks free.
 
     A fallback is where a run lands when the free deployment refuses (a quota, a cooldown, a 404),
-    so a group with one paid deployment anywhere can bill and is not free.
+    so a group with one paid deployment anywhere can bill and is not free. A group whose access
+    groups are exactly ``free`` is free by the proxy's own rule.
     """
+    if own == [FREE_ACCESS_GROUP]:
+        return True
     if not deployments:
         return False
     for deployment in deployments:
@@ -337,7 +346,7 @@ def canonical_groups(
             CanonicalGroup(
                 name=name,
                 modality=str(group.get("modality", "")),
-                free=_group_free(catalogue, deployments),
+                free=_group_free(catalogue, deployments, own),
                 public=public,
                 routes=tuple(dict.fromkeys(str(d.get("route", "")) for d in deployments)),
                 context_length=_group_context_length(catalogue, deployments),

@@ -557,7 +557,7 @@ fn the_shipped_defaults_parse() {
     let config = parse_defaults(&json(crate::SHIPPED_DEFAULTS)).expect("the shipped defaults");
     assert_eq!(config.version, 1.0);
     assert_eq!(config.disabled, Vec::<String>::new());
-    assert_eq!(config.clients.len(), 18);
+    assert_eq!(config.clients.len(), 15);
     assert_eq!(config.clients.get("codex").map(|client| client.cost_class), Some(CostClass::MeteredEmployer));
     assert_eq!(config.clients.get("vibe").map(|client| client.model_source), Some(ModelSource::Live));
     assert_eq!(config.clients.get("agy").and_then(|client| client.families.clone()), Some(vec!["google".to_string()]));
@@ -1096,7 +1096,7 @@ fn an_override_reads_the_clients_before_the_disabled_list_and_the_models() {
 fn the_shipped_defaults_load_with_no_override() {
     let runtime = runtime(StubFiles::new(), StubGit::new(None, &[]), home_env("/home/me"));
     let config = load_config(&runtime).expect("the configuration");
-    assert_eq!(config.clients.len(), 18);
+    assert_eq!(config.clients.len(), 15);
     assert_eq!(config.models.len(), 32 + 7 * 26);
 }
 
@@ -1108,7 +1108,7 @@ fn the_override_is_merged_over_the_shipped_defaults() {
     let config = load_config(&runtime).expect("the configuration");
     assert_eq!(config.settings.summary_max_chars, 500.0);
     assert_eq!(config.disabled, vec!["codex:gpt-5.5".to_string()]);
-    assert_eq!(config.clients.len(), 18);
+    assert_eq!(config.clients.len(), 15);
 }
 
 #[test]

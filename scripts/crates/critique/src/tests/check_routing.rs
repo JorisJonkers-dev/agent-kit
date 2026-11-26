@@ -55,17 +55,6 @@ fn the_shipped_profiles_and_routing_name_only_models_the_snapshot_can_run() {
 }
 
 #[test]
-fn the_snapshot_still_calls_the_retired_gemini_model_unusable() {
-    // The reason the profile and the routing no longer name it: if this stops holding, the model may come back.
-    let found = snapshot();
-    let defaults = json("{\"profiles\":{\"p\":{\"models\":[\"pi-public:public/gemini-3.8-flash\"]}}}");
-    assert_eq!(
-        profile_problems(&found, &defaults),
-        vec!["profile p: pi-public:public/gemini-3.8-flash cannot run: the LiteLLM catalogue marks it error on route google: HTTP 503 with no reason text".to_string()]
-    );
-}
-
-#[test]
 fn a_profile_that_names_a_blocked_or_failed_pi_model_is_reported_with_the_reason() {
     let found = catalogue(&[("good", "usable"), ("bad", "error"), ("worse", "blocked"), ("odd", "unknown")]);
     let defaults = json(
@@ -149,8 +138,8 @@ fn a_shipped_file_that_is_not_what_it_should_be_is_named() {
     assert_eq!(check(&found, defaults, "{}").expect_err("incomplete routing").code, "invalid-routing");
 }
 
-/// A catalogue with one route, `openrouter`, probing each model with its free flag, and one group per model; a model
-/// marked `None` has a group but no probe.
+/// A catalogue with one route, `openrouter`, probing each model with its free flag, and one `free/<model>` group per
+/// model that does not name its access groups, so its probes decide; a model marked `None` has a group but no probe.
 fn free_catalogue(models: &[(&str, Option<bool>)]) -> LiteLlmCatalogue {
     let listed: Vec<String> = models
         .iter()
@@ -158,7 +147,7 @@ fn free_catalogue(models: &[(&str, Option<bool>)]) -> LiteLlmCatalogue {
         .collect();
     let groups: Vec<String> = models
         .iter()
-        .map(|(id, _)| format!("\"openrouter/{id}\":{{\"public\":true,\"deployments\":[{{\"route\":\"openrouter\",\"upstream_id\":\"{id}\",\"order\":1}}]}}"))
+        .map(|(id, _)| format!("\"free/{id}\":{{\"public\":true,\"deployments\":[{{\"route\":\"openrouter\",\"upstream_id\":\"{id}\",\"order\":1}}]}}"))
         .collect();
     let text = format!("{{\"updated_at\":\"2026-11-15T21:17:08Z\",\"providers\":{{\"openrouter\":{{\"models\":[{}]}}}},\"groups\":{{{}}}}}", listed.join(","), groups.join(","));
     parse_catalogue(&json(&text)).expect("a catalogue")
@@ -166,7 +155,7 @@ fn free_catalogue(models: &[(&str, Option<bool>)]) -> LiteLlmCatalogue {
 
 /// Routing with three free clients, each on a model named after it, in the spec stage's free roster or a fallback.
 fn free_routing() -> crate::routing::Routing {
-    let client = |model: &str, family: &str| format!("{{\"kind\":\"pi\",\"provider\":\"litellm-openrouter\",\"model\":\"openrouter/{model}\",\"family\":\"{family}\",\"data_scope\":\"public\",\"free\":true}}");
+    let client = |model: &str, family: &str| format!("{{\"kind\":\"pi\",\"provider\":\"litellm-free\",\"model\":\"free/{model}\",\"family\":\"{family}\",\"data_scope\":\"public\",\"free\":true}}");
     let slot = |client: &str| format!("{{\"client\":\"{client}\",\"role\":\"gap-critic\",\"lenses\":[],\"max_price_usd\":0.05,\"time_limit_s\":240}}");
     let text = format!(
         "{{\"version\":1,\"clients\":{{\"pi-paid\":{{\"kind\":\"pi\",\"provider\":\"litellm-public\",\"model\":\"public/good\",\"family\":\"google\",\"data_scope\":\"public\"}},\"pi-free\":{},\"pi-billed\":{},\"pi-unprobed\":{}}},\
@@ -188,8 +177,8 @@ fn a_free_client_must_be_a_model_the_catalogue_calls_free() {
     assert_eq!(
         routing_problems(&found, &free_routing()),
         vec![
-            "routing client pi-billed: openrouter/billed on litellm-openrouter is marked free but the LiteLLM catalogue does not mark every deployment of it free".to_string(),
-            "routing client pi-unprobed: openrouter/unprobed on litellm-openrouter is marked free but the LiteLLM catalogue has no probe of it, so nothing says it is free".to_string(),
+            "routing client pi-billed: free/billed on litellm-free is marked free but the LiteLLM catalogue does not mark every deployment of it free".to_string(),
+            "routing client pi-unprobed: free/unprobed on litellm-free is marked free but the LiteLLM catalogue has no probe of it, so nothing says it is free".to_string(),
         ]
     );
     // A model the catalogue has no group for is no more free than one it never probed; the paid client's unknown model passes.
@@ -201,6 +190,12 @@ fn a_free_client_must_be_a_model_the_catalogue_calls_free() {
 fn the_shipped_free_clients_are_free_in_the_snapshot() {
     let routing = parse_routing(&json(model_gateway::SHIPPED_ROUTING)).expect("the shipped routing");
     let free: Vec<&str> = routing.clients.iter().filter(|(_, client)| matches!(client, crate::routing::CriticClient::Pi(pi) if pi.free)).map(|(name, _)| name.as_str()).collect();
-    assert_eq!(free, ["pi-free-nemotron-ultra", "pi-free-gemma", "pi-free-north-mini-code", "pi-free-opencode-go-beam"]);
+    assert_eq!(free, ["pi-free-gemini-flash", "pi-free-nemotron-ultra", "pi-free-gemma", "pi-free-north-mini-code", "pi-free-beam"]);
+    // Every free client is a free/<model> on the free route, and no other client is on it.
+    for (name, client) in &routing.clients {
+        if let crate::routing::CriticClient::Pi(pi) = client {
+            assert_eq!(pi.free, pi.provider == "litellm-free" && pi.model.starts_with("free/"), "{name}");
+        }
+    }
     assert!(routing.stages.iter().all(|(_, stage)| !stage.free.is_empty()), "every stage has a free roster");
 }

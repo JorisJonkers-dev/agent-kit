@@ -33,6 +33,9 @@ pub struct CatalogueProbe {
     pub context_length: Option<i64>,
 }
 
+/// The access group of the proxy's `free/<model>` groups, the only way a free model is reached.
+pub const FREE_ACCESS_GROUP: &str = "free";
+
 /// One deployment behind a canonical group: the provider route and the id it serves the group's model under.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogueDeployment {
@@ -49,6 +52,10 @@ pub struct CatalogueGroup {
     pub public: bool,
     pub modality: Option<String>,
     pub deployments: Vec<CatalogueDeployment>,
+    /// A `free/<model>` group: its access groups are exactly `free`, which the litellm sync allows only for a group
+    /// whose every deployment is priced at zero with no budget, so it is free whatever a provider's probe says of its
+    /// free tier (Google marks its models billed, though their free-tier copies cost nothing).
+    pub free_only: bool,
 }
 
 /// Each provider route's models, by id without the route prefix, in the order the catalogue lists them.
@@ -129,7 +136,8 @@ fn parse_groups(raw: Option<&Value>) -> BTreeMap<String, CatalogueGroup> {
             .collect();
         let public = matches!(group.get("public"), Some(Value::Bool(true)));
         let modality = group.get("modality").and_then(Value::as_str).map(str::to_string);
-        groups.insert(name.to_string(), CatalogueGroup { public, modality, deployments });
+        let free_only = matches!(group.get("access_groups"), Some(Value::Arr(access)) if access.len() == 1 && access[0].as_str() == Some(FREE_ACCESS_GROUP));
+        groups.insert(name.to_string(), CatalogueGroup { public, modality, deployments, free_only });
     }
     groups
 }
@@ -228,7 +236,7 @@ pub fn group_probe(catalogue: &LiteLlmCatalogue, group: &CatalogueGroup) -> Opti
     let known: Vec<(&CatalogueDeployment, &CatalogueProbe)> =
         group.deployments.iter().filter_map(|deployment| deployment_probe(catalogue, deployment).map(|probe| (deployment, probe))).collect();
     let (deployment, probe) = known.iter().find(|(_, probe)| probe.status == "usable").or_else(|| known.first())?;
-    let free = group.deployments.iter().all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
+    let free = group.free_only || group.deployments.iter().all(|deployment| deployment_probe(catalogue, deployment).is_some_and(|probe| probe.free));
     let modality = group.modality.clone().or_else(|| probe.modality.clone());
     // A route's own id is `<vendor>/<model>` where the vendor is the model's maker (`baidu/ernie-5.5-flash-preview:free`),
     // which stands in for the canonical id the probe does not carry.
@@ -465,10 +473,6 @@ fn free_flag(config: &GatewayConfig, catalogue: &LiteLlmCatalogue, client: &str,
 /// in every field, so where the catalogue cannot be read or has no word on the model, that zero price stands in; a
 /// catalogue that calls the model billed always wins over a price in the file.
 pub fn is_free(runtime: &Runtime, config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, client: &str, model: &str) -> bool {
-    if client == crate::run::OPENCODE_FREE_CLIENT {
-        // No LiteLLM route serves OpenCode's own free models, so OpenCode's own price list is the only answer.
-        return crate::sources::opencode_model_is_free(runtime, model);
-    }
     match catalogue.and_then(|catalogue| free_flag(config, catalogue, client, model)) {
         Some(free) => free,
         None => crate::sources::pi_model_is_free(runtime, client, model),

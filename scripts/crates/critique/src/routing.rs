@@ -366,11 +366,23 @@ fn read_stats_thresholds(fields: &Fields<'_>) -> Result<StatsThresholds, ShapeEr
     })
 }
 
-/// A Pi client's `free` mark: false when it names none, and never true on a route that is not public-only.
-fn read_free(fields: &Fields<'_>) -> Result<bool, ShapeError> {
+/// The Pi provider of the one LiteLLM route that reaches free models, and the prefix every free model name carries.
+pub const FREE_PROVIDER: &str = "litellm-free";
+pub const FREE_MODEL_PREFIX: &str = "free/";
+
+/// A Pi client's `free` mark: false when it names none, and never true on a route that is not public-only. A free
+/// client names a `free/<model>` (on the free route, or a free step of a tier's route), and every client on the free
+/// route is free, so a free model is never reached by any other name.
+fn read_free(fields: &Fields<'_>, data_scope: &str, provider: &str, model: &str) -> Result<bool, ShapeError> {
     let free = fields.has("free") && fields.boolean("free")?;
-    if free && fields.string("data_scope")? != "public" {
+    if free && data_scope != "public" {
         return Err(ShapeError("free must be false unless data_scope is public: a free-only roster is for public material alone".to_string()));
+    }
+    let named_free = model.starts_with(FREE_MODEL_PREFIX);
+    if (free || provider == FREE_PROVIDER) && !(free && named_free) {
+        return Err(ShapeError(format!(
+            "a free model is reached only as {FREE_MODEL_PREFIX}<model> (on {FREE_PROVIDER}, or as a tier's step), marked free: true, and {FREE_PROVIDER} serves nothing else"
+        )));
     }
     Ok(free)
 }
@@ -379,15 +391,13 @@ fn read_free(fields: &Fields<'_>) -> Result<bool, ShapeError> {
 pub fn read_critic_client(fields: &Fields<'_>) -> Result<CriticClient, ShapeError> {
     let kind = fields.one_of("kind", &CLIENT_KINDS)?;
     if kind == "pi" {
-        return Ok(CriticClient::Pi(PiCriticClient {
-            binary: if fields.has("binary") { fields.string("binary")? } else { "pi".to_string() },
-            data_scope: fields.one_of("data_scope", &DATA_SCOPES)?,
-            family: fields.one_of("family", &MODEL_FAMILIES)?,
-            free: read_free(fields)?,
-            model: fields.string("model")?,
-            provider: fields.matching("provider", is_litellm_provider, "a LiteLLM route's Pi provider, litellm-<route>")?,
-            tier: fields.optional_string("tier")?,
-        }));
+        let binary = if fields.has("binary") { fields.string("binary")? } else { "pi".to_string() };
+        let data_scope = fields.one_of("data_scope", &DATA_SCOPES)?;
+        let family = fields.one_of("family", &MODEL_FAMILIES)?;
+        let model = fields.string("model")?;
+        let provider = fields.matching("provider", is_litellm_provider, "a LiteLLM route's Pi provider, litellm-<route>")?;
+        let free = read_free(fields, &data_scope, &provider, &model)?;
+        return Ok(CriticClient::Pi(PiCriticClient { binary, data_scope, family, free, model, provider, tier: fields.optional_string("tier")? }));
     }
     let gateway = if fields.has("gateway") { Some(read_gateway_model(&fields.object("gateway")?, &kind)?) } else { None };
     match kind.as_str() {

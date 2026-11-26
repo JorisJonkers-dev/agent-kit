@@ -94,8 +94,9 @@ the model gateway. Say exactly one of these, then delegate:
 Give the delegation the research question and the repository, and keep the
 gateway's data policy: a repository with a `nedap` remote goes nowhere the policy
 does not permit. Prefer the Pi clients (`pi-<route>`) the gateway lists: they run
-confined to their working directory, and `pi-public` takes a question only when
-it carries nothing private and names no repository.
+confined to their working directory, and `pi-free` (free models, each named
+`free/<model>`) takes a question only when it carries nothing private and names
+no repository GitHub does not say is public.
 
 ## What to report
 

@@ -47,13 +47,13 @@ fn only_a_public_scope_pi_client_is_barred_and_only_from_a_private_repository() 
 fn free_routing(free_client: &str, free_slots: &str, fallbacks: &str) -> Result<crate::routing::Routing, String> {
     let slot = |client: &str| format!(r#"{{"client":"{client}","role":"gap-critic","lenses":[],"max_price_usd":0.05,"time_limit_s":240}}"#);
     let text = format!(
-        r#"{{"version":1,"clients":{{"pi-free":{free_client},"pi-also-free":{{"kind":"pi","provider":"litellm-openrouter","model":"openrouter/b","family":"cohere","data_scope":"public","free":true}},"pi-paid":{{"kind":"pi","provider":"litellm-public","model":"public/c","family":"google","data_scope":"public"}}}},"fallbacks":{{{fallbacks}}},"stages":{{"spec":{{"distinct_families":true,"base":[{}],"free":[{free_slots}]}}}}}}"#,
+        r#"{{"version":1,"clients":{{"pi-free":{free_client},"pi-also-free":{{"kind":"pi","provider":"litellm-free","model":"free/b","family":"cohere","data_scope":"public","free":true}},"pi-paid":{{"kind":"pi","provider":"litellm-public","model":"public/c","family":"google","data_scope":"public"}}}},"fallbacks":{{{fallbacks}}},"stages":{{"spec":{{"distinct_families":true,"base":[{}],"free":[{free_slots}]}}}}}}"#,
         slot("pi-paid")
     );
     crate::routing::parse_routing(&parse(&text).expect("json")).map_err(|error| error.0)
 }
 
-const FREE_CLIENT: &str = r#"{"kind":"pi","provider":"litellm-openrouter","model":"openrouter/a","family":"nvidia","data_scope":"public","free":true}"#;
+const FREE_CLIENT: &str = r#"{"kind":"pi","provider":"litellm-free","model":"free/a","family":"nvidia","data_scope":"public","free":true}"#;
 
 #[test]
 fn a_free_roster_holds_free_pi_clients_whose_fallbacks_are_free_too() {
@@ -68,8 +68,21 @@ fn a_free_roster_holds_free_pi_clients_whose_fallbacks_are_free_too() {
     assert_eq!(free_routing(FREE_CLIENT, &paid_slot, "").expect_err("paid slot"), "stages.spec.free names pi-paid, which is not a free pi client: a free-only roster holds nothing else");
     let private = FREE_CLIENT.replace("\"public\"", "\"any\"");
     assert_eq!(free_routing(&private, slot, "").expect_err("free on a private route"), "free must be false unless data_scope is public: a free-only roster is for public material alone");
-    let unmarked = FREE_CLIENT.replace(",\"free\":true", "");
-    assert!(matches!(free_routing(&unmarked, "", "").expect("routing").clients[0].1, CriticClient::Pi(ref pi) if !pi.free));
+}
+
+#[test]
+fn a_free_model_is_reached_only_as_free_model_on_the_free_route() {
+    let refusal = "a free model is reached only as free/<model> (on litellm-free, or as a tier's step), marked free: true, and litellm-free serves nothing else";
+    assert!(matches!(client(FREE_CLIENT), Ok(CriticClient::Pi(ref pi)) if pi.free));
+    // Unmarked, on another route, or by another name: each is refused.
+    assert_eq!(client(&FREE_CLIENT.replace(",\"free\":true", "")).map(|_| ()), Err(refusal.to_string()));
+    assert_eq!(client(&FREE_CLIENT.replace("free/a", "openrouter/a")).map(|_| ()), Err(refusal.to_string()));
+    assert_eq!(client(&FREE_CLIENT.replace("litellm-free", "litellm-openrouter").replace("free/a", "openrouter/a")).map(|_| ()), Err(refusal.to_string()));
+    // A tier's public-only route reaches its free steps by their free/<model> name.
+    let step = FREE_CLIENT.replace("litellm-free", "litellm-tier-review");
+    assert!(matches!(client(&step), Ok(CriticClient::Pi(ref pi)) if pi.free));
+    // A paid client on another route with any other name is not touched by the rule.
+    assert!(matches!(client(PI), Ok(CriticClient::Pi(ref pi)) if !pi.free));
 }
 
 #[test]

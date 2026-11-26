@@ -10,9 +10,10 @@
 # A request names a profile and may narrow it (fewer models, fewer tools, a
 # lower spend cap), never widen it. The repository data policy always wins: it
 # is intersected with the profile, and a profile left with no allowed model for
-# a repository is an error, never a silent fallback. Public routes (pi-public)
-# are never sent a repository; a nedap repository reaches only Claude Code and
-# Codex, so a profile that lists neither has no model there.
+# a repository is an error, never a silent fallback. The public-only routes
+# (pi-free, pi-tier-review) are sent a repository only when GitHub says it is
+# public; a nedap repository reaches only Claude Code and Codex, so a profile
+# that lists neither has no model there.
 #
 # Fields of a profile:
 #   description            what the profile is for
@@ -39,7 +40,7 @@
 #                          (#903), reading only its working directory and writing only
 #                          its run directory, and a client whose per-run home holds no
 #                          MCP server, skill or plugin and whose escape probe passes
-#                          (claude, hermes, opencode, opencode-free) holds a deny-all
+#                          (claude, hermes, opencode) holds a deny-all
 #                          scope without being named here. Antigravity (its confinement
 #                          reads the owner's `~/.gemini/config`, where its skills are)
 #                          and Codex (its probe cell cannot run on these profiles)
@@ -84,12 +85,13 @@ profiles:
 
   public-gemini:
     description: >-
-      Gemini free-tier models on the public route, for public material only: a
-      delegation that reads a repository is never sent here. Not free: the proxy
-      bills them once the free-tier quota is used, and max_spend_usd bounds that.
+      The Gemini free tier as free/<model> on the free key, for public material
+      only: a delegation that reads a repository GitHub does not say is public is
+      never sent here. Free: the proxy never falls back to a paid deployment, so a
+      request every free copy refuses fails instead of billing.
     models:
-      - pi-public:public/gemini-3.5-flash-lite
-      - pi-public:public/gemini-3.6-flash
+      - pi-free:free/gemini-3.5-flash-lite
+      - pi-free:free/gemini-3.6-flash
     max_spend_usd: 0.75
 
   implement-cheap:
@@ -112,30 +114,27 @@ profiles:
 # <role>` holds a run to the role's models, deny-all tool scope (no MCP server, no
 # skill, no plugin: the minimum allowance is nothing) and per-run spend cap. Pi is
 # the default harness and the only one whose scope the gateway enforces;
-# `--harness <h>` picks another (claude, codex, agy, vibe, hermes, opencode,
-# opencode-free, or a Pi route such as pi-opencode-go for OpenCode Go through Pi).
-# `opencode` runs the role's Pi-route model on OpenCode's own LiteLLM provider of
-# that route, or one of OpenCode's free models (opencode-free, listed after the Pi
-# models so a tie goes to Pi): every role runs on both Pi and OpenCode. The data policy is
-# intersected with every role: a repository never reaches the public routes
-# (pi-public, pi-openrouter, pi-free), which are listed only so public-data work
-# can use them. A free model is accepted only if the catalogue marks it free; a
-# billed one is refused with free-only-refused before anything runs.
+# `--harness <h>` picks another (claude, codex, agy, vibe, hermes, opencode, or a
+# Pi route such as pi-opencode-go for OpenCode Go through Pi). `opencode` runs the
+# role's Pi-route model on OpenCode's own LiteLLM provider of that route: every role
+# runs on both Pi and OpenCode. A free model is reached only as pi-free's
+# free/<model> (the proxy's free group, which tries every free copy of the model
+# and never a paid one); no other client or name reaches a free model. The data
+# policy is intersected with every role: a repository GitHub does not say is
+# public never reaches the public-only route pi-free, which is listed so
+# public-data work can use it. A free model is accepted only if the catalogue
+# marks it free; a billed one is refused with free-only-refused before anything runs.
 
   research:
     description: >-
       Read-only research over public sources and lookups: cheap models, with the
-      free public routes (pi-free, pi-openrouter) for work that carries no
-      repository. No tools attached.
+      free models (pi-free's free/<model>) for public material. No tools attached.
     models:
       - pi-vibe:ministral-8b
       - pi-vibe:mistral-small
       - pi-vibe:glm-5.3-flash
       - pi-opencode-go:qwen3.8-flash
-      - pi-free:qwen3.8-flash
-      - pi-free:mistral-small
-      - pi-openrouter:qwen3.8-flash
-      - pi-openrouter:mistral-small
+      - pi-free:free/mistral-small
       - agy:gemini-3.8-flash-low
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
@@ -143,11 +142,11 @@ profiles:
       - pi-opencode-go:glm-5.3-flash
       - pi-opencode-go:mimo-v2.6-flash
       - pi-opencode-go:minimax-m3.1-flash
-      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-      - opencode-free:opencode/glm-5.3-flash-free
-      - opencode-free:opencode/deepseek-v4.1-flash-free
-      - opencode-free:opencode/mimo-v2.6-flash-free
-      - opencode-free:opencode/hy4-flash-free
+      - pi-free:free/beam-1.0-501b-a23b
+      - pi-free:free/glm-5.3-flash
+      - pi-free:free/deepseek-v4.1-flash
+      - pi-free:free/mimo-v2.6-flash
+      - pi-free:free/hy4-flash
     unenforced_clients: [agy, codex]
     max_spend_usd: 1.5
 
@@ -168,8 +167,8 @@ profiles:
       - pi-opencode-go:deepseek-v4.1-flash
       - pi-opencode-go:glm-5.3-flash
       - pi-opencode-go:mimo-v2.6-flash
-      - opencode-free:opencode/glm-5.3-flash-free
-      - opencode-free:opencode/deepseek-v4.1-flash-free
+      - pi-free:free/glm-5.3-flash
+      - pi-free:free/deepseek-v4.1-flash
     ladder:
       - pi-vibe:deepseek-v4.1-flash
       - pi-vibe:glm-5.3-flash
@@ -195,10 +194,10 @@ profiles:
       - pi-opencode-go:glm-5.3-flash
       - pi-opencode-go:mimo-v2.6-flash
       - pi-opencode-go:minimax-m3.1-flash
-      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-      - opencode-free:opencode/glm-5.3-flash-free
-      - opencode-free:opencode/deepseek-v4.1-flash-free
-      - opencode-free:opencode/nemotron-3.5-super-vl-free
+      - pi-free:free/beam-1.0-501b-a23b
+      - pi-free:free/glm-5.3-flash
+      - pi-free:free/deepseek-v4.1-flash
+      - pi-free:free/nemotron-3.5-super-vl
     distinct_families: 2
     exclude_writer_family: true
     unenforced_clients: [agy, codex]
@@ -225,10 +224,10 @@ profiles:
       - pi-opencode-go:glm-5.3-flash
       - pi-opencode-go:mimo-v2.6-flash
       - pi-opencode-go:minimax-m3.1-flash
-      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-      - opencode-free:opencode/glm-5.3-flash-free
-      - opencode-free:opencode/deepseek-v4.1-flash-free
-      - opencode-free:opencode/nemotron-3.5-super-vl-free
+      - pi-free:free/beam-1.0-501b-a23b
+      - pi-free:free/glm-5.3-flash
+      - pi-free:free/deepseek-v4.1-flash
+      - pi-free:free/nemotron-3.5-super-vl
     distinct_families: 2
     exclude_writer_family: true
     unenforced_clients: [agy, codex]
@@ -250,10 +249,10 @@ profiles:
       - pi-opencode-go:deepseek-v4.1-flash
       - pi-opencode-go:glm-5.3-flash
       - pi-opencode-go:mimo-v2.6-flash
-      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-      - opencode-free:opencode/glm-5.3-flash-free
-      - opencode-free:opencode/deepseek-v4.1-flash-free
-      - opencode-free:opencode/nemotron-3.5-super-vl-free
+      - pi-free:free/beam-1.0-501b-a23b
+      - pi-free:free/glm-5.3-flash
+      - pi-free:free/deepseek-v4.1-flash
+      - pi-free:free/nemotron-3.5-super-vl
     distinct_families: 2
     exclude_writer_family: true
     unenforced_clients: [agy, codex]
@@ -262,21 +261,21 @@ profiles:
   triage:
     description: >-
       Read-only sorting of issues, findings or logs into labelled buckets on the
-      cheapest models, free public routes included for material that is public.
+      cheapest models, free models (pi-free's free/<model>) included for material
+      that is public.
     models:
       - pi-vibe:ministral-8b
       - pi-vibe:ministral-3b
       - pi-vibe:mistral-small
-      - pi-free:mistral-small
-      - pi-openrouter:mistral-small
+      - pi-free:free/mistral-small
       - pi-opencode-go:qwen3.8-flash
       - agy:gemini-3.8-flash-low
       - claude:claude-haiku-5-5
       - codex:gpt-5.5
       - pi-opencode-go:mimo-v2.6-flash
       - pi-opencode-go:minimax-m3.1-flash
-      - pi-openrouter:opencode-go-free/beam-1.0-501b-a23b
-      - opencode-free:opencode/glm-5.3-flash-free
-      - opencode-free:opencode/hy4-flash-free
+      - pi-free:free/beam-1.0-501b-a23b
+      - pi-free:free/glm-5.3-flash
+      - pi-free:free/hy4-flash
     unenforced_clients: [agy, codex]
     max_spend_usd: 0.75
