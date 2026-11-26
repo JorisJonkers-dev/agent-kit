@@ -195,6 +195,22 @@ fn a_node_package_grants_its_package_and_its_interpreters_install() {
 }
 
 #[test]
+fn a_version_managers_shim_on_path_is_passed_over_for_the_interpreter_it_stands_for() {
+    let root = scratch("shim");
+    let manager = file(&root.join("mise/bin/mise"), "\x7fELF", 0o755);
+    fs::create_dir_all(root.join("shims")).unwrap();
+    std::os::unix::fs::symlink(&manager, root.join("shims/node")).unwrap();
+    file(&root.join("nodejs/bin/node"), "\x7fELF", 0o755);
+    let cli = file(&root.join("lib/node_modules/tool/cli.js"), "#!/usr/bin/env node\n", 0o755);
+    let env = env_with(&[&root.join("shims"), &root.join("nodejs/bin")], None);
+    assert_eq!(program_grants(cli.as_os_str(), &env).unwrap(), vec![root.join("lib/node_modules/tool"), root.join("nodejs")]);
+    // With nothing else of that name on PATH, the shim is what runs, so its install is granted.
+    let alone = env_with(&[&root.join("shims")], None);
+    assert_eq!(program_grants(cli.as_os_str(), &alone).unwrap(), vec![root.join("lib/node_modules/tool"), root.join("mise")]);
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn a_script_with_an_absolute_interpreter_or_none_found_and_a_binary() {
     let root = scratch("interp");
     let interp = file(&root.join("tools/interp"), "", 0o755);
