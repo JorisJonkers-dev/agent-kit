@@ -107,7 +107,7 @@ the critics' findings its verdict.
 
 **Critic client**:
 A client model pinned for critique, through which a critic runs (for example
-Vibe with Mistral Large, or Antigravity with Gemini Flash).
+Vibe with Mistral Small, or Antigravity with Gemini Flash).
 _Avoid_: preset, provider, engine
 
 **Model family**:

@@ -148,7 +148,7 @@ def test_shipped_routing_gives_decision_recovery_deepseek_and_mistral_large_and_
     stage = json.loads((CRITIQUE / "routing.json").read_text())["stages"]["decision-recovery"]
     assert [(slot["client"], slot["role"]) for slot in stage["base"]] == [
         ("pi-vibe-deepseek-flash", "decision-recoverer"),
-        ("pi-vibe-mistral-large", "decision-recoverer"),
+        ("pi-vibe-mistral-small", "decision-recoverer"),
     ]
     assert stage["distinct_families"] is True
     assert stage["depth_signals"]["thresholds"] == {"source_lines": 20000, "context_maps": 0}

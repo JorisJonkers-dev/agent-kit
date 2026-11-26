@@ -31,7 +31,7 @@ from setup_harness import Run, setup_run  # noqa: E402
 ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 AGENTS_DIR = render_registry.VIBE_CRITIC_AGENTS_DIR
 EVERY_AGENT = {"claude", "codex", "vibe", "antigravity", "opencode"}
-CRITIC_AGENT_NAMES = ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"]
+CRITIC_AGENT_NAMES = ["critic-mistral-small", "critic-glm-flash", "critic-deepseek-flash"]
 
 # Every key a rendered agent file may hold. Each is a Vibe setting: the
 # top-level ones are fields of Vibe's config schema (vibe/core/config/
@@ -199,7 +199,7 @@ def test_shipped_routing_defines_the_tickets_stage() -> None:
         ("pi-vibe-deepseek-flash", "ticket-linter", ["testability"], 3, 900)
     ]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["deep"]] == [
-        ("pi-vibe-mistral-large", "ticket-linter", ["simplicity"], 3, 900)
+        ("pi-vibe-mistral-small", "ticket-linter", ["simplicity"], 3, 900)
     ]
     assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
     assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "ticket-linter.md").is_file()
@@ -224,7 +224,7 @@ def test_shipped_routing_puts_pi_critics_over_litellm_in_every_base_and_deep_slo
     pi = {name: c for name, c in clients.items() if c["kind"] == "pi"}
     assert len({c["family"] for c in pi.values()}) >= 3
     assert all(c["provider"].startswith("litellm-") for c in pi.values())
-    for name in ("pi-vibe-mistral-large", "pi-vibe-glm", "pi-vibe-deepseek-flash"):
+    for name in ("pi-vibe-mistral-small", "pi-vibe-glm-flash", "pi-vibe-deepseek-flash"):
         behind = routing["fallbacks"][name]
         assert behind and all(clients[c]["kind"] == "pi" for c in behind), f"{name} falls back off Pi: {behind}"
     assert not [c for names in routing["fallbacks"].values() for c in names if clients[c]["kind"] == "vibe"]
@@ -280,10 +280,10 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     routing = json.loads(ROUTING.read_text())
     review = routing["stages"]["adr-review"]
     assert [(s["client"], s["max_price_usd"]) for s in review["base"]] == [
-        ("pi-vibe-mistral-large", 1.5),
+        ("pi-vibe-mistral-small", 1.5),
         ("agy-gemini-flash-high", 1.5),
     ]
-    assert [s["client"] for s in review["deep"]] == ["pi-vibe-glm"]
+    assert [s["client"] for s in review["deep"]] == ["pi-vibe-glm-flash"]
     assert review["depth_signals"]["thresholds"] == {"adrs": 10}
     assert review["depth_signals"]["risk_terms"] == routing["stages"]["spec"]["depth_signals"]["risk_terms"]
     assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
@@ -529,11 +529,11 @@ def test_shipped_routing_defines_the_ticket_review_stage() -> None:
     # Two axes of the code review, each its own critic from its own family (#797): Spec and Standards.
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [
         ("agy-gemini-flash-high", "diff-reviewer", ["spec-conformance", "failure-modes", "security"], 1.5, 720),
-        ("pi-vibe-glm", "diff-reviewer", ["standards"], 1.5, 720),
+        ("pi-vibe-glm-flash", "diff-reviewer", ["standards"], 1.5, 720),
     ]
     for lens in ("spec-conformance", "standards"):
         assert (KIT_ROOT / "skills" / "workstation" / "critique" / "lenses" / f"{lens}.md").is_file()
-    assert [(s["client"], s["role"]) for s in review["deep"]] == [("pi-vibe-mistral-large", "diff-reviewer")]
+    assert [(s["client"], s["role"]) for s in review["deep"]] == [("pi-vibe-mistral-small", "diff-reviewer")]
     assert review["depth_signals"]["thresholds"] == {"changed_lines": 600, "risk_path_hits": 3}
     assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "diff-reviewer.md").is_file()
 
@@ -852,9 +852,9 @@ def test_a_runner_file_missing_from_the_pin_fails_validation() -> None:
 
 
 def test_one_critic_agent_is_declared_per_vibe_critic_client() -> None:
-    """#167's Vibe clients: Mistral Large, Mistral Small, GLM and DeepSeek Flash."""
+    """The Vibe clients: Mistral Small, GLM Flash and DeepSeek Flash (reviews default to Flash-class)."""
     names = {a["name"] for a in _critics(_registry())}
-    assert names == {"critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"}
+    assert names == {"critic-mistral-small", "critic-glm-flash", "critic-deepseek-flash"}
 
 
 def test_every_vibe_client_in_routing_names_a_declared_agent() -> None:
@@ -972,9 +972,8 @@ def test_the_prices_are_mistrals_published_ones() -> None:
     """
     prices = {a["name"]: (a["model"], a["input_price"], a["output_price"]) for a in _critics(_registry())}
     assert prices == {
-        "critic-mistral-large": ("mistral-large-4-0", 0.7, 2.1),
         "critic-mistral-small": ("mistral-small-latest", 0.15, 0.6),
-        "critic-glm": ("zai-glm-5-3", 1.4, 4.4),
+        "critic-glm-flash": ("zai-glm-5-3-flash", 0.15, 0.5),
         "critic-deepseek-flash": ("deepseek-v4-1-flash-1017", 0.3, 1.2),
     }
 
@@ -1020,9 +1019,8 @@ def test_setup_installs_every_critic_agent_into_the_shared_vibe_home(macos_run: 
 # Mistral bills cached prompt tokens at 10% of the input price
 # (docs.mistral.ai/studio/conversations/advanced/prompt-caching, read 2026-11-02).
 CACHED_INPUT_PRICES = {
-    "critic-mistral-large": 0.07,
     "critic-mistral-small": 0.015,
-    "critic-glm": 0.14,
+    "critic-glm-flash": 0.015,
     "critic-deepseek-flash": 0.03,
 }
 
@@ -1068,7 +1066,7 @@ def test_setup_adds_nothing_for_critics_to_antigravity(macos_run: Run) -> None:
 
 def test_a_check_run_installs_no_critic_agent(check_run: Run) -> None:
     assert not (check_run.home / ".vibe" / "agents").exists()
-    assert "would write" in check_run.stdout and "critic-glm.toml" in check_run.stdout
+    assert "would write" in check_run.stdout and "critic-glm-flash.toml" in check_run.stdout
 
 
 def _critic_step(data: dict) -> str:
@@ -1117,9 +1115,9 @@ def test_a_rerun_replaces_an_edited_critic_agent(tmp_path: Path) -> None:
     """The agent file is declared: a hand edit that, say, adds bash is undone."""
     agents = tmp_path / "vibe" / "agents"
     agents.mkdir(parents=True)
-    (agents / "critic-glm.toml").write_text('enabled_tools = ["read_file", "bash"]\n')
+    (agents / "critic-glm-flash.toml").write_text('enabled_tools = ["read_file", "bash"]\n')
     assert _run_critic_step(tmp_path, _registry()).returncode == 0
-    assert (agents / "critic-glm.toml").read_text() == (KIT_ROOT / AGENTS_DIR / "critic-glm.toml").read_text()
+    assert (agents / "critic-glm-flash.toml").read_text() == (KIT_ROOT / AGENTS_DIR / "critic-glm-flash.toml").read_text()
 
 
 def test_setup_installs_the_critic_agents_only_into_the_shared_home() -> None:
@@ -1147,8 +1145,8 @@ def test_model_sync_never_rewrites_a_critic_agents_model_entry(tmp_path: Path, m
     home = tmp_path / ".vibe"
     agents = home / "agents"
     agents.mkdir(parents=True)
-    installed = agents / "critic-mistral-large.toml"
-    installed.write_text((KIT_ROOT / AGENTS_DIR / "critic-mistral-large.toml").read_text())
+    installed = agents / "critic-mistral-small.toml"
+    installed.write_text((KIT_ROOT / AGENTS_DIR / "critic-mistral-small.toml").read_text())
     before = installed.read_bytes()
     sync = _sync_module()
     entries = sync.wanted(
