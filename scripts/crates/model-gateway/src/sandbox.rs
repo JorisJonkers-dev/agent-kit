@@ -25,6 +25,8 @@ pub enum SandboxBackend {
     Confine,
     /// Plan the launch for Docker Sandboxes and refuse it with the plan; nothing starts.
     SbxDryRun,
+    /// Run the launch in its own Docker Sandbox (`sbx`), for the read-only Pi and OpenCode clients.
+    Sbx,
 }
 
 impl SandboxBackend {
@@ -32,6 +34,7 @@ impl SandboxBackend {
         match self {
             SandboxBackend::Confine => "confine",
             SandboxBackend::SbxDryRun => "sbx-dry-run",
+            SandboxBackend::Sbx => "sbx",
         }
     }
 
@@ -41,7 +44,8 @@ impl SandboxBackend {
         match env.get(SANDBOX_VARIABLE).map_or("", String::as_str) {
             "" | "confine" => Ok(SandboxBackend::Confine),
             "sbx-dry-run" => Ok(SandboxBackend::SbxDryRun),
-            other => Err(GatewayError::new("sandbox-unknown", format!("{SANDBOX_VARIABLE}={other} names no sandbox backend; use confine or sbx-dry-run"))),
+            "sbx" => Ok(SandboxBackend::Sbx),
+            other => Err(GatewayError::new("sandbox-unknown", format!("{SANDBOX_VARIABLE}={other} names no sandbox backend; use confine, sbx-dry-run or sbx"))),
         }
     }
 }
