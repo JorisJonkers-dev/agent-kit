@@ -237,6 +237,9 @@ impl ClientRun<'_> {
         if client == RunClient::Vibe && self.files.exists(&agents_skills).unwrap_or(false) {
             reads.push(agents_skills);
         }
+        if client == RunClient::Vibe {
+            reads.extend(vibe_project_configs(self.files, &request.paths.work_dir));
+        }
         let mut writes = home.writes.clone();
         // A home beside the export directory (no run directory) is writable too; one under it already is.
         if !std::path::Path::new(&home.dir).starts_with(crate::launchers::report_dir(&request.paths)) {
@@ -297,4 +300,20 @@ impl ClientRun<'_> {
         }
         Ok(self.files.read_text(path).ok().and_then(|text| json::parse(&text).ok()))
     }
+}
+
+/// The project configs Vibe looks for above its working directory: it asks whether `<dir>/.vibe/config.toml` is a
+/// file for every directory from its working directory up to `/` (it stops only at the parent of `VIBE_HOME`, which
+/// the run's own home never is). Under the confinement a path that is not there answers "no such file", but one
+/// that is there and not granted answers "operation not permitted", and Vibe aborts with
+/// `Layer 'project-toml': _check_trust() failed` (the owner's own `~/.vibe/config.toml` above a repository, say).
+/// Each one that exists is granted as that one file, read-only: Vibe then finds it untrusted (the run's home trusts
+/// no folder) and leaves it unread. The working directory's own is readable already.
+pub fn vibe_project_configs(files: &dyn Files, work_dir: &str) -> Vec<String> {
+    std::path::Path::new(work_dir)
+        .ancestors()
+        .skip(1)
+        .map(|dir| join(&[&dir.to_string_lossy(), ".vibe", "config.toml"]))
+        .filter(|path| files.exists(path).unwrap_or(false))
+        .collect()
 }
