@@ -12,10 +12,11 @@ use crate::json::{self, Value};
 use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
 use crate::pi_launch::{launcher_of, prepare_pi};
-use crate::ports::{Ending, Files, LaunchWatch, Launched, Process, ProcessResult, Unwatched};
+use crate::ports::{Ending, Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
 use crate::sandbox::{dry_run, SandboxBackend};
+use crate::sbx_launch::{self, SbxLaunch};
 use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
@@ -139,6 +140,9 @@ impl ClientRun<'_> {
     pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
         let backend = SandboxBackend::select(self.env)?;
+        if backend == SandboxBackend::Sbx {
+            sbx_launch::preflight(self.process, request.client, request.launch.mode)?;
+        }
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
         let home = self.home_of(request)?;
@@ -156,14 +160,32 @@ impl ClientRun<'_> {
         let mut extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
         extras.env.extend(credential);
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
+        // The launch's own directories may hold a key or a link to a login: they go before any refusal.
+        let discard = || confine.iter().map(|confine| confine.agent_dir.clone()).chain(home.iter().map(|home| home.dir.clone())).for_each(|dir| {
+            let _ = self.files.remove(&dir);
+        });
         if backend == SandboxBackend::SbxDryRun {
-            // The launch's own directories may hold a key or a link to a login: they go before the refusal.
-            confine.iter().map(|confine| confine.agent_dir.clone()).chain(home.iter().map(|home| home.dir.clone())).for_each(|dir| {
-                let _ = self.files.remove(&dir);
-            });
+            discard();
             return Err(dry_run(request.client.as_str(), &command).into());
         }
-        let ran = self.process.run_watched(&command, watch);
+        let sandboxed = if backend == SandboxBackend::Sbx {
+            match self.sandboxed(request, &command, confine.as_ref(), home.as_ref()) {
+                Ok(sandboxed) => Some(sandboxed),
+                Err(error) => {
+                    discard();
+                    return Err(error.into());
+                }
+            }
+        } else {
+            None
+        };
+        let (ran, sandbox_warnings) = match sandboxed {
+            Some(sandboxed) => {
+                let run = sbx_launch::run(self.process, &sandboxed, &command, watch);
+                (run.ran, run.warnings)
+            }
+            None => (self.process.run_watched(&command, watch), Vec::new()),
+        };
         // What the launch refreshed in its copy of a login goes back to the owner's, before the home goes.
         let unsynced: Vec<String> = home.iter().filter_map(|home| home.login.as_ref()).filter_map(|(owner, copy)| sync_login(self.files, owner, copy).err()).collect();
         // The agent directory holds the route's key, so it goes the moment the launch ends, and so does a run home; a
@@ -174,6 +196,7 @@ impl ClientRun<'_> {
             .chain(home.iter().map(|home| home.dir.clone()))
             .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
             .chain(unsynced)
+            .chain(sandbox_warnings)
             .collect();
         let Launched { result, ending } = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
@@ -182,6 +205,19 @@ impl ClientRun<'_> {
         };
         let output = (launcher.read)(&result.stdout, exported.as_ref());
         Ok(ClientRunOutcome { result, ending, exported, output, warnings: leftovers })
+    }
+
+    /// The sbx side of a launch: its route is read from the launch's own config, which the sandbox must reach through
+    /// the host name it sees, so a loopback base URL is rewritten in that file once the rule for it is taken.
+    fn sandboxed(&self, request: &ClientRunRequest, command: &ProcessCommand, confine: Option<&PiConfinement>, home: Option<&RunHome>) -> Result<SbxLaunch, GatewayError> {
+        let dir = confine.map(|confine| confine.agent_dir.clone()).or_else(|| home.map(|home| home.dir.clone())).unwrap_or_default();
+        let path = sbx_launch::config_path(request.client, &dir);
+        let text = self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", request.client.as_str(), error.message)))?;
+        let sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
+        if let Some(rewritten) = sbx_launch::rewritten_config(&text) {
+            self.files.write_private(&path, &rewritten).map_err(GatewayError::from_fs)?;
+        }
+        Ok(sandboxed)
     }
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
