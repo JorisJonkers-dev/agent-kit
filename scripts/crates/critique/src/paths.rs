@@ -18,6 +18,15 @@ pub fn inside_repository(root: &str, path: &str) -> Result<String, CritiqueError
     }
 }
 
+/// The paths of one launch through the gateway, run in `dir`: the client exports into `<dir>/export`, which the
+/// gateway grants the confined client to write. The launcher refuses a grant that does not exist (a typo must not
+/// start a run), so the directory is made here, mode 0700, by the runner that owns it, before the launch.
+pub fn launch_paths(runtime: &crate::runtime::Runtime, dir: &str, prompt_path: &str, work_dir: &str) -> Result<model_gateway::launchers::LaunchPaths, CritiqueError> {
+    let export_dir = join(&[dir, "export"]);
+    runtime.gateway.files.mkdir_private(&export_dir).map_err(CritiqueError::from_fs)?;
+    Ok(model_gateway::launchers::LaunchPaths { export_dir, prompt_path: prompt_path.to_string(), work_dir: work_dir.to_string(), ..Default::default() })
+}
+
 /// `path.join`: the parts joined with `/` and normalised, staying relative when the first non-empty part is. The
 /// gateway's own `join` is for absolute results only.
 pub fn join(parts: &[&str]) -> String {

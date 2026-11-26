@@ -416,9 +416,15 @@ pub struct FakeFiles {
     files: Arc<Mutex<HashMap<String, String>>>,
     broken: Arc<Mutex<Option<String>>>,
     ghosts: Arc<Mutex<Vec<String>>>,
+    made: Arc<Mutex<Vec<String>>>,
 }
 
 impl FakeFiles {
+    /// The directories made private, in order: the ones a confined launch is granted to write.
+    pub fn made(&self) -> Vec<String> {
+        self.made.lock().map(|made| made.clone()).unwrap_or_default()
+    }
+
     pub fn put(&self, path: &str, text: &str) {
         if let Ok(mut files) = self.files.lock() {
             files.insert(path.to_string(), text.to_string());
@@ -464,6 +470,13 @@ impl Files for FakeFiles {
     }
 
     fn mkdir_all(&self, _path: &str) -> Result<(), FsError> {
+        Ok(())
+    }
+
+    fn mkdir_private(&self, path: &str) -> Result<(), FsError> {
+        if let Ok(mut made) = self.made.lock() {
+            made.push(path.to_string());
+        }
         Ok(())
     }
 

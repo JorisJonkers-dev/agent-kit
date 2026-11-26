@@ -5,7 +5,7 @@
 use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
 use crate::extras::RunExtras;
 use crate::json::{self, Value};
-use crate::launchers::{LaunchPaths, LaunchRequest, VIBE_ENV};
+use crate::launchers::{GitView, LaunchPaths, LaunchRequest, VIBE_ENV};
 use crate::ports::{Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
 use crate::tests::confined::{unwrapped, LAUNCHER};
@@ -325,7 +325,7 @@ fn request(client: RunClient, model: &str, provider: Option<&str>, mode: RunMode
         binary: "client".into(),
         client,
         prompt: "ask".into(),
-        paths: LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/run/prompt.md".into(), run_dir: Some("/run".into()), work_dir: "/run/work".into(), git_writable: None },
+        paths: LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/run/prompt.md".into(), run_dir: Some("/run".into()), work_dir: "/run/work".into(), git_writable: None, git_view: GitView::default() },
         extras: RunExtras::default(),
     }
 }
@@ -412,7 +412,7 @@ fn a_caller_may_not_name_a_variable_the_run_home_sets() {
 #[test]
 fn a_keyed_launch_with_no_run_home_reads_its_key_and_adds_no_variable() {
     use crate::launchers::{launcher, LaunchExtras};
-    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: None };
+    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: None, git_view: GitView::default() };
     let input = LaunchRequest { model: "litellm-vibe/m".into(), time_limit_s: 30.0, max_price_usd: None, mode: None, provider: Some("litellm-vibe".into()) };
     for client in [RunClient::Opencode, RunClient::Hermes] {
         let command = (launcher(client).command)("bin", &input, &paths, "ask", Some(&LaunchExtras::default()));

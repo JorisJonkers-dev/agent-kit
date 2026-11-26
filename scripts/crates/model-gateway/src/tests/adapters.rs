@@ -871,3 +871,33 @@ fn copy_tree_names_what_it_cannot_copy_and_stops_at_a_folder_that_contains_itsel
     assert!(looped.message.contains("too deep") || looped.message.contains("cp"), "{}", looped.message);
 }
 
+
+#[test]
+fn git_names_where_it_keeps_its_programs_or_says_why_it_cannot() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let real = SystemGit { env: env_with_path(&real_path()), timeout_ms: TIMEOUT_MS };
+    let exec_path = real.exec_path().expect("the system git names its exec path");
+    assert!(exec_path.ends_with("git-core"), "{exec_path}");
+    let bin = sandbox.path.join("bin");
+    std::fs::create_dir_all(&bin).expect("bin folder");
+    script(&bin, "git", "#!/bin/sh\necho 'unknown option' >&2\nexit 129\n");
+    let failing = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
+    assert_eq!(failing.exec_path(), Err("unknown option".to_string()));
+}
+
+#[test]
+fn mkdir_private_makes_the_directory_owner_only_or_says_why_not() {
+    let sandbox = Sandbox::new();
+    let files = SystemFiles { cwd: sandbox.text() };
+
+    assert_eq!(files.mkdir_private("critic/export"), Ok(()));
+    let mode = std::fs::metadata(sandbox.path.join("critic/export")).expect("the directory").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o700);
+    // Already there is no error.
+    assert_eq!(files.mkdir_private("critic/export"), Ok(()));
+
+    std::fs::write(sandbox.path.join("file"), "x").expect("file");
+    let error = files.mkdir_private("file/export").expect_err("a file is in the way");
+    assert_eq!(error.code, "ENOTDIR");
+}
