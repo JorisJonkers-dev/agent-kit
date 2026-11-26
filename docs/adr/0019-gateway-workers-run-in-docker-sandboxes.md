@@ -47,6 +47,10 @@ both operating systems.
 - **The event log is unchanged** (ADR-0017): the gateway runs the sandbox's command as the child process and
   pumps its output live, as it does today.
 
+## Templates
+
+A sandbox starts from its client's template image, `agent-kit/<client>:<version>` (also tagged `:current`), built on this machine from `images/sbx/<client>/Dockerfile` by `scripts/build-sbx-images.sh`. The image holds the client's pinned install, git, ca-certificates, curl and ripgrep, and runs as a non-root `agent` user with no agent process started, so the gateway drives it with `sbx exec`. The Pi pins equal those in `installer/setup-workstation.sh`, which `tests/test_sbx_images.py` checks; `--dry-run` prints the builds without running them. Setup does not build the images yet.
+
 ## Migration
 
 `AGENT_KIT_SANDBOX=sbx-dry-run` (first slice) prepares a launch, translates its grants into the sandbox plan,
