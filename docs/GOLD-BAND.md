@@ -1387,7 +1387,7 @@ longer says which model answers.
   tier is not in the snapshot or the provider is not the tier's (`unknown-tier`).
 * **The run-start shim resolves them too.** A tier is a chain of models of several families, so the family check
   takes the families of the chain's steps: each one must be allowed by the repository's entry, and a step with
-  no family (`free/beam-free`) cannot be vouched for by any entry, so a repository with an entry that names
+  no family cannot be vouched for by any entry, so a repository with an entry that names
   fewer families than the chain holds is refused until its entry is extended with `allow`. A repository with no
   entry takes the personal default, and a `nedap` repository allows no tier (only `claude-work` and `codex`).
 * **The ledger shows the tier.** Gold Band runs outside the gateway's ledger (ADR-0014), so a passing run-start

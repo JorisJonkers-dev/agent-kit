@@ -107,22 +107,22 @@ fn route_key_env(agent: &str) -> String {
 }
 
 #[test]
-fn the_openrouter_route_is_gated_and_the_free_local_route_passes() {
-    let openrouter = route_key_env("openrouter");
+fn the_free_route_is_gated_and_the_free_local_route_passes() {
+    let free = route_key_env("free");
     let local = route_key_env("local");
-    assert_eq!(openrouter, "LITELLM_OPENROUTER_KEY");
+    assert_eq!(free, "LITELLM_FREE_KEY");
     assert_eq!(local, "LITELLM_LOCAL_KEY");
-    let lookup = |var: &str| (var == openrouter || var == local).then(|| KEY.to_string());
-    // The 5 EUR key, spent, fails the node and names its variable.
+    let lookup = |var: &str| (var == free || var == local).then(|| KEY.to_string());
+    // A spent key fails the node and names its variable.
     let (url, server) = stub(400, BUDGET_BODY);
     let (message, code) = execute(
         args(&[
             "--url",
             &url,
             "--key-env",
-            &openrouter,
+            &free,
             "--model",
-            "openrouter/vendor/m:free",
+            "free/vendor-m",
         ]),
         lookup,
         "curl",
@@ -130,10 +130,10 @@ fn the_openrouter_route_is_gated_and_the_free_local_route_passes() {
     assert_eq!(code, 1);
     assert_eq!(
         message,
-        format!("litellm-gate: node n1 failed: budget exhausted for key {openrouter}")
+        format!("litellm-gate: node n1 failed: budget exhausted for key {free}")
     );
     let request = server.join().unwrap();
-    assert!(request.contains(r#""model":"openrouter/vendor/m:free""#));
+    assert!(request.contains(r#""model":"free/vendor-m""#));
     // The local route has no budget, so the proxy answers and the gate passes.
     let (url, server) = stub(200, r#"{"choices":[]}"#);
     assert_eq!(

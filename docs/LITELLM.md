@@ -1,7 +1,7 @@
 # LiteLLM: one proxy, per-key budgets
 
 The cheap agents (Pi, Vibe, OpenCode) reach their models (the paid ones, the
-free-tier ones for public work: Google and OpenRouter, and the local GPU) through one LiteLLM proxy in the estate cluster, shared by both machines, so one budget per
+free ones for public work as `free/<model>`, and the local GPU) through one LiteLLM proxy in the estate cluster, shared by both machines, so one budget per
 key holds across machines (spec #392, stories 96-98). Gold Band's own cost and
 token numbers are never used; the proxy's refusal is the only budget signal.
 
@@ -12,10 +12,8 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `vibe` | `LITELLM_VIBE_KEY` | 255 EUR | `canonical` | every canonical model |
 | `vibe-study` | `LITELLM_VIBE_STUDY_KEY` | 127.50 EUR | `canonical` | every canonical model |
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
-| `openrouter` | `LITELLM_OPENROUTER_KEY` | none | `openrouter-free-public`, `opencode-go-free-public` | The free models only: OpenRouter's `:free` models and OpenCode Go's `-free` ids, nothing paid; **public work only** |
-| `free` | `LITELLM_FREE_KEY` | none | `free`, `tier-free` | every free model of every provider, under the shared `free/<id>` names, and the `tier-free` tier name; never `canonical`, so nothing paid is reachable and a refusal fails instead of billing; **public work only** |
+| `free` | `LITELLM_FREE_KEY` | none | `free`, `tier-free` | every free model, only as `free/<model>` (each group every free copy of one model across the free providers), and the `tier-free` tier name; never `canonical`, so nothing paid is reachable and a refusal fails instead of billing; **public work only** |
 | `local` | `LITELLM_LOCAL_KEY` | none | `canonical`, `local/*` | every canonical model, and `local/<id>` for any id the GPU workstation's server (free) serves, such as `local/qwen3:32b`; the key has no cap, so use it for local models only |
-| `public` | `LITELLM_PUBLIC_KEY` | 5 EUR | `google-free-public`, `canonical` | the free-tier Google models, and the paid fallbacks; **public work only** |
 | `tier-vibe` | `LITELLM_TIER_VIBE_KEY` | none | `tier-vibe`, `vibe-tier`, `opencode-go-tier` | the `tier-vibe` chain: Vibe's Flash models, then Go's cheap ones |
 | `tier-go-cheap` | `LITELLM_TIER_GO_CHEAP_KEY` | none | `tier-go-cheap`, `opencode-go-tier` | the `tier-go-cheap` chain: Go's cheap models |
 | `tier-review` | `LITELLM_TIER_REVIEW_KEY` | none | `free`, `tier-review`, `vibe-tier`, `opencode-go-tier` | the `tier-review` chain: free models, then Vibe Flash, then Go Flash; **public work only** |
@@ -25,9 +23,9 @@ A key lists **access groups**, not a provider wildcard (the free `local` key alo
 names it): a caller sends one canonical model
 name (`glm-5.3`, `mistral-large`, `claude-sonnet-4-5`, ...) and the proxy routes it across the
 provider accounts by priority (litellm#20), so the agent id no longer picks the provider. Every paid
-deployment, and the local one, is in `canonical`. The free-tier deployments are not: each free
-provider has its own public-only group (litellm#33), the free deployments also share the `free`
-group, and only the `data_scope: public` keys hold one. Which models an account can actually use is
+deployment, and the local one, is in `canonical`. The free deployments are not: they sit only in
+the `free/<model>` groups, in the public-only access group `free` (litellm#106), and only the
+`data_scope: public` keys hold it. Which models an account can actually use is
 the live catalogue's job (below); a listed model can still be refused.
 
 `registry/estate-tooling.yaml` (`litellm:`) is the source. The render writes
@@ -55,39 +53,35 @@ when it chooses a tier ([quota-tiers.md](model-gateway/quota-tiers.md)).
 
 ### The public-only keys: public, non-sensitive work only
 
-A free-tier provider may use the prompts to train or improve its models, so every free-tier
-deployment is **public work only** (agent-kit#737). The litellm repository keeps each free
-provider's deployments in a public-only access group of its own, never in `canonical`:
+A free provider may use the prompts to train or improve its models, so every free deployment is
+**public work only** (agent-kit#737). The litellm repository serves a free model in one way only
+(litellm#106): the group `free/<model>`, which holds every free copy of that model across the free
+providers (OpenRouter, the Google free tier, Groq, Cloudflare, NVIDIA, Z.ai, Kilo, OpenCode Go's
+free ids and the rest), in the access group `free` alone, never in `canonical`:
 
 | Public-only group | What is in it | Model names | Held by |
 |---|---|---|---|
-| `google-free-public` | the Google free tier first, then the paid deployments of the same model | `public/<canonical>` | `public` |
-| `openrouter-free-public` | OpenRouter's free `:free` models, each alone | `openrouter/<canonical>` | `openrouter` |
-| `opencode-go-free-public` | OpenCode Go's free `-free` ids, each alone | `opencode-go-free/<canonical>` | `openrouter` |
-| `<route>-free-public` | one per free-only route of the litellm repository: `groq`, `cloudflare`, `nvidia`, `zai`, `kilo`, `ovh`, `requesty`, `axforge`, `naga`, `routeway`, `inferbase`. Each holds only the ids its provider marks free | `<route>/<id>` | no workstation key today |
-| `free` | every free deployment of every provider, under one shared name per model | `free/<id>` | `free`, `tier-review` |
+| `free` | every free copy of each model, one group per model, no paid deployment | `free/<model>` | `free`, `tier-review` |
 
-The `free` group is the one key for "all free things" (agent-kit#848). It is one shared group:
-every free deployment of every provider sits in it under a `free/<id>` name, so a tier chain calls
-`free/hy4-flash-free` or `free/gemma-4-31b` and the proxy picks the provider. A request the free
-tier refuses (quota, cooldown, a 4xx) is a failure, never a paid retry. A model the account blocks,
-such as an OpenRouter free model behind the account's training-data setting, is not usable, so it
-is not deployed and stays out until the setting allows it. The `free` and `tier-review` routes are
-`data_scope: public`: neither is ever routed to a repository. The groups are the litellm
-repository's (litellm#47). The catalogue snapshot lists no `free` group yet, so the `free` key's Pi
-provider lists only `tier-free`.
+A name carries no free suffix (`free/beam-1.0-501b-a23b`, never `-free` or `:free`), and only chat
+models are deployed. The proxy checks each provider's limits before the call, skips a provider that
+is limited and lets it back in at its reset. A request every free copy refuses (quota, cooldown, a
+4xx) is a failure, never a paid retry. A model the account blocks, such as an OpenRouter free model
+behind the account's training-data setting, is not usable, so it is not deployed. The `free` and
+`tier-review` routes are `data_scope: public`.
 
-The per-provider groups stay because LiteLLM grants a key a model name: a key that holds
-`openrouter-free-public` reaches OpenRouter's free models and no other provider's. The `free` group
-is the one shared group, and only the `free` and `tier-review` keys hold it. The `openrouter` key
-holds its own group and **not** `canonical`, so it reaches nothing paid and carries no cap. `public`
-also holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
-refuses; its small cap bounds that.
+No other name reaches a free model. The old per-provider names and access groups
+(`openrouter/<x>` in `openrouter-free-public`, `public/<x>` in `google-free-public` with its paid
+fallbacks, `google-free/<x>`, `opencode-go-free/<x>` in `opencode-go-free-public`, and each
+`<route>-free-public`) are gone, and so are the `openrouter` and `public` keys
+(`LITELLM_OPENROUTER_KEY`, `LITELLM_PUBLIC_KEY`): setup removes both from the secret store. The Pi
+provider of the `free` key lists only `free/<model>` names and `tier-free`, from the catalogue
+snapshot's `free/` groups.
 
 The render enforces the keys' side (`scripts/render_registry.py`, tested in
-`tests/test_registry_render.py`): a route holding any public-only group must be
-`data_scope: public`, and a `data_scope: public` route must hold at least one. Several public
-routes are allowed. The groups on the deployments are the litellm repository's.
+`tests/test_registry_render.py`): a route holding `free` must be `data_scope: public`, a
+`data_scope: public` route must hold it, and a route that names a retired `<x>-free-public`
+group is refused. A public group is listed on a Pi provider only under its `free/` name.
 
 **Use a public-only key for public, non-sensitive work only.** Use it for open-source code,
 public documentation and questions you would post publicly. Never send it a private repository,
@@ -106,13 +100,10 @@ the roster drops it with the reason `data-scope`, it is never kept as a fallback
 passes it over. The check lives in `scripts/crates/critique`, each
 with tests.
 
-There is no route for OpenCode Zen's free models (`big-pickle`, `glm-5.3-flash-free` and the
-rest of Zen's `-free` ids): OpenCode's Zen docs say "Free-tier chat models require OpenCode; use
-paid models or Go from other clients", and its harness guide
-(https://opencode.ai/docs/console/harnesses/) says "Other harnesses receive HTTP `403` for those
-models, even with a Console API key." Only the real OpenCode client may use them, so they are
-not served through the proxy. The free ids OpenCode Go serves itself are reached through the
-`opencode-go` route (item 7 below).
+OpenCode Zen's own free models (`big-pickle`, `glm-5.3-flash-free` and the rest of Zen's `-free`
+ids) are not used: OpenCode serves them to the OpenCode client alone, outside the proxy, and the
+model gateway refuses the `opencode/` provider on every client. The free ids OpenCode Go serves are
+in the `free/<model>` groups (item 7 below).
 
 ### Provider priority (what the keys route to)
 
@@ -127,26 +118,26 @@ Set in the litellm repository (litellm#20); recorded here because the agent ids 
    route serves is never deployed on them, and a caller reaches them otherwise only by naming
    `vibe-api/<id>`.
 3. Claude only through the `anthropic` key.
-4. Gemini: Google free tier first, only inside `google-free-public`.
+4. Gemini: the Google free tier only inside the `free/<model>` groups, with no paid fallback.
 5. OpenCode Go only for models no Mistral, Google or Anthropic key serves, through LiteLLM's
    own `opencode_go` provider (litellm 1.109 and later): it picks the API family (Chat
    Completions, Responses, Messages, Gemini) per model and prices each request, so the spend
    shows under OpenCode Go in the LiteLLM UI. The proxy sets no base for it.
 6. OpenRouter free models only, `data_collection: allow` (public work only; most free endpoints
-   exist only with training on), in `openrouter-free-public` alone (never in `canonical`). The
-   OpenRouter account's privacy setting "Free model training" must be on.
-7. OpenCode Go's free ids (`beam-free`, `hy4-flash-free`, `longcat-2.5-free`,
-   `iceman-contributor-free`), whose providers may train on the prompt, only in
-   `opencode-go-free-public`, each alone (never in `canonical` or a paid group).
+   exist only with training on), only inside the `free/<model>` groups (never in `canonical`).
+   The OpenRouter account's privacy setting "Free model training" must be on.
+7. OpenCode Go's free ids (`beam-free`, `hy4-flash-free`, ...), whose providers may train on the
+   prompt, only inside the `free/<model>` groups under the model's name without the suffix
+   (`free/beam-1.0-501b-a23b`), never in `canonical` or a paid group.
 
 Mistral's four accounts: `vibe` (255) and `vibe-study` (127) are Vibe-scope; `vibe-api` (25.5) and
 `vibe-study-api` (12.7) are general API keys. Each cap is a calendar month, from the 1st.
 
 ### Names the litellm repository must match
 
-`canonical` (every paid and local deployment), the public-only groups `google-free-public`,
-`openrouter-free-public`, `opencode-go-free-public`, each free-only route's `<route>-free-public`
-and `free` (the free-tier deployments, `LITELLM_PUBLIC_GROUPS` in `scripts/render_registry.py`),
+`canonical` (every paid and local deployment), the public-only group `free` and its
+`free/<model>` names (`LITELLM_PUBLIC_GROUPS` and `LITELLM_FREE_PREFIX` in
+`scripts/render_registry.py`),
 the tier names and the access groups their `key_models` name (`registry/litellm-tiers.json`), the
 agent ids / key aliases above, and the canonical model names the gateway defaults use
 (`registry/litellm-catalogue.json` lists what the catalogue serves).
@@ -159,11 +150,11 @@ snapshot of that key, and `ci-helpers litellm-tiers --write` refreshes it.
 
 | Tier | Ceiling | Chain |
 |---|---|---|
-| `tier-free` | free | `free/hy4-flash-free`, `free/longcat-2.5-free`, `free/beam-free`, `free/glm-4.7-flash`, `free/qwen3.8-27b` |
+| `tier-free` | free | `free/hy4-flash`, `free/longcat-2.5`, `free/beam-1.0-501b-a23b`, `free/glm-4.7-flash`, `free/qwen3.8-27b` |
 | `tier-vibe` | go | `vibe-tier/deepseek-v4-1-flash-1017`, `vibe-tier/zai-glm-5-3-flash`, `vibe-tier/mistral-small-2603`, then `tier-go-cheap` |
 | `tier-go-cheap` | go | `opencode-go-tier/deepseek-v4.1-flash`, `opencode-go-tier/glm-5.3-flash`, `opencode-go-tier/mimo-v2.6-flash` |
 | `tier-strong-open` | go | `opencode-go-tier/qwen4-max`, `vibe-tier/zai-glm-5-3`, `opencode-go-tier/kimi-k3.1-pro`, `opencode-go-tier/gpt-6-luna`, then `tier-vibe` |
-| `tier-review` | go | `free/nemotron-3-ultra-550b-a55b`, `free/gemma-4-31b`, `free/glm-4.7-flash`, `free/gpt-oss-120b`, `vibe-tier/deepseek-v4-1-flash-1017`, `vibe-tier/zai-glm-5-3-flash`, `opencode-go-tier/qwen3.8-flash`, `opencode-go-tier/minimax-m3.1-flash`, `opencode-go-tier/mimo-v2.6-flash` |
+| `tier-review` | go | `free/nemotron-3-ultra-550b-a55b`, `free/gemma-4-31b-it`, `free/glm-4.7-flash`, `free/gpt-oss-120b`, `vibe-tier/deepseek-v4-1-flash-1017`, `vibe-tier/zai-glm-5-3-flash`, `opencode-go-tier/qwen3.8-flash`, `opencode-go-tier/minimax-m3.1-flash`, `opencode-go-tier/mimo-v2.6-flash` |
 
 A key that calls a tier holds the tier's name beside the access groups its chain needs, and the
 render refuses a route whose `models` differ from the tier's `key_models`. `tier-free` is called
@@ -265,7 +256,7 @@ own, and the launcher and the merge both refuse `~/.vibe`, `~/.vibe-private` and
 name contains `private`. Plain `vibe`, `vibe-study` and `vibe-private` do not see the LiteLLM
 providers, and a LiteLLM run does not see Shared or Private Memory.
 
-Data scope: the `openrouter` and `public` routes (`data_scope: public`) are for public work only.
+Data scope: the `free` and `tier-review` routes (`data_scope: public`) are for public work only.
 Never start a harness on them in a private repository.
 
 ## A budget refusal fails the node
@@ -324,8 +315,8 @@ Without a token setup says which keys it skipped and changes nothing on the prox
 A minted key takes its team's access groups (`models: ["all-team-models"]`), so changing a
 route's groups in the registry is a team update on the next setup run with a token, and needs
 no new key. A key minted before that holds its groups itself, so a team change never reaches
-it (the `openrouter` key minted before the route became public-only still listed `canonical`, and
-every free model answered `403 key_model_access_denied`). Setup reads each stored key's own
+it (the old `openrouter` key, minted before its route became public-only, still listed `canonical`,
+and every free model answered `403 key_model_access_denied`). Setup reads each stored key's own
 `/key/info`, and a key that names anything but `all-team-models` is minted again on a run with a
 token (`LITELLM_<ROUTE>_KEY: the key is scoped to ..., not to its team's models; minting it again`).
 
@@ -389,7 +380,7 @@ The cap is 255 (LiteLLM's unit), the window is `30d`, and LiteLLM resets the spe
 
 A cap counts only what LiteLLM can price. A model with no price records spend 0
 and its key's budget does not bite; the estate alert `LiteLLMSpendBlind` fires
-when a paid key moves tokens and records no spend. The free OpenRouter ids and the
+when a paid key moves tokens and records no spend. The `free/<model>` groups and the
 local route cost nothing by design.
 
 ## Telemetry and the live catalogue
@@ -421,13 +412,13 @@ Readers:
   free one `"free": true`, and refuses a run on a refused model (`model-not-usable`). A model the
   catalogue does not list is listed as before. See the gateway's SKILL.md.
 - **The model gateway's Pi clients** (`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`,
-  `pi-public`, `pi-openrouter`, `pi-free`: one per route in `registry/generated/litellm/routes.json`; `pi-openrouter` and `pi-free` list free models only and are never sent a repository; `pi-local` lists the models the `local` deployment serves, when it is probed usable) list the
+  `pi-free`: one per route in `registry/generated/litellm/routes.json`; `pi-free` lists free models only, as `free/<model>`, and is sent a repository only when GitHub says it is public; `pi-local` lists the models the `local` deployment serves, when it is probed usable) list the
   models the home's `~/.pi/agent/models.json` gives the route's `litellm-<route>` provider, which
   setup wrote from `canonical_groups`, and judge each canonical group by its deployments in the live
   catalogue: usable when one deployment is, skipped with the provider's reason when every probed
   deployment is blocked or failed, free when public or every deployment tried first is free. A Pi
-  run goes through `agent-launcher confine`. `pi-public` (the `public` route, `data_scope: public`)
-  is never sent a repository.
+  run goes through `agent-launcher confine`. `pi-free` and `pi-tier-review` (`data_scope: public`)
+  are never sent a repository GitHub does not say is public.
 - **Setup's own writers** (the Pi providers per route) use `scripts/litellm_catalogue.py`:
   `load_catalogue()` returns the live copy, else the snapshot `registry/litellm-catalogue.json`,
   with every problem as a warning; `provider_models(catalogue, provider)` lists one provider
@@ -444,20 +435,18 @@ Readers:
   not count), so a group with no usable deployment, such as a Gemini transcribe or robotics model,
   is not offered. The `local` route lists only groups with a deployment on the `local` route (its
   `canonical` access group also reaches the cloud models, which the local server does not serve), and
-  a `data_scope: public` route lists only public groups (`public` holds `canonical` so a Gemini model
-  can fall over to a paid deployment, not to offer paid models). A route left with no model has no
+  a `data_scope: public` route lists only public groups. A route left with no model has no
   Pi provider at all, and setup removes one it wrote before. Each Pi model entry carries `contextWindow` (the group's `context_length`: the smallest among
   its first-tried deployments, left out when unknown) and, for a free group, an all-zero `cost`. The
   catalogue holds no price, only whether a model is free, so a paid model has no `cost` entry.
   The render must give the same text on every machine for `--check`, so it reads the checked-in
   snapshot `registry/litellm-catalogue.json`, never the live cache, and it never touches the network.
   Refresh the snapshot with the command in its `comment` (it now keeps `context_length`), then run
-  `render_registry.py --write`. The catalogue does not say which public-only access group serves a
-  public group, so the estate's naming stands in: a public group on route `<r>` is listed for a key
-  holding an access group named `<r>-...` (`openrouter-free-public` for `openrouter/*`,
-  `google-free-public` for `public/*`). A group that names its own access groups in the catalogue is
-  reached by exactly those; today the only such groups are the Claude ones, which name `anthropic`,
-  and no workstation key holds it.
+  `render_registry.py --write`. A group that names its own access groups in the catalogue is
+  reached by exactly those: the `free/<model>` groups name `free`, and the Claude ones name
+  `anthropic`, which no workstation key holds. A public group is listed only under its `free/`
+  name, so a provider's own name for a free model (`openrouter/<x>`, `public/<x>`) never reaches a
+  Pi provider even while the catalogue still lists it.
 
 A missing or stale catalogue is a warning, never a failed run: the gateway lists unchecked when
 it has none and still uses a stale one (older than two days) with a warning.

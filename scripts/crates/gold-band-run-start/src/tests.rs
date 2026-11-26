@@ -1431,7 +1431,7 @@ fn an_entry_must_allow_every_family_of_a_tier_and_vouch_for_each_step() {
     let o = c.go();
     let text = o.refused("family-allowlist");
     // tier-free's first step has no family in the routing, so no entry can vouch for it.
-    assert!(text.contains("falls to free/hy4-flash-free, which has no family in the routing, so entry github.com/jorisjonkers-dev/agent-kit cannot vouch for it"), "{text}");
+    assert!(text.contains("falls to free/hy4-flash, which has no family in the routing, so entry github.com/jorisjonkers-dev/agent-kit cannot vouch for it"), "{text}");
     // tier-vibe's first step is deepseek, which the entry does not allow.
     assert!(text.contains("family deepseek (vibe-tier/deepseek-v4-1-flash-1017 of tier tier-vibe) is not allowed by entry"), "{text}");
 }

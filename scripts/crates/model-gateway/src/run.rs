@@ -54,14 +54,10 @@ impl RunClient {
         }
     }
 
-    /// The launcher a client id runs through: a client's own, Pi for `pi-<route>`, and OpenCode for
-    /// `opencode-free`; `None` when no run can launch it.
+    /// The launcher a client id runs through: a client's own, and Pi for `pi-<route>`; `None` when no run can launch it.
     pub fn parse(text: &str) -> Option<RunClient> {
         if is_pi_client(text) {
             return Some(RunClient::Pi);
-        }
-        if text == OPENCODE_FREE_CLIENT {
-            return Some(RunClient::Opencode);
         }
         RunClient::ALL.into_iter().find(|client| client.as_str() == text)
     }
@@ -86,25 +82,17 @@ pub fn pi_provider(client: &str) -> String {
 /// which of them may be spent on.
 pub const PROVIDER_CLIENTS: [&str; 1] = ["hermes"];
 
-/// The providers no client but `OPENROUTER_CLIENT` runs on, whatever a machine file says: the owner allows OpenRouter
-/// only for models priced at zero, through the one Pi client that holds them to that, so no configuration can open
-/// it to Hermes, OpenCode or any other client.
+/// The providers no client runs on, whatever a machine file says: OpenRouter's free models are reached only through
+/// the LiteLLM proxy's `free/<model>` groups (the `free` client), so no configuration can open OpenRouter itself to
+/// Pi, Hermes, OpenCode or any other client.
 pub const FORBIDDEN_PROVIDERS: [&str; 1] = ["openrouter"];
 
-/// The one client OpenRouter models run through: a Pi client on the `openrouter` LiteLLM route, public data only,
-/// and only for models priced at zero.
-pub const OPENROUTER_CLIENT: &str = "pi-openrouter";
-
-/// The client that runs OpenCode's own free models (`opencode/<id>`) through the OpenCode CLI. OpenCode serves them
-/// to OpenCode alone ("Other harnesses receive HTTP 403 for those models, even with a Console API key"), so no
-/// LiteLLM route can reach them. Public work only, and models priced at zero only.
-pub const OPENCODE_FREE_CLIENT: &str = "opencode-free";
-
-/// The provider OpenCode serves its own models on; `opencode-free` runs only that provider's free models.
-pub const OPENCODE_OWN_PROVIDER: &str = "opencode";
+/// The one client free models run through: Pi on the `free` LiteLLM route, whose key reaches only the proxy's
+/// `free/<model>` groups (every free copy of one model, never a paid fallback). Public work only.
+pub const FREE_CLIENT: &str = "pi-free";
 
 /// The clients that run models priced at zero only: a model of one that is not free is never listed and never run.
-pub const FREE_ONLY_CLIENTS: [&str; 3] = [OPENROUTER_CLIENT, "pi-free", OPENCODE_FREE_CLIENT];
+pub const FREE_ONLY_CLIENTS: [&str; 1] = [FREE_CLIENT];
 
 /// The client that runs a Pi route's models through its own LiteLLM provider of that route (`--provider litellm-<route>`).
 pub const HERMES: &str = "hermes";
@@ -661,14 +649,6 @@ pub fn opencode_pi_model<'a>(config: &crate::config::GatewayConfig, client: &str
     let provider = &model[..model.len() - group.len() - 1];
     let pi_client = hermes_route(config, provider)?;
     Some((pi_client, group))
-}
-
-/// Refuses an `opencode-free` model that is not one of OpenCode's own (`opencode/<id>`); every other client passes.
-pub fn require_opencode_own_model(client: &str, model: &str) -> Result<(), GatewayError> {
-    if client != OPENCODE_FREE_CLIENT || open_code_provider(model) == Some(OPENCODE_OWN_PROVIDER) {
-        return Ok(());
-    }
-    Err(GatewayError::new("provider-not-allowed", format!("{model}: {client} runs only OpenCode's own free models, named opencode/<id>")))
 }
 
 /// Refuses an OpenCode model whose provider the machine's

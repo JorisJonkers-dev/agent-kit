@@ -158,7 +158,7 @@
     },
     {
       "exit": 0,
-      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (21 of 21 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
+      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (23 of 23 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
       "stderr": "",
       "files": {
         "home/": null,

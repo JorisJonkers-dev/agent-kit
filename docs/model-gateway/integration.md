@@ -78,11 +78,13 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   merge for `metered_personal_caps`, and `disabled`, a list of
   `"<client>:<model>"` keys left out of `models`. An unreadable or invalid
   override is `invalid-config` and names the file.
-- **OpenRouter runs through one client.** `pi-openrouter` (and `pi-free`, for
-  the `free` route) have `data_scope: public` and run models priced at zero only:
+- **Free models run through one client, by one name.** `pi-free` (the `free`
+  route) has `data_scope: public` and runs only the proxy's `free/<model>`
+  groups (every free copy of one model, never a paid fallback; litellm#106):
   `models` skips a billed one with the reason, `run` refuses it with
-  `openrouter-billed` (`free-only-refused` on `pi-free`), and every other client
-  still refuses `openrouter` as a provider or an `openrouter/` model id.
+  `free-only-refused`, and every client refuses `openrouter` as a provider or an
+  `openrouter/` model id. The old `pi-public`, `pi-openrouter` and
+  `opencode-free` clients are gone.
 - **The enums are closed.** `cost_class` is `subsidised`,
   `metered-personal` or `metered-employer` in files, and `models` also prints
   `free` for a model the live LiteLLM catalogue marks free (for a Pi model, a group whose every deployment is free; Pi's zero `cost` stands in only where the catalogue cannot say); `tier` is `trivial`, `routine`,
@@ -147,7 +149,7 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
 - **Roles are profiles, and `--harness` chooses where one runs (#855).**
   `research`, `implement`, `critique`, `red-team`, `refute` and `triage` are
   profiles in the same registry, each deny-all on tools, capped per run and cut
-  by the data policy (a repository never reaches `pi-public`, `pi-openrouter` or
+  by the data policy (a repository GitHub does not say is public never reaches
   `pi-free`). `run --profile ROLE --harness H` (or `profile` and `harness` in the
   input) replaces `client` and `model`: the gateway keeps the profile's models
   for the repository that are on the harness (`pi` is every Pi route, `pi-<route>`
@@ -155,8 +157,8 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   harness with none (hermes has no model configured) is `profile-refused` with
   the models that are left. Only Pi enforces a scope by name. Every client now
   runs behind `agent-launcher confine` (#903, ADR-0016), reading its working
-  directory and writing its run directory only; `claude`, `hermes`, `opencode`
-  and `opencode-free`, whose per-run home holds no MCP server, skill or plugin,
+  directory and writing its run directory only; `claude`, `hermes` and
+  `opencode`, whose per-run home holds no MCP server, skill or plugin,
   hold a deny-all scope on that, and a profile lists in `unenforced_clients` the
   other clients whose launch restrictions it accepts (today `agy` and `codex`).
   A client that is neither is refused as before.

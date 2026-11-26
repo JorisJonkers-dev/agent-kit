@@ -205,9 +205,9 @@ fn opencode_provider(files: &dyn Files, env: &HashMap<String, String>, provider:
 /// `opencode.json`, which can declare servers: both are switched off.
 ///
 /// A LiteLLM provider's key is read from the secret store by the launch's wrapper, so its data directory is the
-/// run's own and holds nothing. OpenCode's own providers (`opencode`, `opencode-go`, and the free models) have
-/// their sign-in in `opencode.db` of the owner's data directory, where a copy of one credential is not
-/// possible: a fresh data directory signs in as nobody and the free models answer 429 or no route. Those launches
+/// run's own and holds nothing. OpenCode's own provider `opencode-go` has its sign-in in `opencode.db` of the
+/// owner's data directory, where a copy of one credential is not possible: a fresh data directory signs in as
+/// nobody and its models answer 429 or no route. Those launches
 /// keep `XDG_DATA_HOME` as it is, and only the config, state, cache and `HOME` are the run's own.
 pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model: &str, mode: Option<RunMode>, dir: &str) -> Result<RunHome, String> {
     let provider = crate::models::open_code_provider(model);

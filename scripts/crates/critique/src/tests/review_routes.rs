@@ -106,12 +106,22 @@ fn the_routing_exceptions_are_real_clients_that_are_not_cheap_with_a_reason() {
     }
 }
 
+/// Clients that name a full-size model only so the Gold Band lint can read the family of a template
+/// binding (`mistral-large-4-0`, `glm-5.3`) from this file; no slot, fallback, triage or cold-read
+/// model may name them, so nothing picks them for a review.
+const FAMILY_ANCHORS: [&str; 2] = ["pi-vibe-mistral-large", "pi-vibe-glm"];
+
 #[test]
-fn the_full_model_clients_are_gone_from_routing() {
+fn the_full_model_clients_are_family_anchors_that_no_review_route_names() {
     let routing = parse(ROUTING).expect("routing");
     let clients = member(&routing, "clients").as_object().expect("clients");
-    for name in ["vibe-glm", "vibe-mistral-large", "pi-vibe-glm", "pi-vibe-mistral-large", "pi-opencode-go-glm", "pi-opencode-go-mistral-large"] {
+    let used = reviewer_clients(&routing);
+    for name in ["vibe-glm", "vibe-mistral-large", "pi-opencode-go-glm", "pi-opencode-go-mistral-large"] {
         assert!(clients.get(name).is_none(), "{name} is the full model: use its flash or small client");
+    }
+    for name in FAMILY_ANCHORS {
+        assert!(clients.get(name).is_some(), "{name} anchors a family for the Gold Band lint");
+        assert!(!used.contains(name), "{name} is a full model and must stay out of every review route");
     }
 }
 

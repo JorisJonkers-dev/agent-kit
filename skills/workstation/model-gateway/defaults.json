@@ -11,14 +11,11 @@
     "pi-vibe-study":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-opencode-go": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-local":       {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
-    "pi-public":      {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
-    "pi-openrouter":  {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
     "pi-free":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
     "pi-tier-vibe":   {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-tier-go-cheap": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-tier-strong-open": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
-    "pi-tier-review": {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
-    "opencode-free":  {"binary": "opencode", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"}
+    "pi-tier-review": {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"}
   },
   "models": [
     {"client": "claude", "model": "claude-opus-5-5",   "family": "anthropic", "tier": "frontier", "notes": "Strongest Claude; design, hard debugging, review of risky changes."},
@@ -35,20 +32,29 @@
     {"client": "agy",    "model": "gemini-3.8-flash-medium", "family": "google", "tier": "routine", "notes": "Fast long-context reader; summaries and well-specified edits."},
     {"client": "agy",    "model": "gemini-3.8-flash-low", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries, classification and lookups."},
     {"client": "pi-free", "model": "tier-free", "family": "litellm-tier", "tier": "routine", "notes": "LiteLLM tier tier-free: free models only, in the order litellm states (registry/litellm-tiers.json). Public work only."},
+    {"client": "pi-free", "model": "free/glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "GLM 5.3 Flash on every free provider that serves it. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "DeepSeek V4.1 Flash on every free provider that serves it. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/hy4-flash", "family": "tencent", "tier": "routine", "notes": "Hy4 Flash on every free provider that serves it. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "MiMo V2.6 Flash on every free provider that serves it. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/nemotron-3.5-super-vl", "family": "nvidia", "tier": "hard", "notes": "Nemotron 3.5 Super VL; NVIDIA logs trial use to improve its products. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/nemotron-3.5-lightning", "family": "nvidia", "tier": "routine", "notes": "Nemotron 3.5 Lightning; NVIDIA logs trial use to improve its products. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/nemotron-3-ultra-550b-a55b", "family": "nvidia", "tier": "routine", "notes": "Nemotron 3 Ultra; the largest free NVIDIA model. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/beam-1.0-501b-a23b", "family": "reflection", "tier": "routine", "notes": "Beam 1.0; its providers may train on the prompt. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/gemini-3.6-flash", "family": "google", "tier": "routine", "notes": "Gemini free tier; fast long-context reader, never a paid fallback. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Gemini free tier; short summaries and lookups, never a paid fallback. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/gemma-4-31b-it", "family": "google", "tier": "hard", "notes": "Gemma 4 31B on every free provider that serves it. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/gpt-oss-120b", "family": "openai", "tier": "routine", "notes": "gpt-oss 120B; a provider's per-minute token limit can refuse a long prompt, and the next copy is tried. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/gpt-oss-20b", "family": "openai", "tier": "trivial", "notes": "gpt-oss 20B; short summaries and lookups. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/qwen3.8-27b", "family": "alibaba", "tier": "routine", "notes": "Qwen 3.8 27B; routine edits and summaries. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/glm-4.7-flash", "family": "zhipu", "tier": "routine", "notes": "GLM 4.7 Flash; reasons by default. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/glm-4.5-flash", "family": "zhipu", "tier": "trivial", "notes": "GLM 4.5 Flash; short summaries and lookups. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/mistral-small", "family": "mistral", "tier": "trivial", "notes": "Mistral Small; short summaries and classification. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/ling-3.2-flash", "family": "inclusionai", "tier": "trivial", "notes": "Ling 3.2 Flash; short summaries and lookups. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
+    {"client": "pi-free", "model": "free/particle-1", "family": "particle", "tier": "trivial", "notes": "Particle 1; short summaries and lookups. Free through the proxy's free group, which tries each free copy in turn. Public work only."},
     {"client": "pi-tier-vibe", "model": "tier-vibe", "family": "litellm-tier", "tier": "routine", "notes": "LiteLLM tier tier-vibe: Vibe Flash models, then the Go tier. The chain is litellm's."},
     {"client": "pi-tier-go-cheap", "model": "tier-go-cheap", "family": "litellm-tier", "tier": "routine", "notes": "LiteLLM tier tier-go-cheap: OpenCode Go Flash models. The chain is litellm's."},
     {"client": "pi-tier-strong-open", "model": "tier-strong-open", "family": "litellm-tier", "tier": "hard", "notes": "LiteLLM tier tier-strong-open: an escalation tier with no workstation key, so a run on it is refused until a key is provisioned."},
     {"client": "pi-tier-review", "model": "tier-review", "family": "litellm-tier", "tier": "hard", "notes": "LiteLLM tier tier-review: free models of several labs, then Vibe, then Go. Public work only."},
-    {"client": "opencode-free", "model": "opencode/glm-5.3-flash-free", "family": "zhipu", "tier": "routine", "notes": "OpenCode's free GLM 5.3 Flash; zero retention, no training. Public work only."},
-    {"client": "opencode-free", "model": "opencode/deepseek-v4.1-flash-free", "family": "deepseek", "tier": "routine", "notes": "OpenCode's free DeepSeek V4.1 Flash; zero retention, no training. Public work only."},
-    {"client": "opencode-free", "model": "opencode/hy4-flash-free", "family": "tencent", "tier": "routine", "notes": "OpenCode's free Hy4 Flash; zero retention. Public work only."},
-    {"client": "opencode-free", "model": "opencode/mimo-v2.6-flash-free", "family": "xiaomi", "tier": "routine", "notes": "OpenCode's free MiMo V2.6 Flash. Public work only."},
-    {"client": "opencode-free", "model": "opencode/longcat-2.5-free", "family": "meituan", "tier": "routine", "notes": "OpenCode's free LongCat 2.5, hosted in China, 100 requests a day; no training or retention. Public work only."},
-    {"client": "opencode-free", "model": "opencode/nemotron-3.5-super-vl-free", "family": "nvidia", "tier": "hard", "notes": "NVIDIA trial endpoint: use is logged and used to improve NVIDIA products. Public work only."},
-    {"client": "opencode-free", "model": "opencode/nemotron-3.5-lightning-free", "family": "nvidia", "tier": "routine", "notes": "NVIDIA trial endpoint: use is logged and used to improve NVIDIA products. Public work only."},
-    {"client": "opencode-free", "model": "opencode/big-pickle", "family": "opencode", "tier": "routine", "notes": "OpenCode's stealth model; collected data may be used to improve it. Public work only."},
-    {"client": "opencode-free", "model": "opencode/beam-free", "family": "opencode", "tier": "routine", "notes": "Free Beam; retained 30 days for safety, no training. Public work only."},
-    {"client": "opencode-free", "model": "opencode/flint-40b-free", "family": "opencode", "tier": "trivial", "notes": "Free Flint 40B; data may be used to improve the model, retained 30 days. Public work only."},
     {"client": "opencode", "model": "opencode-go/kimi-k2.7-code", "family": "moonshot", "tier": "hard", "notes": "Strong agentic coding on OpenCode Go; served by no Vibe, Google or Anthropic key."},
     {"client": "opencode", "model": "opencode-go/mimo-v2.6-pro", "family": "xiaomi", "tier": "hard", "notes": "Xiaomi’s MiMo pro variant on OpenCode Go; untried as a delegate."},
     {"client": "opencode", "model": "opencode-go/qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries on OpenCode Go."},
@@ -66,19 +72,7 @@
     {"client": "pi", "model": "mimo-v2.6-pro", "family": "xiaomi", "tier": "hard", "notes": "Xiaomi’s MiMo pro variant; untried as a delegate."},
     {"client": "pi", "model": "mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant; untried as a delegate."},
     {"client": "pi", "model": "qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries."},
-    {"client": "pi", "model": "minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "Fast MiniMax; routine edits and summaries."},
-    {"client": "pi", "model": "opencode-go-free/beam-1.0-501b-a23b", "family": "reflection", "tier": "routine", "notes": "OpenCode Go's free Beam; public material only (its provider may train on the prompt)."},
-    {"client": "pi", "model": "public/gemini-3.6-flash", "family": "google", "tier": "routine", "notes": "Fast long-context reader; public material only."},
-    {"client": "pi", "model": "public/gemini-3.5-flash-lite", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries and lookups; public material only."},
-    {"client": "pi", "model": "groq/gpt-oss-120b", "family": "openai", "tier": "routine", "notes": "Groq free plan; 8K tokens a minute, so a long prompt can fail. Public material only."},
-    {"client": "pi", "model": "groq/gpt-oss-20b", "family": "openai", "tier": "trivial", "notes": "Groq free plan; short summaries and lookups, 8K tokens a minute. Public material only."},
-    {"client": "pi", "model": "groq/qwen3.8-27b", "family": "alibaba", "tier": "routine", "notes": "Groq free plan; routine edits and summaries, 8K tokens a minute. Public material only."},
-    {"client": "pi", "model": "zai/glm-4.7-flash", "family": "zhipu", "tier": "routine", "notes": "Z.ai free tier; one request at a time, reasons by default. Public material only."},
-    {"client": "pi", "model": "zai/glm-4.5-flash", "family": "zhipu", "tier": "trivial", "notes": "Z.ai free tier; short summaries and lookups, one request at a time. Public material only."},
-    {"client": "pi", "model": "kilo/nemotron-3-ultra-550b-a55b", "family": "nvidia", "tier": "routine", "notes": "Kilo's anonymous free gateway, 200 requests an hour shared by the whole proxy. Public material only."},
-    {"client": "pi", "model": "kilo/ling-3.2-flash", "family": "inclusionai", "tier": "trivial", "notes": "Kilo's anonymous free gateway, 200 requests an hour shared by the whole proxy; short summaries and lookups. Public material only."},
-    {"client": "pi", "model": "kilo/particle-1", "family": "particle", "tier": "trivial", "notes": "Kilo's anonymous free gateway, 200 requests an hour shared by the whole proxy; short summaries and lookups. Public material only."},
-    {"client": "pi", "model": "requesty/gemma-4-31b-it", "family": "google", "tier": "hard", "notes": "Requesty free model; 200 requests a day over all free models. Public material only."}
+    {"client": "pi", "model": "minimax-m3.1-flash", "family": "minimax", "tier": "routine", "notes": "Fast MiniMax; routine edits and summaries."}
   ],
   "profiles": {
     "cheap-research": {
@@ -96,8 +90,8 @@
       "max_spend_usd": 3
     },
     "public-gemini": {
-      "description": "Gemini free-tier models on the public route, for public material only: a delegation that reads a repository is never sent here. Not free: the proxy bills them once the free-tier quota is used, and max_spend_usd bounds that.",
-      "models": ["pi-public:public/gemini-3.5-flash-lite", "pi-public:public/gemini-3.6-flash"],
+      "description": "The Gemini free tier as free/<model> on the free key, for public material only: a delegation that reads a repository GitHub does not say is public is never sent here. Free: the proxy never falls back to a paid deployment, so a request every free copy refuses fails instead of billing.",
+      "models": ["pi-free:free/gemini-3.5-flash-lite", "pi-free:free/gemini-3.6-flash"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.75
     },
@@ -109,15 +103,15 @@
       "max_spend_usd": 6
     },
     "research": {
-      "description": "Read-only research over public sources and lookups: cheap models, with the free public routes (pi-free, pi-openrouter) for work that carries no repository. No tools attached.",
-      "models": ["pi-vibe:ministral-8b", "pi-vibe:mistral-small", "pi-vibe:glm-5.3-flash", "pi-opencode-go:qwen3.8-flash", "pi-free:qwen3.8-flash", "pi-free:mistral-small", "pi-openrouter:qwen3.8-flash", "pi-openrouter:mistral-small", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/mimo-v2.6-flash-free", "opencode-free:opencode/hy4-flash-free"],
+      "description": "Read-only research over public sources and lookups: cheap models, with the free models (pi-free's free/<model>) for public material. No tools attached.",
+      "models": ["pi-vibe:ministral-8b", "pi-vibe:mistral-small", "pi-vibe:glm-5.3-flash", "pi-opencode-go:qwen3.8-flash", "pi-free:free/mistral-small", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-free:free/beam-1.0-501b-a23b", "pi-free:free/glm-5.3-flash", "pi-free:free/deepseek-v4.1-flash", "pi-free:free/mimo-v2.6-flash", "pi-free:free/hy4-flash"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 1.5,
       "unenforced_clients": ["agy", "codex"]
     },
     "implement": {
       "description": "Writes in a worktree, test first. A cheap writer with a ladder to a stronger model on escalation. The write run is the gateway's own worktree and check; no tool beyond the client's file edit.",
-      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3", "pi-opencode-go:kimi-k2.7-code", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free"],
+      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3", "pi-opencode-go:kimi-k2.7-code", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-free:free/glm-5.3-flash", "pi-free:free/deepseek-v4.1-flash"],
       "ladder": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 6,
@@ -125,7 +119,7 @@
     },
     "critique": {
       "description": "Independent read-only review from two model families other than the writer's. The request names the writer's family as narrow.writer_family.",
-      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-small", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/nemotron-3.5-super-vl-free"],
+      "models": ["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-small", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-free:free/beam-1.0-501b-a23b", "pi-free:free/glm-5.3-flash", "pi-free:free/deepseek-v4.1-flash", "pi-free:free/nemotron-3.5-super-vl"],
       "distinct_families": 2,
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
@@ -134,7 +128,7 @@
     },
     "red-team": {
       "description": "Adversarial and read-only: tries to break the artifact, attack the spec and find the unsafe assumptions, and reports findings with the evidence for each (the input, the command or the line that shows it), never a fix or an edit. Two families other than the writer's, so the attack is not made by the author's own blind spots. The request names the writer's family as narrow.writer_family.",
-      "models": ["pi-vibe:glm-5.3-flash", "pi-vibe:mistral-small", "pi-vibe:deepseek-v4.1-flash", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/nemotron-3.5-super-vl-free"],
+      "models": ["pi-vibe:glm-5.3-flash", "pi-vibe:mistral-small", "pi-vibe:deepseek-v4.1-flash", "agy:gemini-3.8-flash-high", "claude:claude-sonnet-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-free:free/beam-1.0-501b-a23b", "pi-free:free/glm-5.3-flash", "pi-free:free/deepseek-v4.1-flash", "pi-free:free/nemotron-3.5-super-vl"],
       "distinct_families": 2,
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
@@ -143,7 +137,7 @@
     },
     "refute": {
       "description": "Read-only check of one claim or finding: tries to refute it from the evidence and answers confirmed or refuted with the reason. A family other than the one that raised the claim. The request names it as narrow.writer_family.",
-      "models": ["pi-vibe:glm-5.3-flash", "pi-vibe:mistral-small", "agy:gemini-3.8-flash-medium", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/deepseek-v4.1-flash-free", "opencode-free:opencode/nemotron-3.5-super-vl-free"],
+      "models": ["pi-vibe:glm-5.3-flash", "pi-vibe:mistral-small", "agy:gemini-3.8-flash-medium", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:deepseek-v4.1-flash", "pi-opencode-go:glm-5.3-flash", "pi-opencode-go:mimo-v2.6-flash", "pi-free:free/beam-1.0-501b-a23b", "pi-free:free/glm-5.3-flash", "pi-free:free/deepseek-v4.1-flash", "pi-free:free/nemotron-3.5-super-vl"],
       "distinct_families": 2,
       "exclude_writer_family": true,
       "tools": {"mcp": [], "skills": [], "plugins": []},
@@ -151,14 +145,14 @@
       "unenforced_clients": ["agy", "codex"]
     },
     "triage": {
-      "description": "Read-only sorting of issues, findings or logs into labelled buckets on the cheapest models, free public routes included for material that is public.",
-      "models": ["pi-vibe:ministral-8b", "pi-vibe:ministral-3b", "pi-vibe:mistral-small", "pi-free:mistral-small", "pi-openrouter:mistral-small", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-openrouter:opencode-go-free/beam-1.0-501b-a23b", "opencode-free:opencode/glm-5.3-flash-free", "opencode-free:opencode/hy4-flash-free"],
+      "description": "Read-only sorting of issues, findings or logs into labelled buckets on the cheapest models, free models (pi-free's free/<model>) included for material that is public.",
+      "models": ["pi-vibe:ministral-8b", "pi-vibe:ministral-3b", "pi-vibe:mistral-small", "pi-free:free/mistral-small", "pi-opencode-go:qwen3.8-flash", "agy:gemini-3.8-flash-low", "claude:claude-haiku-5-5", "codex:gpt-5.5", "pi-opencode-go:mimo-v2.6-flash", "pi-opencode-go:minimax-m3.1-flash", "pi-free:free/beam-1.0-501b-a23b", "pi-free:free/glm-5.3-flash", "pi-free:free/hy4-flash"],
       "tools": {"mcp": [], "skills": [], "plugins": []},
       "max_spend_usd": 0.75,
       "unenforced_clients": ["agy", "codex"]
     },
     "tier-free": {
-      "description": "The LiteLLM tier tier-free (cost ceiling free): the proxy runs free/hy4-flash-free -> free/longcat-2.5-free -> free/beam-free -> free/glm-4.7-flash -> free/qwen3.8-27b in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "description": "The LiteLLM tier tier-free (cost ceiling free): the proxy runs free/hy4-flash -> free/longcat-2.5 -> free/beam-1.0-501b-a23b -> free/glm-4.7-flash -> free/qwen3.8-27b in order, and falls to the next step when one fails. The request names a tier, never a model.",
       "models": ["pi-free:tier-free"],
       "tier": "tier-free",
       "key_models": ["free", "tier-free"],
@@ -186,7 +180,7 @@
       "tools": {"mcp": [], "skills": [], "plugins": []}
     },
     "tier-review": {
-      "description": "The LiteLLM tier tier-review (cost ceiling go): the proxy runs free/nemotron-3-ultra-550b-a55b -> free/gemma-4-31b -> free/glm-4.7-flash -> free/gpt-oss-120b -> vibe-tier/deepseek-v4-1-flash-1017 -> vibe-tier/zai-glm-5-3-flash -> opencode-go-tier/qwen3.8-flash -> opencode-go-tier/minimax-m3.1-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "description": "The LiteLLM tier tier-review (cost ceiling go): the proxy runs free/nemotron-3-ultra-550b-a55b -> free/gemma-4-31b-it -> free/glm-4.7-flash -> free/gpt-oss-120b -> vibe-tier/deepseek-v4-1-flash-1017 -> vibe-tier/zai-glm-5-3-flash -> opencode-go-tier/qwen3.8-flash -> opencode-go-tier/minimax-m3.1-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
       "models": ["pi-tier-review:tier-review"],
       "tier": "tier-review",
       "key_models": ["free", "tier-review", "vibe-tier", "opencode-go-tier"],
