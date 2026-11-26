@@ -575,9 +575,54 @@ runs sit with the repository's; an inline run keeps it in
 `$XDG_STATE_HOME/agent-kit/model-gateway/runs/<run_id>/`, else
 `~/.local/state/agent-kit/model-gateway/runs/<run_id>/`. It holds `prompt.md`,
 `input.json`, `output.json` (the client's full output), `stderr.txt` (what the
-client printed on stderr, when anything) and `result.json`, and a writing run's
+client printed on stderr, written for every launched run, empty when it printed
+nothing), `events.jsonl` (below) and `result.json`, and a writing run's
 `check-output.txt`. `run_id` is a UTC timestamp plus a short
-random suffix.
+random suffix. `output.json` and `stderr.txt` grow while the client runs, as
+the gateway reads its pipes, and are rewritten whole when it ends.
+
+Every launched run's result says how the client's process ended:
+`exit_code` (`null` when a signal ended it or it never started), `signal`
+(`SIGKILL`, only when one ended it), `stderr_tail` (the last 4 KB of its
+stderr, `""` when it printed none) and, when the run failed, `failure`:
+`kind` and one line of `reason`, plus `output_tail` (the last 2 KB of its
+output) when its stderr was empty. The kinds are `spawn-failed` (never
+started), `signalled` (a signal ended it, or the gateway was stopped and
+stopped it), `timed-out`, `sandbox-denied` (its stderr says the sandbox
+refused something; the sandbox's own denial log is not captured),
+`harness-error` (it ran and failed by its own account: the error its output
+carries, else the last line of its stderr, else the exit code) and
+`gateway-error` (the gateway stopped before the result was written). Read
+`failure` before retrying by hand; `reason` stays the slug the retry and the
+climb read.
+
+The client starts as the leader of a process group of its own. Its time limit
+sends SIGTERM to the whole group, and SIGKILL five seconds later; what it
+leaves running in the group when it exits is killed. A gateway stopped with
+SIGINT, SIGTERM or SIGHUP while a client runs passes the stop on to the group,
+writes the run's result and starts no further launch.
+
+### The event log
+
+`events.jsonl` is one JSON object per line, appended while the run goes, the
+same for every client. Each line has `v` (the schema version, `1`), `seq`
+(from 1, per run), `ts` (RFC 3339, milliseconds), `type`, `run_id`,
+`workflow`, the OpenTelemetry GenAI attributes `gen_ai.operation.name`
+(`invoke_agent`), `gen_ai.system` (the model family), `gen_ai.agent.name`
+(the client) and `gen_ai.request.model`, and `data`:
+
+| `type` | `data` |
+| :- | :- |
+| `run.started` | `gateway_pid`, `mode`, `time_limit_s` |
+| `diagnostic` | `level`, `source` (`stderr`: one per stderr line, the first 200; `gateway`: what the runner did, such as the time limit's SIGTERM), `text` |
+| `heartbeat` | every 15 s while the client runs: `pid`, `alive_s`, `stdout_bytes`, `stderr_bytes`, `last_output_age_s` |
+| `run.finished` | exactly once: `status` (`ok`, `failed`, `lost`), `exit_code`, `signal`, `reason`, `failure`, `stderr_tail`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `cost_usd`, `pid`, `duration_s` |
+
+`tail -f events.jsonl` shows a live run. A gateway killed before it wrote
+`run.finished` leaves the log open; the next run started beside it (same runs
+directory) finishes it as `lost` (reason `gateway-lost`) once that gateway's
+process is gone. The log never fails a run, and `result.json` stays the
+record.
 
 Every run also appends one JSON line to the machine-wide ledger,
 `$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl` (else
@@ -615,8 +660,8 @@ make in all.
   Refusals (`policy-refused`, `provider-not-allowed`, `cap-exceeded`,
   `no-grant`, `no-estimate`, `workflow-ended` and the other error codes) are
   errors before anything is launched and are never retried. The raw or partial output stays in
-  the run directory (`output.json`, and `stderr.txt` when the client printed
-  any) beside the `reason` in `result.json`.
+  the run directory (`output.json`, `stderr.txt` and `events.jsonl`) beside the
+  `reason` and `failure` in `result.json`.
 - **Retry.** The first failure is retried once on the same client model. The
   retry's prompt is the caller's prompt plus `A previous attempt failed:
   <reason>; <the last 1,000 characters of the check's output for a failed

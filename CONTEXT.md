@@ -293,6 +293,24 @@ it, or after 24 hours. One Workflow tool script usually runs as one workflow,
 but the two are not the same thing.
 _Avoid_: job, session, run (a run is one critique pass or one delegation)
 
+**Run event log**:
+The `events.jsonl` the model gateway writes in a run's directory while the run
+goes: one line per event, the same shape for every client, ending in exactly
+one `run.finished`. It reports a run. `result.json` stays the record of it, and
+the ledger stays the record of every run.
+_Avoid_: trace, transcript, stream (the client's own output is the stream)
+
+**Lost run**:
+A run whose gateway died before it wrote `run.finished`. The next gateway that
+starts a run in the same runs directory finishes its log as `lost`.
+_Avoid_: orphan run, crashed run
+
+**Failure kind**:
+What ended a failed run, as the result's `failure` names it: `spawn-failed`,
+`signalled`, `timed-out`, `sandbox-denied`, `harness-error` or `gateway-error`.
+It sits beside the run's reason slug, which the retry and the climb read.
+_Avoid_: error type, failure reason (the reason is the slug)
+
 **Batch plan**:
 A set of delegations, with the dependencies between them, that the model
 gateway runs in one call. When one delegation fails for good, the gateway

@@ -191,6 +191,13 @@ impl Files for SystemFiles {
     fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
         copy_into(std::path::Path::new(&resolve(&self.cwd, from)), std::path::Path::new(&resolve(&self.cwd, to)), 0).map_err(|error| fail(&error, "cp", Some(from)))
     }
+
+    fn list_dir(&self, path: &str) -> Result<Vec<String>, FsError> {
+        let entries = std::fs::read_dir(resolve(&self.cwd, path)).map_err(|error| fail(&error, "scandir", Some(path)))?;
+        let mut names: Vec<String> = entries.flatten().map(|entry| entry.file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        Ok(names)
+    }
 }
 
 /// How deep a copied folder may go, which stops a symlink that points back at its own folder.
