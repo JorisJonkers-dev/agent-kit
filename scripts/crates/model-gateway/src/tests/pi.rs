@@ -651,3 +651,24 @@ fn free_is_the_catalogues_flag_and_pi_prices_stand_in_only_where_the_catalogue_i
     assert!(!free("pi-vibe", "flagged", None));
     assert!(!free("claude", "claude-opus-5-5", Some(&known)));
 }
+
+#[test]
+fn a_dry_run_plans_the_pi_sandbox_removes_its_agent_directory_and_starts_nothing() {
+    let files = disk("literal");
+    let programs = Programs::new(Err("never asked".into()));
+    let mut machine = home();
+    machine.insert("AGENT_KIT_SANDBOX".into(), "sbx-dry-run".into());
+    let error = (ClientRun { process: &programs, files: &files, env: &machine }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect_err("a dry run");
+    let crate::client_run::ClientRunError::Gateway(error) = error else { panic!("a refusal") };
+    assert_eq!(error.code, "sandbox-dry-run");
+    assert!(error.message.contains(r#""mounts":["/run/work","/repo/.git""#), "{}", error.message);
+    assert!(error.message.contains(r#""template":"agent-kit/pi""#), "{}", error.message);
+    assert!(programs.ran.lock().expect("ran").is_empty(), "nothing started");
+    assert_eq!(files.removed.lock().expect("removed").as_slice(), ["/run/export/pi-agent"]);
+
+    machine.insert("AGENT_KIT_SANDBOX".into(), "vm".into());
+    let error = (ClientRun { process: &programs, files: &files, env: &machine }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect_err("refused");
+    let crate::client_run::ClientRunError::Gateway(error) = error else { panic!("a refusal") };
+    assert_eq!(error.code, "sandbox-unknown");
+    assert_eq!(files.removed.lock().expect("removed").len(), 1, "refused before anything was made");
+}

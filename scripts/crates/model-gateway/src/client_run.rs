@@ -15,6 +15,7 @@ use crate::pi_launch::{launcher_of, prepare_pi};
 use crate::ports::{Ending, Files, LaunchWatch, Launched, Process, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
+use crate::sandbox::{dry_run, SandboxBackend};
 use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
@@ -137,6 +138,7 @@ impl ClientRun<'_> {
     /// `launch_scoped`, with what the client does reported to `watch` as it happens (a run's event log).
     pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
+        let backend = SandboxBackend::select(self.env)?;
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
         let home = self.home_of(request)?;
@@ -154,6 +156,13 @@ impl ClientRun<'_> {
         let mut extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
         extras.env.extend(credential);
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
+        if backend == SandboxBackend::SbxDryRun {
+            // The launch's own directories may hold a key or a link to a login: they go before the refusal.
+            confine.iter().map(|confine| confine.agent_dir.clone()).chain(home.iter().map(|home| home.dir.clone())).for_each(|dir| {
+                let _ = self.files.remove(&dir);
+            });
+            return Err(dry_run(request.client.as_str(), &command).into());
+        }
         let ran = self.process.run_watched(&command, watch);
         // What the launch refreshed in its copy of a login goes back to the owner's, before the home goes.
         let unsynced: Vec<String> = home.iter().filter_map(|home| home.login.as_ref()).filter_map(|(owner, copy)| sync_login(self.files, owner, copy).err()).collect();

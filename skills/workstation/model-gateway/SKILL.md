@@ -509,6 +509,14 @@ ends in an assistant message with `stopReason` `error` or `aborted`, or has no
 assistant message, is a failed run with the error's own text. `AGENT_KIT_LAUNCHER_BIN`
 names the launcher, else `agent-launcher` on `PATH`.
 
+`AGENT_KIT_SANDBOX` picks the sandbox every launch runs in. Unset, empty or
+`confine` is `agent-launcher confine`, as above. `sbx-dry-run` starts nothing:
+the launch is prepared as for `confine`, what it made is removed, and it is
+refused (`sandbox-dry-run`) with the Docker Sandboxes plan its grants translate
+to: mounts (`PATH` or `PATH:ro`), the variables passed in by name (never their
+values), ports, and the gaps sbx does not hold the same way. Any other value
+is refused (`sandbox-unknown`) before anything is made.
+
 Codex runs non-interactively with its own sandbox: `-s read-only` for a
 read-only run and `-s workspace-write` for a writing one, so the sandbox is
 Codex's, not the gateway's. Its reasoning effort is the model id's last word
