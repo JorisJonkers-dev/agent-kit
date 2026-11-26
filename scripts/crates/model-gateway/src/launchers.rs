@@ -7,7 +7,7 @@ use crate::client_confine::Confinement;
 use crate::extras::{AttachedServer, SandboxProfile};
 use crate::json::{self, Value};
 use crate::outputs::{agy_output, claude_output, codex_output, hermes_output, open_code_output, pi_output, vibe_output, ClientOutput};
-use crate::ports::ProcessCommand;
+use crate::ports::{Files, Git, ProcessCommand};
 use crate::run::{RunClient, RunMode};
 use crate::run_home::{RunHome, AGY_PROTECTED_ENV, CLAUDE_PROTECTED_ENV, CODEX_PROTECTED_ENV, HERMES_PROTECTED_ENV, OPENCODE_PROTECTED_ENV};
 use crate::text::join;
@@ -77,6 +77,82 @@ pub struct LaunchPaths {
     /// The git directories a writing run's client may write besides the worktree.
     /// A read-only run never gets them.
     pub git_writable: Option<Vec<String>>,
+    /// What every confined launch may read and run of git beside its working directory.
+    pub git_view: GitView,
+}
+
+/// What a confined client sees of git, whatever the client and the mode (ADR-0016). A throwaway or writing
+/// worktree's `.git` is a file that points at a git directory outside the worktree, in the repository's common
+/// directory; without a read of those, `git` fails in the worktree, and a harness that asks git where its
+/// project is fails with it (OpenCode answers every request with HTTP 500). `reads` are the worktree's git
+/// directory and the parts of the common directory git reads (never the common directory whole: it holds other
+/// runs' homes under `model-gateway/runs`). `run` is the install of the `git` on `PATH` when it is outside the
+/// system runtime the launcher already grants: the Command Line Tools behind macOS's `/usr/bin/git` shim, a
+/// Homebrew Cellar.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GitView {
+    pub reads: Vec<String>,
+    pub run: Option<String>,
+}
+
+/// The parts of a repository's common directory git reads to work in one of its worktrees.
+pub const GIT_COMMON_READS: [&str; 7] = ["HEAD", "config", "packed-refs", "objects", "refs", "info", "shallow"];
+
+/// The install a `git --exec-path` belongs to (`<prefix>/libexec/git-core`), or `None` when it is in the system
+/// runtime every confinement runs already (`/usr`, `/bin`, `/sbin`, `/System`) or is laid out another way. A
+/// prefix that is a developer directory's `usr` (the Command Line Tools, Xcode) is the developer directory: the
+/// `/usr/bin/git` shim refuses to run git from a developer directory it cannot read ("developer directory ...
+/// isn't accessible").
+pub fn git_install(exec_path: &str) -> Option<String> {
+    let prefix = exec_path.trim().strip_suffix("/libexec/git-core")?;
+    let prefix = prefix.strip_suffix("/usr").filter(|dir| !dir.is_empty()).unwrap_or(prefix);
+    let system = ["/usr", "/bin", "/sbin", "/System"].iter().any(|dir| prefix == *dir || prefix.starts_with(&format!("{dir}/")));
+    (!system && prefix.starts_with('/')).then(|| prefix.to_string())
+}
+
+/// What a launch in `work_dir` sees of git (`GitView`): the worktree's git directory and the parts of the
+/// common directory git reads, when the git directory is outside the working directory (a throwaway or a writing
+/// worktree), less what the run may write already and what is not there; and the install of the git on `PATH`.
+/// Any client, any mode: a harness that runs git, or asks it where its project is, needs both.
+pub fn git_view(git: &dyn Git, files: &dyn Files, work_dir: &str, writable: &[String]) -> GitView {
+    let run = git.exec_path().ok().and_then(|path| git_install(&path));
+    // Only a worktree's `.git` is a file (`gitdir: ...`); a repository's own `.git` directory is inside the
+    // working directory already, and an empty directory has none.
+    let linked = files.read_text(&join(&[work_dir, ".git"])).is_ok_and(|text| text.starts_with("gitdir:"));
+    if !linked {
+        return GitView { reads: Vec::new(), run };
+    }
+    let reads = match (git.git_dir(work_dir), git.common_dir(work_dir)) {
+        (Ok(git_dir), Ok(common)) if !std::path::Path::new(&git_dir).starts_with(work_dir) => {
+            let parts = GIT_COMMON_READS.iter().map(|part| join(&[&common, part]));
+            std::iter::once(git_dir).chain(parts).filter(|path| !writable.contains(path) && files.exists(path).unwrap_or(false)).collect()
+        }
+        _ => Vec::new(),
+    };
+    GitView { reads, run }
+}
+
+/// The grants every confined launch starts with, Pi or any other client: its working directory (read, or
+/// written by a writing run with the git directories it may write), the git it sees, and its own install.
+/// What a client adds after these is its own recipe.
+pub fn base_grants(input: &LaunchRequest, paths: &LaunchPaths, binary: &str) -> Vec<String> {
+    let mut grants = Vec::new();
+    if input.mode == Some(RunMode::Write) {
+        grants.extend(strings(&["--write", &paths.work_dir]));
+        for dir in paths.git_writable.as_deref().unwrap_or_default() {
+            grants.extend(strings(&["--write", dir]));
+        }
+    } else {
+        grants.extend(strings(&["--read", &paths.work_dir]));
+    }
+    for read in &paths.git_view.reads {
+        grants.extend(strings(&["--read", read]));
+    }
+    if let Some(run) = &paths.git_view.run {
+        grants.extend(strings(&["--run", run]));
+    }
+    grants.extend(strings(&["--run-from", binary]));
+    grants
 }
 
 /// What one launch needs of its input: the model, what the run may do, the
@@ -611,16 +687,7 @@ pub const PI_KEPT_ENV: [&str; 2] = ["PI_CODING_AGENT_DIR", "TMPDIR"];
 
 /// The grants a confined Pi run is started with: what it may read or write, Pi itself, and the proxy's port.
 pub fn pi_grants(input: &LaunchRequest, paths: &LaunchPaths, binary: &str, confine: &PiConfinement) -> Vec<String> {
-    let mut grants = Vec::new();
-    if input.mode == Some(RunMode::Write) {
-        grants.extend(strings(&["--write", &paths.work_dir]));
-        for dir in paths.git_writable.as_deref().unwrap_or_default() {
-            grants.extend(strings(&["--write", dir]));
-        }
-    } else {
-        grants.extend(strings(&["--read", &paths.work_dir]));
-    }
-    grants.extend(strings(&["--run-from", binary]));
+    let mut grants = base_grants(input, paths, binary);
     if let Some(bin) = &confine.bin {
         grants.extend(strings(&["--run", bin]));
     }

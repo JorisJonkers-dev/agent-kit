@@ -114,7 +114,7 @@ impl Files for Plain {
 #[test]
 fn the_grants_of_a_launch_read_the_work_directory_or_write_it_and_write_the_run_directory() {
     let input = LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: Some(RunMode::ReadOnly), provider: None };
-    let mut paths = LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g1".into(), "/g2".into()]) };
+    let mut paths = LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g1".into(), "/g2".into()]), git_view: GitView::default() };
     let confinement = Confinement { launcher: LAUNCHER.into(), reads: vec!["/r".into()], run_from: vec!["node".into()], writes: vec!["/own".into()], ports: vec![443, 8443], loopback: true, keychain: true, preferences: true, env: vec!["USER".into()] };
     let names = ["B".to_string(), "A".to_string(), "USER".to_string()];
     // A read-only run reads the work directory, never its git directories, and writes the export directory when it has no run directory.
@@ -254,7 +254,7 @@ fn a_client_that_cannot_be_confined_is_refused_and_leaves_no_home_behind() {
 fn a_launch_built_without_a_confinement_is_the_clients_own_command() {
     use crate::extras::SandboxProfile;
     use crate::launchers::{launcher, LaunchExtras};
-    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g".into()]) };
+    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g".into()]), git_view: GitView::default() };
     let input = |mode| LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: Some(mode), provider: None };
     let build = |client, mode, extras: Option<&LaunchExtras>| (launcher(client).command)("bin", &input(mode), &paths, "ask", extras);
     // Vibe unsets the variables a Study or private session would carry, since the launcher is not there to clear them.
