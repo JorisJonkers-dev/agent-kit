@@ -2034,7 +2034,7 @@ local_skills:
 vibe_critic_agents:
   # Reviews default to Flash-class, small or free models (owner rule,
   # 2026-11-26). critic-mistral-large and the full critic-glm are retired
-  # here so setup removes their installed files; tests/test_review_routes_are_cheap.py
+  # here so setup removes their installed files; scripts/crates/critique/src/tests/review_routes.rs
   # fails when a review route names a model outside that class.
   - name: critic-mistral-large
     model: mistral-large-4-0

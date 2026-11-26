@@ -29,6 +29,7 @@ mod refute_round;
 mod reviews;
 mod roster;
 mod roster_corpus;
+mod review_routes;
 mod routing;
 mod samples_corpus;
 mod scan_corpus;

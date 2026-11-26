@@ -53,7 +53,7 @@
 #
 # Review profiles (cross-critic, critique, red-team, refute) list Flash-class, small and
 # free models, plus the frontier clients (agy Gemini Flash, claude, codex) that stay as the
-# orchestrator or deep tier; tests/test_review_routes_are_cheap.py fails on any other
+# orchestrator or deep tier; scripts/crates/critique/src/tests/review_routes.rs fails on any other
 # cheap-but-full model (glm-5.3, mistral-large, kimi).
 #
 # No profile lists a `vibe:` model: the Vibe CLI spends the owner's Mistral account,

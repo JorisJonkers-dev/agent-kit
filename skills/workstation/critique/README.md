@@ -36,7 +36,7 @@ Every review and critic slot names a Flash-class, small or free model (owner rul
 Mistral Large and Kimi are never picked for a review automatically. The paid
 frontier clients (`codex-work`, `claude-work`) stay only as the `work` pool, the
 orchestrator and deep tier, never a cheap review slot.
-`tests/test_review_routes_are_cheap.py` fails on a review route, a Vibe critic
+`scripts/crates/critique/src/tests/review_routes.rs` fails on a review route, a Vibe critic
 agent, a review profile of the gateway or a `tier-review` step outside that class,
 unless the test lists the exception with its reason.
 
