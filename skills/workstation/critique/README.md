@@ -28,19 +28,31 @@ flag: `allow` refuses one, and one an older `allow` recorded is ignored, so a
 client on a public-only route (below) is never routed to a repository GitHub
 does not say is public.
 
+## Reviewers are Flash-class or free
+
+Every review and critic slot names a Flash-class, small or free model (owner rule,
+2026-11-26): `deepseek-v4-1-flash-1017`, `zai-glm-5-3-flash`, `mistral-small-latest`,
+`gemini-3.8-flash-*`, and the `free` clients on public repositories. Full GLM 5.3,
+Mistral Large and Kimi are never picked for a review automatically. The paid
+frontier clients (`codex-work`, `claude-work`) stay only as the `work` pool, the
+orchestrator and deep tier, never a cheap review slot.
+`scripts/crates/critique/src/tests/review_routes.rs` fails on a review route, a Vibe critic
+agent, a review profile of the gateway or a `tier-review` step outside that class,
+unless the test lists the exception with its reason. `pi-vibe-mistral-large` and `pi-vibe-glm` stay in `routing.json` only so the Gold Band lint can read the family of a template binding such as `mistral-large-4-0`; no slot names them.
+
 ## Stages
 
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
-| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`); with a decision record among the decisions, DeepSeek Flash (`adr-reviewer`, `adr-record`) too | GLM | Up to seven questions about decision branches nobody opened |
-| `plan` | `/critique-plan` | `/improve-codebase-architecture` (a refactor) / `/to-spec`; takes the decisions stage's place | DeepSeek Flash (`plan-critic`, `incremental-safety`), Mistral Large (`plan-critic`, `evidence-anchoring`) | GLM (`plan-critic`, `coupling` and `test-seams`) | Plan fixes that change only how, or in what order, the plan reaches its target; a question for any fix that changes the target, an ADR's standing or accepts an irreversible step; a second round after more than three accepted critical findings |
-| `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
-| `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
-| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`, Spec axis) and GLM (Standards axis) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
-| `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
-| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
-| `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Large (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
-| `architecture-review` | `/review-architecture` | on demand, outside any feature | Gemini Flash (`architecture-critic`, `dependency-direction` and `coupling`), Mistral Large (`architecture-critic`, `domain-language` and `aggregates`) | GLM (`architecture-critic`, `test-seams` and `quality-scenarios`), DeepSeek Flash (`decision-recoverer`) | Cited candidates for `/improve-codebase-architecture`, each with its lines, its facts and the observable that would show a fix worked; a question for any fix that would change a rule, ten at most across both kinds; no issue is filed |
+| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Small, Gemini Flash (`gap-critic`); with a decision record among the decisions, DeepSeek Flash (`adr-reviewer`, `adr-record`) too | GLM Flash | Up to seven questions about decision branches nobody opened |
+| `plan` | `/critique-plan` | `/improve-codebase-architecture` (a refactor) / `/to-spec`; takes the decisions stage's place | DeepSeek Flash (`plan-critic`, `incremental-safety`), Mistral Small (`plan-critic`, `evidence-anchoring`) | GLM Flash (`plan-critic`, `coupling` and `test-seams`) | Plan fixes that change only how, or in what order, the plan reaches its target; a question for any fix that changes the target, an ADR's standing or accepts an irreversible step; a second round after more than three accepted critical findings |
+| `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Small, Gemini Flash (`spec-redteam`) | GLM Flash, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
+| `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Small | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
+| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`, Spec axis) and GLM Flash (Standards axis) | Mistral Small | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
+| `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Small, Gemini Flash (`feature-reviewer`) | GLM Flash, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
+| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Small with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM Flash with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
+| `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Small (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
+| `architecture-review` | `/review-architecture` | on demand, outside any feature | Gemini Flash (`architecture-critic`, `dependency-direction` and `coupling`), Mistral Small (`architecture-critic`, `domain-language` and `aggregates`) | GLM Flash (`architecture-critic`, `test-seams` and `quality-scenarios`), DeepSeek Flash (`decision-recoverer`) | Cited candidates for `/improve-codebase-architecture`, each with its lines, its facts and the observable that would show a fix worked; a question for any fix that would change a rule, ten at most across both kinds; no issue is filed |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -486,8 +498,8 @@ generated too). Model names live only there and in the
 
 No critic shares the orchestrator's family, and a stage runs one critic per
 family. A critic that can't run (family not allowed, CLI missing or signed
-out, quota) gives its slot to the first fallback that can: Mistral Large
-falls back to GLM, then Gemini Flash; Gemini Flash to GLM. With none left the
+out, quota) gives its slot to the first fallback that can: Mistral Small
+falls back to GLM Flash, then Gemini Flash; Gemini Flash to GLM Flash. With none left the
 stage runs with fewer critics, and with no critics at all it is reported
 degraded and the flow goes on.
 
@@ -589,15 +601,15 @@ item that is not available, since no read-only proof is wired for Pi yet.
 
 **Pi is the default critic.** In the shipped `routing.json` every stage's
 base and deep slot is a Pi client over the LiteLLM `vibe` route, or `agy`:
-`pi-vibe-mistral-large` (mistral), `pi-vibe-glm` (zhipu),
+`pi-vibe-mistral-small` (mistral), `pi-vibe-glm-flash` (zhipu),
 `pi-vibe-deepseek-flash` (deepseek) and `agy-gemini-flash-high` (google), so
 each stage still has one critic per family and `distinct_families` holds. Each
 Pi client falls back to a Pi client on the `opencode-go` route (`pi-opencode-go-*`,
 the same models on another route and budget), and nothing further: the
-Vibe-login clients (`vibe-mistral-large`, `vibe-glm`, `vibe-deepseek-flash`)
+Vibe-login clients (`vibe-mistral-small`, `vibe-glm-flash`, `vibe-deepseek-flash`)
 spend the owner's Mistral account and run only when an owner's routing override
 names them, so a slot whose Pi clients cannot run stays empty.
-`agy-gemini-flash-high` falls back to `pi-vibe-glm` and, last,
+`agy-gemini-flash-high` falls back to `pi-vibe-glm-flash` and, last,
 `pi-free-gemini-flash` (the Gemini free tier as `free/gemini-3.6-flash`). The work roster, the triage model and the cold
 read are unchanged.
 

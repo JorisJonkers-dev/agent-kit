@@ -135,7 +135,7 @@ code permission must be on.
   families (`mistral`, `deepseek`, `zhipu`), point at `routing.json` in the
   critique directory for which critic clients each one feeds, and say that
   this stage's base roster needs DeepSeek and Mistral (DeepSeek Flash with
-  the incremental-safety lens and Mistral Large with the evidence-anchoring
+  the incremental-safety lens and Mistral Small with the evidence-anchoring
   lens), and that the deep roster adds GLM with the coupling and test-seams
   lenses. Say that the entry's history permission (commit messages and issue
   text, turned on with allow and `"history": true`) is off by default and

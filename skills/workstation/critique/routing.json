@@ -15,6 +15,13 @@
       "family": "anthropic",
       "gateway": { "client": "claude", "model": "claude-sonnet-5-5" }
     },
+    "pi-vibe-mistral-small": {
+      "kind": "pi",
+      "provider": "litellm-vibe",
+      "model": "mistral-small",
+      "family": "mistral",
+      "data_scope": "any"
+    },
     "pi-vibe-mistral-large": {
       "kind": "pi",
       "provider": "litellm-vibe",
@@ -29,6 +36,13 @@
       "family": "zhipu",
       "data_scope": "any"
     },
+    "pi-vibe-glm-flash": {
+      "kind": "pi",
+      "provider": "litellm-vibe",
+      "model": "glm-5.3-flash",
+      "family": "zhipu",
+      "data_scope": "any"
+    },
     "pi-vibe-deepseek-flash": {
       "kind": "pi",
       "provider": "litellm-vibe",
@@ -36,17 +50,17 @@
       "family": "deepseek",
       "data_scope": "any"
     },
-    "pi-opencode-go-mistral-large": {
+    "pi-opencode-go-mistral-small": {
       "kind": "pi",
       "provider": "litellm-opencode-go",
-      "model": "mistral-large",
+      "model": "mistral-small",
       "family": "mistral",
       "data_scope": "any"
     },
-    "pi-opencode-go-glm": {
+    "pi-opencode-go-glm-flash": {
       "kind": "pi",
       "provider": "litellm-opencode-go",
-      "model": "glm-5.3",
+      "model": "glm-5.3-flash",
       "family": "zhipu",
       "data_scope": "any"
     },
@@ -97,15 +111,6 @@
       "data_scope": "public",
       "free": true
     },
-    "vibe-mistral-large": {
-      "kind": "vibe",
-      "binary": "vibe",
-      "agent": "critic-mistral-large",
-      "model": "mistral-large-4-0",
-      "family": "mistral",
-      "prices": { "input": 0.7, "cached_input": 0.07, "output": 2.1 },
-      "gateway": { "client": "vibe", "model": "mistral-large-latest" }
-    },
     "agy-gemini-flash-high": {
       "kind": "agy",
       "binary": "agy",
@@ -113,14 +118,14 @@
       "family": "google",
       "gateway": { "client": "agy", "model": "gemini-3.8-flash-high" }
     },
-    "vibe-glm": {
+    "vibe-glm-flash": {
       "kind": "vibe",
       "binary": "vibe",
-      "agent": "critic-glm",
-      "model": "zai-glm-5-3",
+      "agent": "critic-glm-flash",
+      "model": "zai-glm-5-3-flash",
       "family": "zhipu",
-      "prices": { "input": 1.4, "cached_input": 0.14, "output": 4.4 },
-      "gateway": { "client": "vibe", "model": "glm-5-3" }
+      "prices": { "input": 0.15, "cached_input": 0.015, "output": 0.5 },
+      "gateway": { "client": "vibe", "model": "zai-glm-5-3-flash" }
     },
     "vibe-deepseek-flash": {
       "kind": "vibe",
@@ -207,10 +212,10 @@
     "merge_commits": 50
   },
   "fallbacks": {
-    "pi-vibe-mistral-large": ["pi-opencode-go-mistral-large"],
-    "pi-vibe-glm": ["pi-opencode-go-glm"],
+    "pi-vibe-mistral-small": ["pi-opencode-go-mistral-small"],
+    "pi-vibe-glm-flash": ["pi-opencode-go-glm-flash"],
     "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash"],
-    "agy-gemini-flash-high": ["pi-vibe-glm", "pi-free-gemini-flash"],
+    "agy-gemini-flash-high": ["pi-vibe-glm-flash", "pi-free-gemini-flash"],
     "pi-free-nemotron-ultra": ["pi-free-north-mini-code"],
     "pi-free-gemma": ["pi-free-beam"]
   },
@@ -263,7 +268,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "gap-critic",
           "lenses": ["unasked-questions"],
           "max_price_usd": 0.9,
@@ -288,7 +293,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "gap-critic",
           "lenses": ["integration"],
           "max_price_usd": 0.9,
@@ -351,7 +356,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability"],
           "max_price_usd": 1.5,
@@ -367,7 +372,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "spec-redteam",
           "lenses": ["integration", "operability"],
           "max_price_usd": 1.5,
@@ -440,7 +445,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "ticket-linter",
           "lenses": ["simplicity"],
           "max_price_usd": 3,
@@ -512,7 +517,7 @@
           "time_limit_s": 720
         },
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "diff-reviewer",
           "lenses": ["standards"],
           "max_price_usd": 1.5,
@@ -521,7 +526,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "diff-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 1.5,
@@ -569,7 +574,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "feature-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 3,
@@ -585,7 +590,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "feature-reviewer",
           "lenses": ["operability"],
           "max_price_usd": 3,
@@ -652,7 +657,7 @@
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "plan-critic",
           "lenses": [
             "evidence-anchoring"
@@ -663,7 +668,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "plan-critic",
           "lenses": [
             "coupling",
@@ -750,7 +755,7 @@
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "architecture-critic",
           "lenses": [
             "domain-language",
@@ -762,7 +767,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "architecture-critic",
           "lenses": [
             "test-seams",
@@ -829,7 +834,7 @@
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 1.5,
@@ -876,7 +881,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-large",
+          "client": "pi-vibe-mistral-small",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
           "max_price_usd": 1.5,
@@ -892,7 +897,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm",
+          "client": "pi-vibe-glm-flash",
           "role": "adr-reviewer",
           "lenses": ["adr-record", "decision-log"],
           "max_price_usd": 1.5,

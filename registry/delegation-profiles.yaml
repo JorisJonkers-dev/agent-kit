@@ -52,6 +52,11 @@
 # only those); it refuses mcp entries, `any` and anything not in its home. See
 # docs/model-gateway/integration.md.
 #
+# Review profiles (cross-critic, critique, red-team, refute) list Flash-class, small and
+# free models, plus the frontier clients (agy Gemini Flash, claude, codex) that stay as the
+# orchestrator or deep tier; scripts/crates/critique/src/tests/review_routes.rs fails on any other
+# cheap-but-full model (glm-5.3, mistral-large, kimi).
+#
 # No profile lists a `vibe:` model: the Vibe CLI spends the owner's Mistral account,
 # which is kept for work that asks for it, so a profile never picks it. A run that
 # names `"client": "vibe"` and a model still runs. The Vibe plans stay reachable
@@ -75,9 +80,8 @@ profiles:
       request names the writer's family as narrow.writer_family.
     models:
       - pi-vibe:deepseek-v4.1-flash
-      - pi-vibe:glm-5.3
-      - pi-vibe:mistral-large-4
-      - pi-opencode-go:kimi-k2.7-code
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-small
       - pi-opencode-go:qwen3.8-flash
     distinct_families: 2
     exclude_writer_family: true
@@ -183,9 +187,8 @@ profiles:
       writer's. The request names the writer's family as narrow.writer_family.
     models:
       - pi-vibe:deepseek-v4.1-flash
-      - pi-vibe:glm-5.3
-      - pi-vibe:mistral-large-4
-      - pi-opencode-go:kimi-k2.7-code
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-small
       - pi-opencode-go:qwen3.8-flash
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
@@ -212,11 +215,10 @@ profiles:
       the author's own blind spots. The request names the writer's family as
       narrow.writer_family.
     models:
-      - pi-vibe:glm-5.3
-      - pi-vibe:mistral-large-4
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-small
       - pi-vibe:deepseek-v4.1-flash
-      - pi-opencode-go:kimi-k2.7-code
-      - pi-opencode-go:mimo-v2.6-pro
+      - pi-opencode-go:qwen3.8-flash
       - agy:gemini-3.8-flash-high
       - claude:claude-sonnet-5-5
       - codex:gpt-5.5
@@ -240,9 +242,9 @@ profiles:
       than the one that raised the claim. The request names it as
       narrow.writer_family.
     models:
-      - pi-vibe:glm-5.3
-      - pi-vibe:mistral-large-4
-      - pi-opencode-go:kimi-k2.7-code
+      - pi-vibe:glm-5.3-flash
+      - pi-vibe:mistral-small
+      - pi-opencode-go:qwen3.8-flash
       - agy:gemini-3.8-flash-medium
       - claude:claude-haiku-5-5
       - codex:gpt-5.5

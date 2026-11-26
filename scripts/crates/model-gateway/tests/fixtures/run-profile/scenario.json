@@ -147,7 +147,7 @@
       "argv": [
         "run",
         "--json",
-        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"Look it up.\",\"escalate\":false,\"profile\":\"cross-critic\",\"narrow\":{\"writer_family\":\"mistral\"},\"repo\":\"@SANDBOX@/repo\"}"
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3-flash\",\"prompt\":\"Look it up.\",\"escalate\":false,\"profile\":\"cross-critic\",\"narrow\":{\"writer_family\":\"mistral\"},\"repo\":\"@SANDBOX@/repo\"}"
       ],
       "path": [
         "bin"

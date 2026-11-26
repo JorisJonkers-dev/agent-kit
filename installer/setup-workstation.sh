@@ -1296,15 +1296,6 @@ _vibe_private_home() {
 # no critic becomes the default agent.
 _vibe_critic_agents() {
   local home="$1" src dest
-  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-mistral-large.toml"
-  dest="${home}/agents/critic-mistral-large.toml"
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "would write ${dest}"
-  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
-    ok "Vibe critic agent critic-mistral-large -> ${dest}"
-  else
-    fail "Vibe critic agent critic-mistral-large: ${dest} does not match ${src}"
-  fi
   src="${KIT_ROOT}/registry/generated/vibe/agents/critic-mistral-small.toml"
   dest="${home}/agents/critic-mistral-small.toml"
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -1314,14 +1305,14 @@ _vibe_critic_agents() {
   else
     fail "Vibe critic agent critic-mistral-small: ${dest} does not match ${src}"
   fi
-  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-glm.toml"
-  dest="${home}/agents/critic-glm.toml"
+  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-glm-flash.toml"
+  dest="${home}/agents/critic-glm-flash.toml"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would write ${dest}"
   elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
-    ok "Vibe critic agent critic-glm -> ${dest}"
+    ok "Vibe critic agent critic-glm-flash -> ${dest}"
   else
-    fail "Vibe critic agent critic-glm: ${dest} does not match ${src}"
+    fail "Vibe critic agent critic-glm-flash: ${dest} does not match ${src}"
   fi
   src="${KIT_ROOT}/registry/generated/vibe/agents/critic-deepseek-flash.toml"
   dest="${home}/agents/critic-deepseek-flash.toml"
@@ -1331,6 +1322,24 @@ _vibe_critic_agents() {
     ok "Vibe critic agent critic-deepseek-flash -> ${dest}"
   else
     fail "Vibe critic agent critic-deepseek-flash: ${dest} does not match ${src}"
+  fi
+  dest="${home}/agents/critic-mistral-large.toml"
+  if [ ! -e "${dest}" ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove ${dest}"
+  else
+    rm -f "${dest}"
+    ok "removed retired Vibe critic agent critic-mistral-large"
+  fi
+  dest="${home}/agents/critic-glm.toml"
+  if [ ! -e "${dest}" ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove ${dest}"
+  else
+    rm -f "${dest}"
+    ok "removed retired Vibe critic agent critic-glm"
   fi
   return 0
 }

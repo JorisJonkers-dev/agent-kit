@@ -76,7 +76,7 @@ packet as `check/tickets.json`, beside `spec/` and `tickets/`.
   allowlist** entry, so nothing may be sent yet. Offer the opt-in: name the
   families (`mistral`, `zhipu`, `deepseek`, `google`) and point at
   `routing.json` in the critique directory for which critic clients each
-  feeds (the tickets stage runs DeepSeek Flash, and Mistral Large at deep
+  feeds (the tickets stage runs DeepSeek Flash, and Mistral Small at deep
   depth). If the owner chooses families, run allow with `repo` and
   `families`, then prepare again. If they decline, run `check-tickets` with
   `repo` and `spec` instead (it sends nothing anywhere), act on its report

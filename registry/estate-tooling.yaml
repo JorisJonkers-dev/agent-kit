@@ -2009,22 +2009,31 @@ local_skills:
 # (read 2026-11-01). Model names live here and in the critique routing only.
 # -------------------------------------------------------------------
 vibe_critic_agents:
+  # Reviews default to Flash-class, small or free models (owner rule,
+  # 2026-11-26). critic-mistral-large and the full critic-glm are retired
+  # here so setup removes their installed files; scripts/crates/critique/src/tests/review_routes.rs
+  # fails when a review route names a model outside that class.
   - name: critic-mistral-large
     model: mistral-large-4-0
     input_price: 0.7
     output_price: 2.1
-    surfaces: [workstation]
+    surfaces: []
 
+  - name: critic-glm
+    model: zai-glm-5-3
+    input_price: 1.4
+    output_price: 4.4
+    surfaces: []
   - name: critic-mistral-small
     model: mistral-small-latest
     input_price: 0.15
     output_price: 0.6
     surfaces: [workstation]
 
-  - name: critic-glm
-    model: zai-glm-5-3
-    input_price: 1.4
-    output_price: 4.4
+  - name: critic-glm-flash
+    model: zai-glm-5-3-flash
+    input_price: 0.15
+    output_price: 0.5
     surfaces: [workstation]
 
   - name: critic-deepseek-flash

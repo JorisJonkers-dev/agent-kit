@@ -1,0 +1,1 @@
+--model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping

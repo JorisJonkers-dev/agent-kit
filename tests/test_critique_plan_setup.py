@@ -129,10 +129,10 @@ def test_shipped_routing_follows_the_plan_roster() -> None:
     base = [(slot["client"], slot["role"], slot["lenses"]) for slot in stage["base"]]
     assert base == [
         ("pi-vibe-deepseek-flash", "plan-critic", ["incremental-safety"]),
-        ("pi-vibe-mistral-large", "plan-critic", ["evidence-anchoring"]),
+        ("pi-vibe-mistral-small", "plan-critic", ["evidence-anchoring"]),
     ]
     deep = [(slot["client"], slot["role"], slot["lenses"]) for slot in stage["deep"]]
-    assert deep == [("pi-vibe-glm", "plan-critic", ["coupling", "test-seams"])]
+    assert deep == [("pi-vibe-glm-flash", "plan-critic", ["coupling", "test-seams"])]
     assert stage["distinct_families"] is True
     assert stage["depth_signals"]["thresholds"] == {"steps": 8, "stored_data_steps": 0}
     spec = json.loads((CRITIQUE / "routing.json").read_text())["stages"]["spec"]

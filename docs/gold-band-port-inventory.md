@@ -84,7 +84,7 @@ is `stays outside` in the `direct` lane.
 | refuter | `skills/workstation/critique/roles/refuter.md` | In the refute round, may only refute or downgrade an accepted critical finding, with evidence. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
 | spec-redteam | `skills/workstation/critique/roles/spec-redteam.md` | Redteams a spec for failure modes and omissions. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
 | ticket-linter | `skills/workstation/critique/roles/ticket-linter.md` | Lints a spec's ticket structure read-only. | role | direct, gold-band, gold-band-personal | Gold Band profile (#345). |
-| Vibe critic agents | `registry/generated/vibe/agents/critic-mistral-large.toml`, `critic-mistral-small.toml`, `critic-glm.toml`, `critic-deepseek-flash.toml` | Read-only critic client agents for the critique pipeline, each pinning a model and its prices. | role | direct, gold-band, gold-band-personal | Become Gold Band agent bindings (decision 2). |
+| Vibe critic agents | `registry/generated/vibe/agents/critic-mistral-large.toml`, `critic-mistral-small.toml`, `critic-glm-flash.toml`, `critic-deepseek-flash.toml` | Read-only critic client agents for the critique pipeline, each pinning a model and its prices. | role | direct, gold-band, gold-band-personal | Become Gold Band agent bindings (decision 2). |
 | Vibe delegate agents | `registry/generated/vibe/agents/delegate-readonly.toml`, `delegate-write.toml` | Read-only and worktree-write delegate agents of the model gateway. | role | direct | Kept in the direct lane. |
 
 ## MCP servers
