@@ -59,7 +59,7 @@ fn a_runs_routing_is_the_last_serving_model_and_the_most_fallbacks_any_request_n
 
 #[test]
 fn a_client_the_gateway_does_not_stand_in_front_of_records_why_nothing_was_seen() {
-    for client in ["claude", "codex", "agy", "opencode-free"] {
+    for client in ["claude", "codex", "agy"] {
         assert_eq!(Routing::unseen(client).capture, Capture::NotLitellm, "{client}");
     }
     for client in ["pi-free", "vibe", "hermes", "opencode"] {

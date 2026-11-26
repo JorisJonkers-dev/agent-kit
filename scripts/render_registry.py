@@ -6093,23 +6093,18 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}
-# The free-only routes of the litellm repository (catalog/sync.py FREE_KINDS): each serves only ids its
-# provider marks free, in its own `<route>-free-public` access group.
-LITELLM_FREE_ROUTES = (
-    "groq", "cloudflare", "nvidia", "zai", "kilo", "ovh", "requesty", "axforge", "naga", "routeway", "inferbase",
-)
-# The public-only access groups: the free-tier deployments, whose provider may train on the
-# prompts (the Google free tier, OpenRouter's free models, OpenCode Go's free ids, and each free-only
-# route). Only a `data_scope: public` key may hold one, and a public key holds at least one; several
-# public keys are allowed. The litellm repository puts each free provider's deployments in its own
-# group (litellm catalog/sync.py).
-LITELLM_PUBLIC_GROUPS = (
-    "google-free-public",
-    "openrouter-free-public",
-    "opencode-go-free-public",
-    *(f"{route}-free-public" for route in LITELLM_FREE_ROUTES),
-    "free",
-)
+# The public-only access group: the free deployments, whose provider may train on the prompts.
+# The litellm repository serves every free model only as a `free/<model>` group (litellm#106),
+# each holding every free copy of one model across the free providers, in this one access group.
+# Only a `data_scope: public` key may hold it, and a public key holds it.
+LITELLM_FREE_GROUP = "free"
+LITELLM_PUBLIC_GROUPS = (LITELLM_FREE_GROUP,)
+# The prefix of every free model name the proxy serves: a free model is reached as `free/<model>`
+# and in no other way.
+LITELLM_FREE_PREFIX = "free/"
+# The access groups that once reached free models by another name (`openrouter/<x>`, `public/<x>`,
+# `google-free/<x>`, `opencode-go-free/<x>`, `<provider>/<x>`). No route may hold one again.
+LITELLM_RETIRED_FREE_GROUP = re.compile(r"[a-z0-9-]+-free-public")
 LITELLM_BUDGET_DURATION = "30d"
 
 
@@ -6204,6 +6199,12 @@ def _validate_litellm(data: dict[str, Any]) -> None:
             )
         if len(set(route["models"])) != len(route["models"]):
             raise RegistryError(f"litellm route {agent}: models must not repeat an access group")
+        retired = sorted(g for g in groups if LITELLM_RETIRED_FREE_GROUP.fullmatch(g))
+        if retired:
+            raise RegistryError(
+                f"litellm route {agent}: {', '.join(retired)} is retired: a free model is reached only as "
+                f"{LITELLM_FREE_PREFIX}<model>, through the {LITELLM_FREE_GROUP} access group",
+            )
         public_groups = sorted(set(groups) & set(LITELLM_PUBLIC_GROUPS))
         if public_groups and scope != "public":
             raise RegistryError(
@@ -6344,12 +6345,10 @@ def litellm_route_models(
                 continue
             if route.get("agent") == "local" and "local" not in entry.routes:
                 continue
-        # The catalogue does not say which public-only access group serves a public group, so the
-        # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public,
-        # one on the opencode-go route by opencode-go-free-public. A group that names its own access
-        # groups (the `free` ones) was already matched exactly by canonical_groups().
-        named = all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes)
-        if entry.public and not entry.access_groups and not named:
+        # A public group is a free model, and a free model is reached only by its `free/<model>` name:
+        # a provider's own `<provider>/<model>`, `public/<model>` or `<route>-free/<model>` group is
+        # never listed, whatever access group still reaches it.
+        if entry.public and not entry.name.startswith(LITELLM_FREE_PREFIX):
             continue
         model: dict[str, Any] = {"id": entry.name}
         if entry.context_length is not None:

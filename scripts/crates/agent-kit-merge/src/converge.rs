@@ -400,6 +400,9 @@ pub struct PluginArgs {
     pub check: bool,
 }
 
+/// The marketplace name of the plugins bundled with Claude Code itself.
+const BUILTIN_MARKET: &str = "builtin";
+
 /// `converge plugins`.
 pub fn plugins(args: &PluginArgs, runner: &mut dyn Runner, io: &mut Io) -> Result<i32, Failure> {
     let keep = match keep(&args.keep, io)? {
@@ -410,7 +413,10 @@ pub fn plugins(args: &PluginArgs, runner: &mut dyn Runner, io: &mut Io) -> Resul
     let declared: BTreeSet<String> = names(&args.declared_plugins).union(&names(&args.declared_markets)).cloned().collect();
     let verdict = |_: &Surface, name: &str| {
         let (plugin, market) = name.split_once('@').unwrap_or((name, ""));
-        if retired.contains(name) {
+        if market == BUILTIN_MARKET {
+            // Claude Code ships these itself; `claude plugin uninstall` cannot remove them.
+            None
+        } else if retired.contains(name) {
             Some("retired")
         } else if declared.contains(name) || [name, plugin, market].iter().any(|part| keep.contains(*part)) {
             None

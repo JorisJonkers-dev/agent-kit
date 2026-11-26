@@ -130,11 +130,10 @@ prices until it is removed from `defaults.json`.
 ### Pi: one client per LiteLLM route
 
 Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
-`pi-local`, `pi-public`, `pi-openrouter`, `pi-free`, `pi-tier-vibe`,
+`pi-local`, `pi-free`, `pi-tier-vibe`,
 `pi-tier-go-cheap` and `pi-tier-review`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
-route's own team and budget. `pi-openrouter` and `pi-free` are the free-only
-clients (below). A tier client sends the tier's name as the model. All are
+route's own team and budget. `pi-free` is the free-only client (below). A tier client sends the tier's name as the model. All are
 `subsidised`, except a model that is `free` (below).
 
 **One definition of free.** A model is `free` when the live LiteLLM catalogue
@@ -172,38 +171,25 @@ probed is blocked or failed, is marked `"free": true` when it is public or every
 deployment tried first is a free model, and is offered unchecked when the
 catalogue probed none of them.
 
-**Free-only clients.** The owner allows OpenRouter for free models only, with
-public data only, so OpenRouter runs through exactly one client, `pi-openrouter`
-(the `openrouter` route; `pi-free` is the same for the `free` route). Both have
-`"data_scope": "public"` and hold their models to the one definition of free:
-`models` lists a free model and names a billed or unpriced one in `skipped`
-with the reason, `run` refuses a billed `pi-openrouter` model with code
-`openrouter-billed` (a billed `pi-free` model with `free-only-refused`) before
-anything starts, and a delegation that names a `repo` follows the same rule as
-on `pi-public`: it is sent only to a repository GitHub says is public, since
-the models may train on what they are sent. Every other client still refuses OpenRouter: a model named
-`openrouter/...`, or a Hermes or OpenCode run on the `openrouter` provider, is
-`provider-not-allowed`, and no machine file opens it.
+**The free client.** A free model is reached in one way only: as
+`free/<model>` on `pi-free`, the `free` route, whose key holds the access group
+`free` and nothing else (litellm#106). Each `free/<model>` group is every free
+copy of one model across the free providers; the proxy checks each provider's
+limits before the call, skips a provider that is limited and returns it at its
+reset, and never falls back to a paid deployment, so a request every free copy
+refuses fails instead of billing. No other client, provider or name reaches a
+free model: the old per-provider names (`openrouter/<x>`, `public/<x>`,
+`google-free/<x>`, `opencode-go-free/<x>`, OpenCode's own `-free` ids) and the
+`pi-public`, `pi-openrouter` and `opencode-free` clients are gone. `pi-free` holds
+its models to the one definition of free: `models` lists a free model and names
+a billed or unpriced one in `skipped` with the reason, and `run` refuses a billed
+one with `free-only-refused` before anything starts. Every client refuses
+OpenRouter: a model named `openrouter/...`, or a Hermes or OpenCode run on the
+`openrouter` provider, is `provider-not-allowed`, and no machine file opens it.
 
-**OpenCode's own free models.** `opencode-free` runs OpenCode's free models
-(`opencode/glm-5.3-flash-free`, `opencode/big-pickle`, `opencode/nemotron-3.5-super-vl-free`
-and the rest) through the OpenCode CLI, the only client OpenCode serves them to
-(its harness guide: "Other harnesses receive HTTP 403 for those models, even
-with a Console API key"), so no LiteLLM route reaches them. Its models are what
-`opencode api GET /api/model` lists for OpenCode's own provider with every price
-zero, asked again before each run, so a model that stopped being free, or any
-paid `opencode/<id>`, is refused with `free-only-refused`, and a model of
-another provider with `provider-not-allowed`. It is `"data_scope": "public"`
-like the other free-only clients: several free models keep or train on what they
-are sent (Big Pickle, Iceman, Inkling, Flint, the NVIDIA trial endpoints). A free
-model whose id names no known family and that no catalogue entry names takes the
-family `opencode`. When OpenCode lists no free model, `models` names
-`opencode-free` in `missing` with what to check: OpenCode's models catalogue
-failed to load (its log says `failed to load plugin plugin.id=opencode.models.dev`),
-or `OPENCODE_DISABLE_FREE_MODELS` is set.
-
-`pi-public` has `"data_scope": "public"` (a client field, `any` by default):
-that route is for public work only, so a delegation that reads a repository is
+`pi-free` and `pi-tier-review` have `"data_scope": "public"` (a client field,
+`any` by default): a free provider may train on what it is sent, so those routes
+are for public work only, so a delegation that reads a repository is
 sent to it only when GitHub says the repository is public. A public repository
 is already public, so the route may read it: a read-only run and a writing run
 alike, carrying its code and history. A private repository, one whose
@@ -248,8 +234,8 @@ word; its tier is a guess from the name (`routine`; `trivial` for a name with
 catalogue lists under another modality is named in `skipped` with the
 catalogue's own reason, and a model it calls blocked or failed is refused as
 before. `run` places a model the same way, so `run` accepts a model that
-`models` lists. A Pi run names the canonical group (`beam-1.0-501b-a23b`), not
-the upstream id it is served under (`beam-free`); the refusal for the upstream
+`models` lists. A Pi run names the canonical group (`free/beam-1.0-501b-a23b`),
+not the upstream id it is served under (`beam-free`); the refusal for the upstream
 id names the group.
 
 A missing, unreadable or malformed catalogue is never an error: the models
@@ -421,14 +407,15 @@ Everything that can refuse the run happens before anything is launched:
   one this machine lists in `clients.hermes.providers` (empty by default, so
   every Hermes run is refused until the owner names one). `openrouter` is
   refused whatever the configuration says, and so is a model id that starts
-  with `openrouter/`, on every client but `pi-openrouter` (free models only).
+  with `openrouter/`, on every client: free models run only as `free/<model>`
+  on `pi-free`.
   An OpenCode model is named
   `<provider>/<model>`, and only the providers `clients.opencode.providers`
   names (default `["opencode-go", "litellm-opencode-go"]`, the second being the
   provider setup writes for the LiteLLM OpenCode Go route) are allowed; every
   other provider is refused, and so is `opencode/<model>`, OpenCode's
   pay-per-token Zen, even when the machine lists it: a run never reaches a
-  pay-per-token model. Its free models run on `opencode-free` instead. When
+  pay-per-token model, nor one of Zen's own free models. When
   every model OpenCode lists is on a provider the list does not name, `models`
   names `opencode` in `missing` with the reason instead of offering nothing.
 - `workflow-ended` — the run names a workflow that ended, so its caps and
@@ -1075,8 +1062,8 @@ the staged diff before you commit it.
 A delegation profile is one named bundle that owns the models a delegation may
 use and the tool scope it runs with. The shipped profiles are `cheap-research`,
 `cross-critic` (two model families other than the writer's), `public-gemini`
-(Gemini models on the public route: named for what they are, not for being
-free, since the proxy bills them once the free-tier quota is used) and
+(the Gemini free tier as `pi-free:free/gemini-3.5-flash-lite` and
+`free/gemini-3.6-flash`, for public material only, never a paid fallback) and
 `implement-cheap` (a cheap writer with a ladder to a stronger model), and the
 delegation roles below. They live
 in `registry/delegation-profiles.yaml` and are rendered into the `profiles`
@@ -1105,7 +1092,7 @@ optional `narrow` object that may only take something away:
 
 The data policy always wins: it is intersected with the profile. A profile left
 with no allowed model for the repository is `profile-refused`, never a silent
-fallback to another model. `public-gemini` runs on the public route, which is
+fallback to another model. `public-gemini` runs on `pi-free`, which is
 sent only a repository GitHub says is public; a nedap repository reaches no
 model, a public one every model, and a private one only the families its entry
 names. A delegation that fails stays inside its profile:
@@ -1121,9 +1108,9 @@ spec and find unsafe assumptions, and reports findings with the evidence for
 each, never a fix), `refute` (checks one claim from another family) and
 `triage` (sorts into labelled buckets). Each has a model set, a deny-all tool
 scope (no MCP server, skill or plugin), a per-run `max_spend_usd` and the data
-policy of any profile: a repository never reaches the public clients
-(`pi-public`, `pi-openrouter`, `pi-free`), which `research` and `triage` list
-only for public-data work. A free model is run only when the catalogue marks it
+policy of any profile: a repository GitHub does not say is public never
+reaches the public-only client `pi-free`, which the roles list (as
+`free/<model>`) only for public-data work. A free model is run only when the catalogue marks it
 free (`free-only-refused` otherwise).
 
 A role runs on Pi by default, and any harness can be chosen per run:
@@ -1145,14 +1132,12 @@ so it is refused until one is configured. `harness` needs `profile`, and cannot
 be given with `client` or `model`.
 
 `opencode` runs every role too. It takes the first of the profile's models that
-OpenCode can run: one of OpenCode's own free models (`opencode-free:opencode/<id>`)
-as it is, or a Pi route's model on OpenCode's own LiteLLM provider of that route
+OpenCode can run: an `opencode-go/<id>` model as it is, or a Pi route's model
+on OpenCode's own LiteLLM provider of that route
 (`pi-vibe:glm-5.3` runs as `opencode:litellm-vibe/glm-5.3`), for the routes that
 take any data. The route's key is read from the secret store into OpenCode's
-environment for the run, as for Hermes. Pi stays the default: a role's
-`opencode-free` models are listed after its Pi models, so a tie goes to Pi, and
-OpenCode is the harness when a model needs it (OpenCode's free models answer 403
-to every other client).
+environment for the run, as for Hermes. Pi stays the default. A free model
+(`pi-free`) is never run on OpenCode: the public-only routes stay on Pi.
 
 ### Tiers
 
@@ -1193,7 +1178,7 @@ and a fixed one shows as stale.
 
 Only Pi enforces a tool scope by name. A role runs on another harness if the
 client is one whose per-run home holds no MCP server, skill or plugin and whose
-escape probe passes (`claude`, `hermes`, `opencode`, `opencode-free`: they hold a
+escape probe passes (`claude`, `hermes`, `opencode`: they hold a
 deny-all scope, and refuse a list), or if the profile names the client in
 `unenforced_clients`: the profile author's explicit acceptance of the
 restrictions the gateway puts on that client's launch (Antigravity's `--mode
@@ -1292,7 +1277,7 @@ A run is also refused with `profile-refused` when:
   confined launch reaches only the proxy port, so a server could not connect),
   `any`, a name that is not a plain name, and a skill or plugin that is not in
   Pi's home. A confined client with a home that holds none (`claude`,
-  `hermes`, `opencode`, `opencode-free`) holds a scope that grants nothing and
+  `hermes`, `opencode`) holds a scope that grants nothing and
   refuses a list. Every other client is treated as unable unless the profile
   lists it in `unenforced_clients`, so a profile that restricts tools (every seed
   profile does, since deny-all is the default) is refused for `vibe` and the rest
@@ -1322,7 +1307,7 @@ critique writes decides for every repository that is not public. It lives at `$X
   and history; its allowlist entry is not read.
 - A repository whose visibility cannot be read (no gh, offline, an API error, a
   remote not on github.com) counts as private, never as public.
-- A client with `"data_scope": "public"` (`pi-public`) is never listed for a
+- A client with `"data_scope": "public"` (`pi-free`, `pi-tier-review`) is never listed for a
   repository that is not public, whatever its entry says of the family.
 - No `repo`, or a path outside any repository, lists only subsidised and
   metered-personal client models, each `inline_only` and allowed to send
@@ -1355,7 +1340,8 @@ and merges over the shipped defaults:
   may name (`provider-not-allowed` otherwise; `["opencode-go", "litellm-opencode-go"]` by default) and
   the ones a Hermes run may name (`hermes --provider`; empty by default, so no
   Hermes run is allowed until the owner lists one). `openrouter` stays refused
-  whatever it says; only `pi-openrouter` runs it, for free models.
+  whatever it says, on every client; free models run only as `pi-free`'s
+  `free/<model>`.
 - `clients.<id>.plan_limits` is what that client's plan allows, window by
   window: a list of `{"window": "5h"|"day"|"week"|"month", "limit_usd": n}`,
   or `{"window": ..., "limit_runs": n}` for a plan that is not billed in

@@ -57,17 +57,18 @@
       "family": "deepseek",
       "data_scope": "any"
     },
-    "pi-public-gemini-flash": {
+    "pi-free-gemini-flash": {
       "kind": "pi",
-      "provider": "litellm-public",
-      "model": "public/gemini-3.6-flash",
+      "provider": "litellm-free",
+      "model": "free/gemini-3.6-flash",
       "family": "google",
-      "data_scope": "public"
+      "data_scope": "public",
+      "free": true
     },
     "pi-free-nemotron-ultra": {
       "kind": "pi",
-      "provider": "litellm-openrouter",
-      "model": "openrouter/nemotron-3-ultra-550b-a55b",
+      "provider": "litellm-free",
+      "model": "free/nemotron-3-ultra-550b-a55b",
       "family": "nvidia",
       "data_scope": "public",
       "free": true
@@ -75,23 +76,23 @@
     "pi-free-gemma": {
       "kind": "pi",
       "provider": "litellm-free",
-      "model": "requesty/gemma-4-31b-it",
+      "model": "free/gemma-4-31b-it",
       "family": "google",
       "data_scope": "public",
       "free": true
     },
     "pi-free-north-mini-code": {
       "kind": "pi",
-      "provider": "litellm-openrouter",
-      "model": "openrouter/north-mini-code",
+      "provider": "litellm-free",
+      "model": "free/north-mini-code",
       "family": "cohere",
       "data_scope": "public",
       "free": true
     },
-    "pi-free-opencode-go-beam": {
+    "pi-free-beam": {
       "kind": "pi",
-      "provider": "litellm-openrouter",
-      "model": "opencode-go-free/beam-1.0-501b-a23b",
+      "provider": "litellm-free",
+      "model": "free/beam-1.0-501b-a23b",
       "family": "reflection",
       "data_scope": "public",
       "free": true
@@ -209,9 +210,9 @@
     "pi-vibe-mistral-large": ["pi-opencode-go-mistral-large"],
     "pi-vibe-glm": ["pi-opencode-go-glm"],
     "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash"],
-    "agy-gemini-flash-high": ["pi-vibe-glm", "pi-public-gemini-flash"],
+    "agy-gemini-flash-high": ["pi-vibe-glm", "pi-free-gemini-flash"],
     "pi-free-nemotron-ultra": ["pi-free-north-mini-code"],
-    "pi-free-gemma": ["pi-free-opencode-go-beam"]
+    "pi-free-gemma": ["pi-free-beam"]
   },
   "packet": {
     "cap_bytes": 153600,
