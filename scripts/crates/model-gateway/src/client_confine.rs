@@ -5,7 +5,6 @@
 //! prepares the homes the grants name, and in `run_home`.
 
 use crate::launchers::{LaunchPaths, LaunchRequest};
-use crate::run::RunMode;
 
 /// Why a client cannot run without the launcher.
 pub fn no_launcher(client: &str) -> String {
@@ -47,15 +46,14 @@ impl Confinement {
     /// `names` are the variables the launch sets, which the launcher passes through by name.
     pub fn args(&self, input: &LaunchRequest, paths: &LaunchPaths, binary: &str, names: &[String]) -> Vec<String> {
         let mut args = strings(&["confine"]);
-        if input.mode == Some(RunMode::Write) {
-            args.extend(strings(&["--write", &paths.work_dir]));
-            for dir in paths.git_writable.as_deref().unwrap_or_default() {
-                args.extend(strings(&["--write", dir]));
-            }
-        } else {
-            args.extend(strings(&["--read", &paths.work_dir]));
+        args.extend(crate::launchers::base_grants(input, paths, binary));
+        let report_dir = crate::launchers::report_dir(paths);
+        args.extend(strings(&["--write", report_dir]));
+        // Vibe reads its prompt from `--prompt-file`. The gateway's own runs keep it in the run directory, which is
+        // granted already; a caller that keeps it beside the export directory (a critique critic) gets it read-only.
+        if !paths.prompt_path.is_empty() && !std::path::Path::new(&paths.prompt_path).starts_with(report_dir) {
+            args.extend(strings(&["--read", &paths.prompt_path]));
         }
-        args.extend(strings(&["--run-from", binary, "--write", crate::launchers::report_dir(paths)]));
         for program in &self.run_from {
             args.extend(strings(&["--run-from", program]));
         }

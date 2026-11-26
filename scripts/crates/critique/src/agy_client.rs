@@ -12,7 +12,7 @@ use crate::vibe_client::{gateway_client, js_string, launch_error, on_path};
 use model_gateway::client_run::{ClientRun, ClientRunRequest};
 use model_gateway::extras::{RunExtras, SandboxProfile};
 use model_gateway::json::{self, Object, Value};
-use model_gateway::launchers::{LaunchPaths, LaunchRequest};
+use model_gateway::launchers::LaunchRequest;
 use model_gateway::ports::ProcessResult;
 use model_gateway::text::js_trim;
 
@@ -88,13 +88,7 @@ pub fn agy_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &AgyCrit
         binary: config.binary.clone(),
         client: gateway_client(config.gateway.as_ref(), "agy")?,
         prompt: runtime.files.read_text(&launch.prompt_path).map_err(CritiqueError::from_fs)?,
-        paths: LaunchPaths {
-            export_dir: join(&[&launch.critic_dir, "export"]),
-            prompt_path: launch.prompt_path.clone(),
-            run_dir: None,
-            work_dir: launch.packet_dir.clone(),
-            git_writable: None,
-        },
+        paths: crate::paths::launch_paths(runtime, &launch.critic_dir, &launch.prompt_path, &launch.packet_dir)?,
         extras: RunExtras { sandbox: Some(SandboxProfile::ReadOnly), schema: Some(launch.schema_path.clone()), tools: Some(tool_names(&launch.toolset)), ..RunExtras::default() },
     };
     let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };

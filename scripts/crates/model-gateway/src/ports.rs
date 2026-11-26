@@ -20,6 +20,11 @@ pub trait Files: Send + Sync {
     fn write_atomic(&self, path: &str, content: &str) -> Result<(), FsError>;
     /// `mkdir -p`.
     fn mkdir_all(&self, path: &str) -> Result<(), FsError>;
+    /// `mkdir -p` with mode 0700 for what it makes: a directory a confined launch is granted to write, which the
+    /// launcher refuses when it is not there yet.
+    fn mkdir_private(&self, path: &str) -> Result<(), FsError> {
+        self.mkdir_all(path)
+    }
     /// Creates the file, or reports `false` when it is already there.
     fn create_exclusive(&self, path: &str) -> Result<bool, FsError>;
     /// Removes the file, and says nothing when it is not there.
@@ -131,6 +136,11 @@ pub trait Git: Send + Sync {
     fn list_worktrees(&self, repo: &str) -> Result<Vec<String>, String>;
     /// `git status --porcelain`, as git printed it.
     fn status(&self, path: &str) -> Result<String, String>;
+    /// `git --exec-path`: where the `git` on `PATH` keeps its programs, which tells its install. A git that cannot
+    /// say gives an `Err`, and a confined launch then runs no git of its own install.
+    fn exec_path(&self) -> Result<String, String> {
+        Err("git cannot say where it is installed".to_string())
+    }
 }
 
 pub trait Clock: Send + Sync {

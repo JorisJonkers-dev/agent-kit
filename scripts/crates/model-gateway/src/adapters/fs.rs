@@ -89,6 +89,11 @@ impl Files for SystemFiles {
         std::fs::create_dir_all(resolve(&self.cwd, path)).map_err(|error| fail(&error, "mkdir", Some(path)))
     }
 
+    fn mkdir_private(&self, path: &str) -> Result<(), FsError> {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().recursive(true).mode(0o700).create(resolve(&self.cwd, path)).map_err(|error| fail(&error, "mkdir", Some(path)))
+    }
+
     fn create_exclusive(&self, path: &str) -> Result<bool, FsError> {
         match std::fs::OpenOptions::new().write(true).create_new(true).open(resolve(&self.cwd, path)) {
             Ok(_) => Ok(true),

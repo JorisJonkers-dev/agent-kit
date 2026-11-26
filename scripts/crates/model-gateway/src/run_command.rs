@@ -653,6 +653,7 @@ impl RunCommand<'_> {
             prompt_path: join(&[run.run_dir, "prompt.md"]),
             run_dir: Some(run.run_dir.to_string()),
             work_dir: run.work_dir.to_string(),
+            git_view: crate::launchers::git_view(self.runtime.git.as_ref(), files, run.work_dir, codex.git_writable.as_deref().unwrap_or_default()),
             git_writable: codex.git_writable,
         };
         let prompt = wrapped_prompt(&input.prompt, run.config.settings.summary_max_chars, input.mode, codex.worker.as_ref());

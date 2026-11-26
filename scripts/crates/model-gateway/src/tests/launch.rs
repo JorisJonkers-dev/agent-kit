@@ -778,7 +778,8 @@ fn adds_no_git_directory_for_a_read_only_run_or_a_writing_run_that_names_none_or
     assert_eq!(flag(&process.first(), "-s").as_deref(), Some("danger-full-access"));
     // A read-only run reads its work directory and writes nothing of it.
     let grants = process.grants.lock().expect("the grants")[0].clone();
-    assert_eq!(grant_values(&grants, "--read"), vec![WORK.to_string()]);
+    // The prompt file sits beside the export directory, not in it, so it is read too (Vibe takes it by path).
+    assert_eq!(grant_values(&grants, "--read"), vec![WORK.to_string(), "/run/prompt.md".to_string()]);
     assert!(!grant_values(&grants, "--write").contains(&WORK.to_string()));
 
     let process = Fake::answering("");

@@ -6,7 +6,7 @@ use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
 use crate::error::GatewayError;
 use crate::extras::RunExtras;
 use crate::json::{self, Value};
-use crate::launchers::{launcher, pi_grants, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
+use crate::launchers::{launcher, pi_grants, GitView, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::litellm_catalogue::parse_catalogue;
 use crate::locations::pi_models_path;
 use crate::models::ClientListing;
@@ -245,7 +245,7 @@ fn request(client: RunClient, provider: Option<&str>, mode: RunMode) -> ClientRu
         binary: "pi".into(),
         client,
         prompt: "ask".into(),
-        paths: LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/run/prompt.md".into(), run_dir: None, work_dir: "/run/work".into(), git_writable: Some(vec!["/repo/.git".into()]) },
+        paths: LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/run/prompt.md".into(), run_dir: None, work_dir: "/run/work".into(), git_writable: Some(vec!["/repo/.git".into()]), git_view: GitView::default() },
         extras: RunExtras::default(),
     }
 }
@@ -282,7 +282,7 @@ fn a_launch_that_names_no_provider_or_cannot_be_confined_never_starts() {
 
 #[test]
 fn a_bare_pi_command_is_what_the_builder_gives_when_nothing_confines_it_and_the_grants_name_every_directory() {
-    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: None };
+    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: None, git_view: GitView::default() };
     let input = LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: None, provider: None };
     let bare = (launcher(RunClient::Pi).command)("pi", &input, &paths, "ask", None);
     assert_eq!((bare.command.as_str(), bare.cwd.as_deref(), bare.stdin.as_deref(), bare.timeout_ms), ("pi", Some("/w"), Some("ask"), Some(30_000)));
