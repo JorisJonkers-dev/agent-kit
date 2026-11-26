@@ -975,3 +975,19 @@ fn runs_opencode_on_a_litellm_provider_with_the_routes_key_read_into_its_environ
         ])[..]
     );
 }
+
+#[test]
+fn a_dry_run_of_a_client_with_a_run_home_removes_the_home_and_starts_nothing() {
+    let process = Fake::answering("");
+    let files = Memory::default();
+    let mut machine = env();
+    machine.insert("AGENT_KIT_SANDBOX".to_string(), "sbx-dry-run".to_string());
+    let refused = ClientRun { process: &process, files: &files, env: &machine }.launch(&request(RunClient::Opencode, "opencode", "opencode-go/kimi", RunExtras::default()));
+    let error = gateway(refused.expect_err("a dry run"));
+    assert_eq!(error.code, "sandbox-dry-run");
+    // The working directory read-only, the run directory and the run home written, the prompt read.
+    assert!(error.message.contains(r#""mounts":["/run/work:ro","/run/export","/run/prompt.md:ro","/run/export.client-home"]"#), "{}", error.message);
+    assert!(error.message.contains(r#""workdir":"/run/work""#), "{}", error.message);
+    assert_eq!(process.count(), 0);
+    assert_eq!(files.removed.lock().expect("removed").as_slice(), ["/run/export.client-home"]);
+}
