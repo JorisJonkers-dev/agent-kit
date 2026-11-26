@@ -1,5 +1,23 @@
 # Changelog
 
+## [6.6.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.5.0...v6.6.0) (2026-11-26)
+
+
+### Features
+
+* **critique:** default every review route to Flash-class, small or free models ([#946](https://github.com/JorisJonkers-dev/agent-kit/issues/946)) ([9c768ed](https://github.com/JorisJonkers-dev/agent-kit/commit/9c768edfdaadfc716e8b18f4cc3493a7b0fc918f))
+* **model-gateway:** decide the family allowlist by repository visibility ([#931](https://github.com/JorisJonkers-dev/agent-kit/issues/931)) ([772e512](https://github.com/JorisJonkers-dev/agent-kit/commit/772e5127d20816c3ac14f6f16c15979a15024064))
+* **model-gateway:** reach free models only as free/&lt;model&gt; on the free key ([#947](https://github.com/JorisJonkers-dev/agent-kit/issues/947)) ([c7ccfb2](https://github.com/JorisJonkers-dev/agent-kit/commit/c7ccfb21e2872f47ee9e9d7d6bcec94d439b5a93))
+* **model-gateway:** stream each run into an event log and say why it failed ([#948](https://github.com/JorisJonkers-dev/agent-kit/issues/948)) ([ad19ca0](https://github.com/JorisJonkers-dev/agent-kit/commit/ad19ca0e573bce3a4869465b76b8243a78c22742))
+* **registry:** refresh the LiteLLM catalogue after the first full free-route sync ([#928](https://github.com/JorisJonkers-dev/agent-kit/issues/928)) ([6f62bab](https://github.com/JorisJonkers-dev/agent-kit/commit/6f62bab5a9431c878a3a7266a1483644dc67c1a5))
+
+
+### Bug Fixes
+
+* **model-gateway:** let a confined Vibe read the project configs above its working directory ([#949](https://github.com/JorisJonkers-dev/agent-kit/issues/949)) ([d83679e](https://github.com/JorisJonkers-dev/agent-kit/commit/d83679e840eada5a89fd54a1d42333f9084e16d9))
+* **model-gateway:** let every confined client see the git of its worktree ([#933](https://github.com/JorisJonkers-dev/agent-kit/issues/933)) ([6c084eb](https://github.com/JorisJonkers-dev/agent-kit/commit/6c084eb68dd9a1973f39389b8d27aa0a8681817c))
+* **setup:** leave Claude Code's built-in plugins alone when converging ([#932](https://github.com/JorisJonkers-dev/agent-kit/issues/932)) ([8c059eb](https://github.com/JorisJonkers-dev/agent-kit/commit/8c059eb3ffbdb8e3d3e72d90ca3b12bf0f73a9f3))
+
 ## [6.5.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.4.0...v6.5.0) (2026-11-18)
 
 
