@@ -60,7 +60,7 @@ pub fn choose(input: &Object, runtime: &Runtime) -> Result<Object, GatewayError>
 /// OpenCode's own LiteLLM provider of that route, so every role a Pi route serves runs on OpenCode too.
 pub fn opencode_pick(config: &GatewayConfig, models: Vec<ProfileModel>) -> Option<ProfileModel> {
     models.into_iter().find_map(|model| {
-        if model.client == "opencode" || model.client == crate::run::OPENCODE_FREE_CLIENT {
+        if model.client == "opencode" {
             return Some(model);
         }
         let opencode_model = crate::run::opencode_model_of(config, &model.client, &model.model)?;

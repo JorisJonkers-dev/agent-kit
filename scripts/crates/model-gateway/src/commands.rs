@@ -147,7 +147,7 @@ pub fn gather(input: &Object, runtime: &Runtime, free_only: bool, read_catalogue
     let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
     let reading = if judges || read_catalogue { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
     let judged = crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref());
-    let mut listing = sources::hold_openrouter_to_free(sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged));
+    let mut listing = sources::hold_to_free(sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged));
     if free_only {
         listing.models.retain(|model| model.free);
     }

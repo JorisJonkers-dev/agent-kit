@@ -678,17 +678,3 @@ fn a_client_with_no_critic_client_is_never_proven_whatever_the_files_hold() {
     }
 }
 
-#[test]
-fn opencode_free_parses_to_the_opencode_launcher() {
-    assert_eq!(RunClient::parse("opencode-free"), Some(RunClient::Opencode));
-}
-
-#[test]
-fn opencode_free_runs_only_opencodes_own_models_and_other_clients_are_not_held_to_that() {
-    assert_eq!(require_opencode_own_model("opencode-free", "opencode/glm-5.3-flash-free").ok(), Some(()));
-    let error = refused(require_opencode_own_model("opencode-free", "litellm-opencode-go/glm-5.3"));
-    assert_eq!(error.code, "provider-not-allowed");
-    assert_eq!(error.message, "litellm-opencode-go/glm-5.3: opencode-free runs only OpenCode's own free models, named opencode/<id>");
-    assert!(refused(require_opencode_own_model("opencode-free", "glm-5.3")).message.starts_with("glm-5.3:"));
-    assert_eq!(require_opencode_own_model("opencode", "litellm-opencode-go/glm-5.3").ok(), Some(()));
-}

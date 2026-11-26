@@ -605,7 +605,7 @@ good skipping only what depends on it, and the reservations of delegations that 
 `not-run`. The binary swap is done (below). The engine guard is not part of `run` or `batch` and is not ported.
 
 Pi (`src/pi_launch.rs`, `src/launchers.rs`, `src/outputs.rs`): one client per LiteLLM route
-(`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, `pi-public`, `pi-openrouter`, `pi-free`), all started by the one `pi`
+(`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, `pi-free` and the tier clients), all started by the one `pi`
 program. A Pi run goes through `agent-launcher confine`, as the Pi critics do: the launch reads (or, for
 a writing run, writes) its working directory, runs Pi, writes its own agent directory and reaches the
 proxy's port, and nothing else. The agent directory is made per launch under the run directory, holds the
@@ -615,7 +615,7 @@ launcher) never starts: it is `launch-failed` with the reason in `stderr.txt`. `
 home's `models.json` gives each route's provider, judged by the live catalogue's canonical groups
 (`litellm_catalogue.rs`: usable when a deployment is, free when public or every deployment tried first is
 free); the tier and notes come from the defaults entries for client `pi`, which `config_parse` expands into
-one entry per `pi-*` client. A client with `data_scope: public` (`pi-public`, `pi-openrouter`, `pi-free`) is never sent a repository, and the last two run models priced at zero only (`FREE_ONLY_CLIENTS`).
+one entry per `pi-*` client. A client with `data_scope: public` (`pi-free`, `pi-tier-review`) is sent a repository only when GitHub says it is public, and `pi-free` runs models priced at zero only (`FREE_ONLY_CLIENTS`), each a `free/<model>` group of the proxy.
 The goldens `models-pi`, `run-pi`, `run-pi-unconfined` and `run-write-pi` use a fake `pi` and a fake
 `agent-launcher` that records its arguments and the agent directory it was given. Different from the node
 runner: with no `HOME` the home's Pi directory resolves under `/`, not the working directory.

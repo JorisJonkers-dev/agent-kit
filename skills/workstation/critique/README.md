@@ -598,12 +598,12 @@ Vibe-login clients (`vibe-mistral-large`, `vibe-glm`, `vibe-deepseek-flash`)
 spend the owner's Mistral account and run only when an owner's routing override
 names them, so a slot whose Pi clients cannot run stays empty.
 `agy-gemini-flash-high` falls back to `pi-vibe-glm` and, last,
-`pi-public-gemini-flash`. The work roster, the triage model and the cold
+`pi-free-gemini-flash` (the Gemini free tier as `free/gemini-3.6-flash`). The work roster, the triage model and the cold
 read are unchanged.
 
 **Data scope.** A Pi client names the data scope of its route, as
 `registry/generated/litellm/routes.json` has it: `any`, or `public` for a
-route whose key is for public work only (`public`, `openrouter`). The field
+route whose key is for public work only (`free`, `tier-review`). The field
 is required, and a test checks it against `routes.json`. A client with
 `data_scope: public` is routed only to a repository GitHub says is public; for
 any other repository it is dropped from the roster with the reason `data-scope`
@@ -611,7 +611,7 @@ any other repository it is dropped from the roster with the reason `data-scope`
 round passes it over. The run's manifest carries `public_repository: true` only
 when GitHub said so at prepare, so a refute round applies the same bar as the run
 it follows. No public-scope client leads a
-slot in the shipped routing: `pi-public-gemini-flash` is only a last fallback,
+slot in the shipped routing: `pi-free-gemini-flash` is only a last fallback,
 so it runs for a public repository when everything before it could not.
 
 **Tier review (#908).** `critique tier-review` runs the spec critique on the
@@ -641,16 +641,20 @@ and exits 3; fewer than three resolvable families is the refusal `too-few-famili
 families `openai`, `alibaba`, `minimax` and `xiaomi` join the ones a critic and an
 allowlist entry may name (the allowlist takes the last three).
 
-**Free-only roster.** A run costs nothing when its critics are free Pi models on
-a public-only LiteLLM route. Such a client carries `"free": true` (allowed only
-with `"data_scope": "public"`), and a stage's `free` slots, parallel to `work`,
-name only free clients; a free client's fallbacks are free clients too. The
-shipped routing has four, all on `litellm-openrouter` (the route behind `pi-openrouter`
-and `pi-free`'s catalogue): `pi-free-nemotron-ultra` (nvidia), `pi-free-gemma`
-(google), `pi-free-north-mini-code` (cohere) and `pi-free-opencode-go-beam`
-(reflection, OpenCode Go's free model), each stage's `free` roster mirrors its base
-roster's roles and lenses, and `pi-free-north-mini-code` and `pi-free-opencode-go-beam`
-are the fallbacks of the first two. A run asks for it with `"roster": "free"` in
+**Free-only roster.** A run costs nothing when its critics are free Pi models.
+A free model is reached only as `free/<model>` on the `litellm-free` provider
+(the `free` route's key, which holds the access group `free` alone), where the
+proxy tries every free copy of the model and never a paid one. Such a client
+carries `"free": true` (allowed only with `"data_scope": "public"`), and a
+stage's `free` slots, parallel to `work`, name only free clients; a free client's
+fallbacks are free clients too. The shipped routing has five free clients, all on
+`litellm-free`: `pi-free-nemotron-ultra` (nvidia, `free/nemotron-3-ultra-550b-a55b`),
+`pi-free-gemma` (google, `free/gemma-4-31b-it`), `pi-free-north-mini-code` (cohere,
+`free/north-mini-code`), `pi-free-beam` (reflection, `free/beam-1.0-501b-a23b`) and
+`pi-free-gemini-flash` (google, `free/gemini-3.6-flash`, the last fallback of
+`agy-gemini-flash-high`). Each stage's `free` roster mirrors its base roster's roles
+and lenses, and `pi-free-north-mini-code` and `pi-free-beam` are the fallbacks of
+the first two. A run asks for it with `"roster": "free"` in
 the prepare input. Free models are for public material only, so prepare refuses
 (`not-public`) unless GitHub says the repository is public, and refuses
 `no-free-roster` for a stage routing gives no free slots. Nothing else changes: the same
