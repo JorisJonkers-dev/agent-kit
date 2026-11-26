@@ -141,7 +141,7 @@ def test_the_pipeline_readme_has_the_stage_row_for_decision_recovery() -> None:
     readme = (CRITIQUE / "README.md").read_text()
     row = next(line for line in readme.splitlines() if line.startswith("| `decision-recovery` |"))
     assert row.startswith("| `decision-recovery` | `/recover-decisions` |")
-    assert "DeepSeek Flash, Mistral Large (`decision-recoverer`)" in row
+    assert "DeepSeek Flash, Mistral Small (`decision-recoverer`)" in row
 
 
 def test_shipped_routing_gives_decision_recovery_deepseek_and_mistral_large_and_its_depth_signals() -> None:
