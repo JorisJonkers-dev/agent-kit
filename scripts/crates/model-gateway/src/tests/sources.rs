@@ -23,7 +23,6 @@ const CACHE: &str = "/cache/model-gateway/vibe-available.json";
 
 const AGY: &str = "agy models";
 const OPENCODE: &str = "opencode models";
-const OPENCODE_API_MODELS: &str = "opencode api GET /api/model";
 const HERMES: &str = "hermes config get model --json";
 const PROBE: &str = "vibe --model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping";
 const CODEX_STATUS: &str = "codex login status";

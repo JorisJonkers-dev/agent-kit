@@ -185,7 +185,10 @@ def test_the_choice_prefers_pi_and_keeps_the_public_route_off_repositories() -> 
     assert "Prefer Pi" in section
     assert "`pi-<route>` client over any other client" in section
     flat = " ".join(section.split())
-    assert "`pi-free` is the Pi client the data policy never lists for a repository GitHub does not say is public" in flat
+    assert (
+        "`pi-free` is the Pi client the data policy never lists for a repository GitHub does not say is public"
+        in flat
+    )
     assert "`pi-free` runs free models only, each named `free/<model>`" in flat
     assert "pi-public" not in flat and "pi-openrouter" not in flat
 

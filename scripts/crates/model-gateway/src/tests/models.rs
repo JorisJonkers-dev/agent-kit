@@ -945,15 +945,6 @@ fn a_listed_model_carries_the_fields_the_listing_prints() {
 }
 
 /// The gateway's config with the `opencode-free` client: public work only, free models only.
-fn with_opencode_free(base: GatewayConfig) -> GatewayConfig {
-    let mut config = base;
-    config.clients.insert(
-        "opencode-free".to_string(),
-        ClientConfig { public_only: true, ..client("opencode", CostClass::Subsidised, ModelSource::Live) },
-    );
-    config
-}
-
 /// One entry of OpenCode's server model list (`opencode api GET /api/model`).
 #[test]
 fn list_models_lists_the_litellm_opencode_go_provider_setup_writes_by_default() {

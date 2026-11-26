@@ -211,7 +211,8 @@ def test_free_models_are_listed_only_by_free_keys_and_only_as_free_names() -> No
     for name, models in providers.items():
         listed = [m["id"] for m in models if m["id"].startswith("free/")]
         assert not listed or name in {"litellm-free", "litellm-tier-review"}, name
-        assert not [i for i in _ids(models) if i.split("/")[0] in {"openrouter", "public", "google-free", "opencode-go-free"}]
+        old = {"openrouter", "public", "google-free", "opencode-go-free"}
+        assert not [i for i in _ids(models) if i.split("/")[0] in old]
     assert not [m for m in providers["litellm-vibe"] if "/" in m["id"]]
 
 
