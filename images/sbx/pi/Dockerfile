@@ -1,7 +1,7 @@
 # Template image for the Pi worker. The gateway starts one fresh Docker Sandboxes
 # microVM from it per run and runs Pi with `sbx exec`; no process starts here.
 # Build: scripts/build-sbx-images.sh --client pi
-# The pins must match installer/setup-workstation.sh (tests/test_sbx_images.py checks).
+# The pins must match installer/setup-workstation.sh (scripts/crates/ci-helpers/tests/sbx_images.rs checks).
 
 ARG NODE_IMAGE=node:24-bookworm-slim
 # The client's own version: names the image tag agent-kit/pi:<VERSION>.
