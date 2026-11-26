@@ -121,15 +121,20 @@ fn the_grants_of_a_launch_read_the_work_directory_or_write_it_and_write_the_run_
     assert_eq!(
         confinement.args(&input, &paths, "claude", &names),
         strings(&[
-            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
+            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--read", "/p", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
             "B", "--env", "USER", "--"
         ])
     );
     // A writing run writes the work directory and the git directories it names, and the run directory.
+    // A prompt inside the run directory is readable already and is not granted again.
     paths.run_dir = Some("/run/own".into());
+    paths.prompt_path = "/run/own/prompt.md".into();
     let writing = LaunchRequest { mode: Some(RunMode::Write), ..input };
     let bare = Confinement { launcher: LAUNCHER.into(), ..Confinement::default() };
     assert_eq!(bare.args(&writing, &paths, "codex", &[]), strings(&["confine", "--write", "/w", "--write", "/g1", "--write", "/g2", "--run-from", "codex", "--write", "/run/own", "--"]));
+    // No prompt file, no read of one.
+    let unnamed = LaunchPaths { prompt_path: String::new(), ..paths.clone() };
+    assert_eq!(bare.args(&writing, &unnamed, "codex", &[]), bare.args(&writing, &paths, "codex", &[]));
     assert_eq!(no_launcher("opencode"), "opencode: agent-launcher is not on PATH, and a delegate only runs confined to its working directory; re-run agent-kit setup, which installs it");
 }
 

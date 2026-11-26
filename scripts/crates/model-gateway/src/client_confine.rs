@@ -47,7 +47,13 @@ impl Confinement {
     pub fn args(&self, input: &LaunchRequest, paths: &LaunchPaths, binary: &str, names: &[String]) -> Vec<String> {
         let mut args = strings(&["confine"]);
         args.extend(crate::launchers::base_grants(input, paths, binary));
-        args.extend(strings(&["--write", crate::launchers::report_dir(paths)]));
+        let report_dir = crate::launchers::report_dir(paths);
+        args.extend(strings(&["--write", report_dir]));
+        // Vibe reads its prompt from `--prompt-file`. The gateway's own runs keep it in the run directory, which is
+        // granted already; a caller that keeps it beside the export directory (a critique critic) gets it read-only.
+        if !paths.prompt_path.is_empty() && !std::path::Path::new(&paths.prompt_path).starts_with(report_dir) {
+            args.extend(strings(&["--read", &paths.prompt_path]));
+        }
         for program in &self.run_from {
             args.extend(strings(&["--run-from", program]));
         }
