@@ -278,6 +278,17 @@ neither, and every Pi launch exited 127 (`env: node: No such file or directory`)
 first `NAME` on `PATH` whose real file is named after it (`node`, `python3.12`), passing over a shim (mise,
 Volta); under the confinement `env` cannot run the shim and goes on down `PATH` to the granted one.
 
+**Vibe's project-config walk.** Vibe asks whether `<dir>/.vibe/config.toml` is a file for every directory from its
+working directory up to `/`; it stops only at the parent of `VIBE_HOME`, and the run's own home is never an
+ancestor. Under Seatbelt a path that is not there answers "no such file", but one that is there and not granted
+answers "operation not permitted", and Python's `Path.is_file()` raises on that, so Vibe aborts with
+`Layer 'project-toml': _check_trust() failed`. Proved with a stand-in file: from a granted directory, a missing
+`<ancestor>/x/config.toml` is `False` and an existing one raises `PermissionError`. Every critique critic hit it,
+because its packet sits under the repository's `.git`, below the owner's `~/.vibe/config.toml`. A Vibe launch now
+reads each `<ancestor>/.vibe/config.toml` that exists, as that one file (`client_run::vibe_project_configs`); no
+directory and no other name is granted. Vibe then finds it untrusted (the run's home trusts no folder) and does not
+load it.
+
 ## Gaps left, per client
 
 - An OpenCode run on its own providers can write the owner's OpenCode data directory. It holds the sign-in and

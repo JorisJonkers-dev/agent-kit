@@ -189,6 +189,14 @@ fn vibe_runs_in_a_copy_of_its_config_and_agents_and_reads_the_skills_directory_i
     for copied in ["/run/client-home/vibe/config.toml", "/run/client-home/vibe/agents"] {
         assert!(disk.files.lock().unwrap().contains_key(copied), "{copied}");
     }
+    // The owner's own `~/.vibe/config.toml` is above the work directory: Vibe's project-config walk stats it, so it
+    // is granted as that one file, as is any other project config above; one that is not there is not granted.
+    let walked = owner().with("/home/me/.vibe/config.toml", "x").with("/.vibe/config.toml", "x");
+    let above = grants_of(&walked, &ClientRunRequest { paths: LaunchPaths { work_dir: "/home/me/repo/w".into(), ..request(RunClient::Vibe, "m", None, RunMode::ReadOnly).paths }, ..request(RunClient::Vibe, "m", None, RunMode::ReadOnly) });
+    assert_eq!(grant_values(&above, "--read"), ["/home/me/repo/w", "/home/me/.vibe/config.toml", "/.vibe/config.toml"]);
+    // Another client walks nothing of the kind.
+    let other = grants_of(&walked, &ClientRunRequest { paths: LaunchPaths { work_dir: "/home/me/repo/w".into(), ..request(RunClient::Claude, "m", None, RunMode::ReadOnly).paths }, ..request(RunClient::Claude, "m", None, RunMode::ReadOnly) });
+    assert!(!grant_values(&other, "--read").iter().any(|read| read.ends_with("config.toml")));
     // An owner with no config, agents or skills directory gets a home with none of them, and no extra read.
     let bare = grants_of(&owner(), &request(RunClient::Vibe, "m", None, RunMode::ReadOnly));
     assert_eq!(grant_values(&bare, "--read"), ["/run/work"]);
