@@ -997,20 +997,12 @@ them:
   Vibe-specific is in `VibeCriticClient`; the Antigravity client (#171) is a
   second adapter and a second `kind`. A dependency-cruiser rule keeps the
   critique domain free of ports, the application layer and adapters.
-- **Degraded runs.** Only the family allowlist refuses: no remote or no entry. A
-  `nedap` remote is not refused: prepare gives it the stage's `work` roster
-  (`codex-work`, `claude-work`), whatever an entry says. A work client never
-  sits in a base or deep roster or a fallback list (routing refuses it
-  there), Codex is dropped as `no-grant` without a live grant for the
-  `workflow` (or `flow`) the call names (under the gateway client routing
-  names for it), and a client that cannot run on the machine is dropped as
-  `unavailable`: Codex through `codex exec` in its read-only sandbox, the work
-  Claude agent through `claude -p` in plan mode with the read tools, always in
-  the work profile directory `~/.claude`; each is ready when its CLI is on
-  `PATH` and its own status command (`codex login status`, `claude auth
-  status`) says it is signed in. A refute round on a `nedap` repository picks
-  from the work slots alone, never a family that raised the finding or the
-  orchestrator's, and asks Codex's grant again. A stage whose roster drops every critic still
+- **Degraded runs.** Prepare refuses a `nedap` remote (whatever its
+  visibility), no remote, and a repository GitHub does not say is public that
+  has no family allowlist entry (ADR-0007, amended 2026-11-26). The work
+  clients (`codex-work`, `claude-work`) and the stage's `work` slots are still
+  parsed, but no run reaches them: they were the `nedap` roster, and a `nedap`
+  repository now sends nothing. A stage whose roster drops every critic still
   prepares a run with no critics; fan-out then launches nothing and marks
   the run degraded, as it does when every critic fails, and record's
   summary and report open with `degraded: no critique ran`. #173 adds

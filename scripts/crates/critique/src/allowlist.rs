@@ -1,5 +1,7 @@
 //! This machine's family allowlist: per repository, the model families its
-//! content may go to, and whether that content may be code and its history.
+//! content may go to, and whether that content may be code and its history. A
+//! repository GitHub says is public is not held to it, and that is read from
+//! GitHub, never from this file.
 
 use crate::error::ShapeError;
 use crate::fields::Fields;
@@ -16,9 +18,6 @@ pub struct Entry {
     pub code: bool,
     /// Whether the repository may send its history. An entry recorded before the permission existed reads as false.
     pub history: bool,
-    /// Whether the repository is public, so that a client on a public-only LiteLLM route may critique it. An entry
-    /// recorded before the flag existed reads as private, and only `allow` ever sets it.
-    pub public: bool,
     pub updated_at: String,
 }
 
@@ -49,9 +48,6 @@ impl Allowlist {
         for (key, entry) in &self.repositories {
             let families = Value::Arr(entry.families.iter().map(|family| Value::str(family)).collect());
             let mut fields = vec![("code", Value::Bool(entry.code)), ("families", families), ("history", Value::Bool(entry.history))];
-            if entry.public {
-                fields.push(("public", Value::Bool(true)));
-            }
             fields.push(("updated_at", Value::str(&entry.updated_at)));
             repositories.set(key, json::object(fields));
         }
@@ -60,7 +56,8 @@ impl Allowlist {
     }
 }
 
-/// Reads the allowlist file; an entry naming a family no client serves does not parse.
+/// Reads the allowlist file; an entry naming a family no client serves does not parse. A `public` flag an older
+/// `allow` recorded is ignored, and dropped the next time the file is written.
 pub fn parse_allowlist(text: &str) -> Result<Allowlist, ShapeError> {
     let value = json::parse(text).map_err(ShapeError)?;
     let file = Fields::of(&value, "")?;
@@ -69,7 +66,6 @@ pub fn parse_allowlist(text: &str) -> Result<Allowlist, ShapeError> {
             code: if entry.has("code") { entry.boolean("code")? } else { false },
             families: entry.one_of_list("families", &ALLOWLIST_FAMILIES)?,
             history: if entry.has("history") { entry.boolean("history")? } else { false },
-            public: if entry.has("public") { entry.boolean("public")? } else { false },
             updated_at: entry.string("updated_at")?,
         })
     })?;

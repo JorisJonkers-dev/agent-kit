@@ -82,8 +82,8 @@ pub struct PiCriticClient {
 /// The data scopes a Pi client's route can have.
 pub const DATA_SCOPES: [&str; 2] = ["any", "public"];
 
-/// Why a public-scope client is not routed to a repository that is not recorded as public.
-pub const DATA_SCOPE_REASON: &str = "its LiteLLM route is public-only and this repository is not recorded as public";
+/// Why a public-scope client is not routed to a repository GitHub does not say is public.
+pub const DATA_SCOPE_REASON: &str = "its LiteLLM route is public-only and GitHub does not say this repository is public";
 
 /// Whether a client may not see a repository because of its route's data scope: a client on a `public` route is
 /// routed to a repository only when its allowlist entry says the repository is public. Only a Pi client names a route.

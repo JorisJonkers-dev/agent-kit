@@ -150,9 +150,9 @@ pub struct ClientConfig {
     /// The provider route of the LiteLLM catalogue whose probes judge this client's models; `None` when it covers none.
     pub litellm_route: Option<String>,
     /// `data_scope: public` in the JSON: the client's route is for public work only, so a delegation that reads a
-    /// repository is sent to it only when the repository's allowlist entry records it as public (`public: true`) and
-    /// allows the model's family. A private repository, an entry without the flag and a repository with no entry at
-    /// all are refused, and `models` with a `repo` leaves the client's models out for them.
+    /// repository is sent to it only when GitHub says the repository is public. A private repository, and one whose
+    /// visibility cannot be read, are refused whatever their allowlist entry lists, and `models` with a `repo` leaves
+    /// the client's models out for them.
     pub public_only: bool,
 }
 

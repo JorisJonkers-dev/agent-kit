@@ -180,9 +180,8 @@ public data only, so OpenRouter runs through exactly one client, `pi-openrouter`
 with the reason, `run` refuses a billed `pi-openrouter` model with code
 `openrouter-billed` (a billed `pi-free` model with `free-only-refused`) before
 anything starts, and a delegation that names a `repo` follows the same rule as
-on `pi-public`: it is sent only to a repository whose allowlist entry records
-it as public and allows the model's family, since the models may train on what
-they are sent. Every other client still refuses OpenRouter: a model named
+on `pi-public`: it is sent only to a repository GitHub says is public, since
+the models may train on what they are sent. Every other client still refuses OpenRouter: a model named
 `openrouter/...`, or a Hermes or OpenCode run on the `openrouter` provider, is
 `provider-not-allowed`, and no machine file opens it.
 
@@ -205,12 +204,11 @@ or `OPENCODE_DISABLE_FREE_MODELS` is set.
 
 `pi-public` has `"data_scope": "public"` (a client field, `any` by default):
 that route is for public work only, so a delegation that reads a repository is
-sent to it only when the repository's allowlist entry says `"public": true`
-and allows the model's family. A public repository is already public, so the
-route may read it: a read-only run and a writing run alike, carrying the code
-and the history the entry allows. A private repository, an entry without the
-flag and a repository with no entry at all are refused, as is a family the
-entry does not allow; `models` with a `repo` follows the same rule, listing the
+sent to it only when GitHub says the repository is public. A public repository
+is already public, so the route may read it: a read-only run and a writing run
+alike, carrying its code and history. A private repository, one whose
+visibility cannot be read and a `nedap` one are refused, whatever an allowlist
+entry lists; `models` with a `repo` follows the same rule, listing the
 client's models for a public repository and leaving them out for any other. With no `repo` it lists as before, since such a
 run carries only what the caller declares.
 
@@ -628,7 +626,7 @@ make in all.
 - **Climb.** A second failure moves to the next stronger subsidised model: a
   catalogue `tier` higher than the failing model's, whatever the failing
   model's own cost class, in the repository's permitted list (the family
-  allowlist and the nedap rule, through the data policy above), never a model
+  allowlist and the visibility rules, through the data policy above), never a model
   the machine disabled, ordered by tier and then catalogue order. It never
   moves into a metered class (a metered-personal run climbs only to a
   subsidised model, and a metered-employer model is never a climb target at
@@ -657,9 +655,8 @@ make in all.
   of which ever ran: when an earlier attempt really ran and failed and a later
   one cannot start with nothing to swap to, the last real result comes back
   instead, with `escalation: "stopped"` and `stopped_reason` naming what the
-  next attempt could not start with. In a `nedap` repository only Claude Code
-  and Codex are permitted, so Claude Code never falls through to Vibe or
-  Antigravity.
+  next attempt could not start with. In a `nedap` repository nothing is
+  permitted, so nothing is started there at all.
 
 - **The family is binding by default.** The model a delegation names fixes its
   family, and the retry, the climb and the fall-through stay inside that family.
@@ -1109,9 +1106,9 @@ optional `narrow` object that may only take something away:
 The data policy always wins: it is intersected with the profile. A profile left
 with no allowed model for the repository is `profile-refused`, never a silent
 fallback to another model. `public-gemini` runs on the public route, which is
-never sent a repository, so it has a model only for inline work; a nedap
-repository reaches only Claude Code and Codex, and a private repository only
-the families its entry names. A delegation that fails stays inside its profile:
+sent only a repository GitHub says is public; a nedap repository reaches no
+model, a public one every model, and a private one only the families its entry
+names. A delegation that fails stays inside its profile:
 the retry, the climb and the fall-through use only its models.
 
 ### Roles and harnesses
@@ -1307,8 +1304,8 @@ An unknown name is `unknown-profile`. `narrow` without `profile` is
 
 ## The data policy
 
-The family allowlist critique writes decides what a repository's content may
-go to. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
+A repository's GitHub visibility decides first, and the family allowlist
+critique writes decides for every repository that is not public. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
 `~/.config/agent-kit/critique-allowlist.json`, and keys each repository by
 `<host>/<owner>/<repo>` with `families`, `code` and `history`.
 
@@ -1316,18 +1313,24 @@ go to. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
   entry names, and each reports the entry's `code` and `history` in `may_send`.
 - A repository with a remote but no entry, or with no remote, lists nothing and
   `policy` says why.
-- A repository owned by the `nedap` GitHub organisation lists only Codex and
-  Claude Code, whatever its entry says, with code and history allowed.
+- A repository owned by the `nedap` GitHub organisation lists nothing, whatever
+  its visibility or its entry says.
+- A repository GitHub says is public (`gh api repos/<owner>/<repo> --jq
+  .visibility`, asked through `gh` and cached for fifteen minutes in
+  `$XDG_CACHE_HOME/model-gateway/repository-visibility.json`) lists every client
+  model, the `"data_scope": "public"` ones among them, each allowed to send code
+  and history; its allowlist entry is not read.
+- A repository whose visibility cannot be read (no gh, offline, an API error, a
+  remote not on github.com) counts as private, never as public.
 - A client with `"data_scope": "public"` (`pi-public`) is never listed for a
-  repository, whatever its entry says of the family.
+  repository that is not public, whatever its entry says of the family.
 - No `repo`, or a path outside any repository, lists only subsidised and
   metered-personal client models, each `inline_only` and allowed to send
   neither code nor history.
 
 `anthropic` and `openai` are families like any other: a repository's entry must
-list them for a delegation to reach Claude Code or Codex. In a `nedap`
-repository it is the client that counts, not the family: only the Codex and
-Claude Code clients may receive anything.
+list them for a delegation from a private repository to reach Claude Code or
+Codex. A `nedap` repository may send nothing to any client.
 
 A path git cannot read — one that does not exist, or a repository git refuses
 for its ownership or permissions — is an error (`code:

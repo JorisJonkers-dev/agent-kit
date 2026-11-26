@@ -15,7 +15,7 @@ use crate::gateway_ledger::gateway_ledger_warning;
 use crate::locations::ledger_path;
 use crate::paths::join;
 use crate::plan::plan_limit;
-use crate::repository::{read_allowlist, resolve, Resolution, Resolved};
+use crate::repository::{permission, resolve, Resolution, Resolved};
 use crate::routing::TriageRouting;
 use crate::routing_source::load_routing;
 use crate::runtime::Runtime;
@@ -232,8 +232,8 @@ struct Ask<'a> {
 fn ask(runtime: &Runtime, request: &Ask<'_>) -> Result<Decided, CritiqueError> {
     let (repository, triage) = (request.repository, request.triage);
     let config = &triage.model.client_config;
-    let allowlist = read_allowlist(runtime)?;
-    let Some(entry) = allowlist.get(&repository.key) else {
+    // A repository GitHub says is public is not held to the allowlist; any other needs an entry.
+    let Some(entry) = permission(runtime, repository)?.map(|permission| permission.entry) else {
         return Ok(unavailable(NOT_OPTED_IN, format!("{} has no family allowlist entry on this machine", repository.key)));
     };
     if !entry.code {

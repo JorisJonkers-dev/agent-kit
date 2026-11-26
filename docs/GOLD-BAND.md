@@ -1168,12 +1168,10 @@ nothing else. What differs from the personal file:
   failure edge to a manual check (`grant-refused`, shared by both)
   that has no way on: the owner asks for a new grant and starts the run again.
   The run-start gate also needs a live grant for the run before any node.
-* The critique steps are the stage templates' nodes; their prepare and fan-out
-  gate goals say that a `nedap` repository routes to the work-only critic
-  roster (Codex under the grant and the work Claude agent, never the
-  orchestrator's own family). The routing itself is the critique runner's; the
-  launchers for those critics are ticket #558, so until it lands the runner
-  reports the work critics as unavailable and the review does not pass.
+* The critique steps are the stage templates' nodes. Since the 2026-11-26
+  amendment to ADR-0007 the critique runner refuses a `nedap` repository
+  outright (reason `nedap`): nothing of it is sent to any critic, the work
+  critics included, so these steps cannot pass on a `nedap` repository.
 * Publication still pauses on `publication-check` for the owner, and only
   after it does the publish gate create GitHub issues, through the pinned
   `ticket-publish` wrapper, in the repository the work repository's own

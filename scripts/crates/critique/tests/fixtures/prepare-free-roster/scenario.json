@@ -77,11 +77,15 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"nvidia\",\"google\",\"cohere\",\"reflection\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\",\"public\":true}},\"version\":1}\n",
-        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"free\":[]}}}\n"
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"nvidia\",\"google\",\"cohere\",\"reflection\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"free\":[]}}}\n",
+        "bin/gh": "#!/bin/sh\necho public\n"
       },
       "roots": [
         "repos/k1/.git/critique"
+      ],
+      "exec": [
+        "bin/gh"
       ]
     },
     {

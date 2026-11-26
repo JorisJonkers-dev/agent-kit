@@ -43,12 +43,7 @@ fn config() -> GatewayConfig {
 }
 
 fn entry(families: &[&str], code: bool, history: bool) -> AllowlistEntry {
-    AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code, history, public: false }
-}
-
-/// The same entry with `public: true`.
-fn public_entry(families: &[&str], code: bool, history: bool) -> AllowlistEntry {
-    AllowlistEntry { public: true, ..entry(families, code, history) }
+    AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code, history }
 }
 
 /// The fixture with `claude` on a public-only route (`data_scope: public`).
@@ -64,8 +59,8 @@ fn claude_permission(config: &GatewayConfig, scope: &DataScope) -> crate::policy
     decide_policy(config, scope, &[subject]).permissions.into_iter().next().expect("one permission")
 }
 
-fn public_repository(families: &[&str]) -> DataScope {
-    DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(public_entry(families, true, true)) }
+fn public_repository() -> DataScope {
+    DataScope::Public { key: "github.com/acme/widgets".to_string() }
 }
 
 fn subjects(config: &GatewayConfig) -> Vec<PolicySubject> {
@@ -136,49 +131,23 @@ fn the_policy_permits_nothing_in_a_repository_with_no_remote() {
 }
 
 #[test]
-fn the_policy_permits_only_codex_and_claude_code_in_a_nedap_repository() {
+fn the_policy_permits_nothing_in_a_nedap_repository() {
     let config = config();
     let decision = decide_policy(&config, &DataScope::Nedap, &subjects(&config));
-    assert_eq!(permitted(&DataScope::Nedap), vec!["claude:claude-sonnet-5-5", "codex:gpt-5.5"]);
-    assert!(decision.permissions.iter().all(|permission| permission.may_send.code && permission.may_send.history));
-    assert_eq!(decision.reason, "a nedap repository: only Codex and Claude Code, with code and history");
+    assert!(permitted(&DataScope::Nedap).is_empty());
+    assert!(decision.permissions.iter().all(|permission| !permission.may_send.code && !permission.may_send.history));
+    assert_eq!(decision.reason, "a nedap repository: nothing is sent to any model");
+    // Claude Code and Codex, which the old exception let through, are refused like every other client.
+    assert!(!claude_permission(&public_only_config(), &DataScope::Nedap).permitted);
 }
 
 #[test]
-fn the_policy_counts_the_client_not_the_family_in_a_nedap_repository() {
-    let elsewhere = parse_defaults(&parse(
-        r#"{
-          "version": 1,
-          "clients": {
-            "agy": {"binary": "agy", "cost_class": "subsidised", "model_source": "declared"},
-            "claude": {"binary": "claude", "cost_class": "subsidised", "model_source": "declared"},
-            "codex": {"binary": "codex", "cost_class": "metered-employer", "model_source": "declared"},
-            "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "declared"}
-          },
-          "models": [
-            {"client": "agy", "family": "anthropic", "model": "gemini-claude", "notes": "Claude through Antigravity", "tier": "hard"},
-            {"client": "claude", "family": "anthropic", "model": "claude-sonnet-5-5", "notes": "general", "tier": "hard"},
-            {"client": "codex", "family": "openai", "model": "gpt-5.5", "notes": "implementation", "tier": "frontier"},
-            {"client": "opencode", "family": "openai", "model": "gpt-5.5", "notes": "OpenAI through OpenCode", "tier": "frontier"}
-          ],
-          "settings": {
-            "availability_window_minutes": 60,
-            "max_batch_delegations": 50,
-            "max_parallel_per_client": 3,
-            "metered_personal_caps": {"per_day_usd": 5, "per_workflow_usd": 2},
-            "output_allowance_tokens": {"frontier": 16000, "hard": 6000, "routine": 2000, "trivial": 500},
-            "plan_warning_ratio": 0.8,
-            "summary_max_chars": 1500
-          }
-        }"#,
-    )
-    .expect("the fixture JSON"))
-    .expect("the fixture");
-    let decision = decide_policy(&elsewhere, &DataScope::Nedap, &subjects(&elsewhere));
-    let clients: Vec<&str> = decision.permissions.iter().filter(|permission| permission.permitted).map(|permission| permission.client.as_str()).collect();
-    assert_eq!(clients, vec!["claude", "codex"]);
-    assert!(decision.permissions.iter().filter(|permission| permission.client == "agy").all(|permission| !permission.permitted));
-    assert!(decision.permissions.iter().filter(|permission| permission.client == "opencode").all(|permission| !permission.permitted));
+fn the_policy_permits_every_client_with_code_and_history_in_a_public_repository() {
+    let config = public_only_config();
+    let decision = decide_policy(&config, &public_repository(), &subjects(&config));
+    assert!(decision.permissions.iter().all(|permission| permission.permitted && !permission.inline_only));
+    assert!(decision.permissions.iter().all(|permission| permission.may_send.code && permission.may_send.history));
+    assert_eq!(decision.reason, "github.com/acme/widgets is public on GitHub, so the allowlist does not apply: every client, with code and history");
 }
 
 #[test]
@@ -192,40 +161,20 @@ fn the_policy_permits_only_subsidised_and_metered_personal_models_outside_any_re
 }
 
 #[test]
-fn the_policy_permits_a_public_only_client_a_public_repository_for_a_read_only_and_a_write_run() {
+fn the_policy_permits_a_public_only_client_a_public_repository_whatever_its_family() {
     let config = public_only_config();
-    // A read-only run carries no code and no history; a write run carries code, and history when it asks for it.
-    for (code, history) in [(false, false), (true, true)] {
-        let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(public_entry(&["anthropic"], code, history)) };
-        let permission = claude_permission(&config, &scope);
-        assert!(permission.permitted, "{code}/{history}");
-        assert!(!permission.inline_only);
-        assert_eq!((permission.may_send.code, permission.may_send.history), (code, history));
-    }
-    // The reason says the repository is recorded as public, so a public-only route may read it.
-    assert_eq!(
-        decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)).reason,
-        "github.com/acme/widgets: the entry allows anthropic, and records the repository as public, so a public-only route may read it"
-    );
+    let permission = claude_permission(&config, &public_repository());
+    assert!(permission.permitted);
+    assert!(!permission.inline_only);
+    assert_eq!((permission.may_send.code, permission.may_send.history), (true, true));
 }
 
 #[test]
 fn the_policy_refuses_a_public_only_client_a_private_repository_however_its_entry_reads() {
     let config = public_only_config();
-    let permitted_families = ["anthropic"];
-    // `public: false`, and an entry recorded before the flag existed, are both private.
-    let explicit = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&permitted_families, true, true)) };
-    assert!(!claude_permission(&config, &explicit).permitted);
-    let recorded_before = DataScope::Repository {
-        key: "github.com/acme/widgets".to_string(),
-        entry: Some(AllowlistEntry { families: vec!["anthropic".to_string()], code: true, history: true, public: false }),
-    };
-    assert!(!claude_permission(&config, &recorded_before).permitted);
-    // The refusal names the entry and says it does not record the repository as public.
-    assert_eq!(
-        decide_policy(&config, &explicit, &subjects(&config)).reason,
-        "github.com/acme/widgets: the entry allows anthropic"
-    );
+    let listed = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["anthropic"], true, true)) };
+    assert!(!claude_permission(&config, &listed).permitted);
+    assert_eq!(decide_policy(&config, &listed, &subjects(&config)).reason, "github.com/acme/widgets: the entry allows anthropic");
 }
 
 #[test]
@@ -234,38 +183,6 @@ fn the_policy_refuses_a_public_only_client_a_repository_with_no_entry() {
     let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: None };
     assert!(!claude_permission(&config, &scope).permitted);
     assert_eq!(decide_policy(&config, &scope, &subjects(&config)).reason, "github.com/acme/widgets has no allowlist entry, so nothing is sent");
-}
-
-#[test]
-fn the_policy_refuses_a_public_only_client_a_public_repository_whose_entry_allows_another_family() {
-    let config = public_only_config();
-    assert!(!claude_permission(&config, &public_repository(&["openai", "zhipu"])).permitted);
-    // The family the entry does allow is still permitted on that route, and the others are not.
-    assert_eq!(permitted(&public_repository(&["anthropic"])), vec!["claude:claude-sonnet-5-5"]);
-}
-
-#[test]
-fn a_client_that_is_not_public_only_is_unaffected_by_the_public_flag() {
-    let config = config();
-    for entry in [entry(&["anthropic"], true, true), public_entry(&["anthropic"], true, true)] {
-        let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry) };
-        let permission = claude_permission(&config, &scope);
-        assert_eq!((permission.permitted, permission.may_send.code), (true, true));
-    }
-    assert!(!claude_permission(&config, &public_repository(&["openai"])).permitted);
-    // A public repository is read the same way, and the reason is the entry's, whatever the route.
-    assert!(claude_permission(&config, &public_repository(&["anthropic"])).permitted);
-    assert_eq!(
-        decide_policy(&config, &public_repository(&["anthropic"]), &subjects(&config)).reason,
-        "github.com/acme/widgets: the entry allows anthropic, and records the repository as public, so a public-only route may read it"
-    );
-    // A public repository whose entry allows another family is still refused, and says what it allows.
-    let other = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(public_entry(&["openai"], true, true)) };
-    assert!(!claude_permission(&config, &other).permitted);
-    assert_eq!(
-        decide_policy(&config, &other, &subjects(&config)).reason,
-        "github.com/acme/widgets: the entry allows openai, and records the repository as public, so a public-only route may read it"
-    );
 }
 
 #[test]
@@ -286,23 +203,23 @@ fn the_listing_lists_a_public_only_clients_models_for_a_public_repository_and_le
             .map(|model| model.listed.client.clone())
             .collect()
     };
-    // A public repository: the public-only client's model is listed.
-    assert_eq!(clients(&public_repository(&["anthropic"])), vec!["claude"]);
+    // A public repository: every model is listed, the public-only client's among them.
+    assert_eq!(clients(&public_repository()), vec!["claude", "vibe"]);
     // A private repository: the public-only client's model is left out, and the private route's model is listed.
     let private_scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["anthropic", "zhipu"], true, true)) };
     assert_eq!(clients(&private_scope), vec!["vibe"]);
     // A repository with no entry at all: nothing is listed.
     let none = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: None };
     assert!(clients(&none).is_empty());
-    // A public repository whose entry allows another family: only that family's model is listed.
-    assert_eq!(clients(&public_repository(&["zhipu"])), vec!["vibe"]);
+    // A nedap repository: nothing is listed.
+    assert!(clients(&DataScope::Nedap).is_empty());
 }
 
 #[test]
 fn the_policy_leaves_out_a_model_the_owner_disabled() {
     let mut disabled = config();
     disabled.disabled = vec!["claude:claude-sonnet-5-5".to_string()];
-    let decision = decide_policy(&disabled, &DataScope::Nedap, &subjects(&disabled));
+    let decision = decide_policy(&disabled, &public_repository(), &subjects(&disabled));
     let clients: Vec<&str> = decision.permissions.iter().map(|permission| permission.client.as_str()).collect();
     assert_eq!(clients, vec!["codex", "hermes", "vibe"]);
 }
@@ -368,7 +285,8 @@ fn the_listing_leaves_out_a_listed_model_the_policy_does_not_decide_about() {
     let nothing = PolicyDecision { reason: "nothing".to_string(), permissions: Vec::new() };
     assert!(permitted_models(listing.clone(), &nothing).models.is_empty());
     let config = config();
-    let decision = decide_policy(&config, &DataScope::Nedap, &subjects(&config));
+    let scope = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["anthropic"], true, true)) };
+    let decision = decide_policy(&config, &scope, &subjects(&config));
     let kept = permitted_models(listing, &decision);
     let clients: Vec<&str> = kept.models.iter().map(|model| model.listed.client.as_str()).collect();
     assert_eq!(clients, vec!["claude"]);
@@ -408,12 +326,12 @@ fn the_models_result_prints_the_policy_the_status_and_the_listing() {
         missing: vec![MissingClient { client: "hermes".to_string(), reason: "not installed: hermes is not on PATH".to_string() }],
         skipped: vec![SkippedModel { client: "vibe".to_string(), model: "mystery".to_string(), reason: "no family".to_string() }],
     };
-    let printed = models_result_json("a nedap repository: only Codex and Claude Code, with code and history", &listing, &Value::Arr(Vec::new()), None);
+    let printed = models_result_json("a nedap repository: nothing is sent to any model", &listing, &Value::Arr(Vec::new()), None);
     let keys: Vec<&str> = printed.as_object().expect("an object").entries().into_iter().map(|(key, _)| key).collect();
     assert_eq!(keys, vec!["policy", "status", "missing", "models", "skipped", "profiles"]);
     assert_eq!(
         pretty(&printed),
-        "{\n  \"policy\": \"a nedap repository: only Codex and Claude Code, with code and history\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"claude\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"anthropic\",\n      \"model\": \"claude-sonnet-5-5\",\n      \"notes\": \"general\",\n      \"source\": \"declared\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": true\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"vibe\",\n      \"model\": \"mystery\",\n      \"reason\": \"no family\"\n    }\n  ],\n  \"profiles\": []\n}"
+        "{\n  \"policy\": \"a nedap repository: nothing is sent to any model\",\n  \"status\": \"ok\",\n  \"missing\": [\n    {\n      \"client\": \"hermes\",\n      \"reason\": \"not installed: hermes is not on PATH\"\n    }\n  ],\n  \"models\": [\n    {\n      \"client\": \"claude\",\n      \"cost_class\": \"subsidised\",\n      \"family\": \"anthropic\",\n      \"model\": \"claude-sonnet-5-5\",\n      \"notes\": \"general\",\n      \"source\": \"declared\",\n      \"tier\": \"hard\",\n      \"inline_only\": false,\n      \"may_send\": {\n        \"code\": true,\n        \"history\": true\n      }\n    }\n  ],\n  \"skipped\": [\n    {\n      \"client\": \"vibe\",\n      \"model\": \"mystery\",\n      \"reason\": \"no family\"\n    }\n  ],\n  \"profiles\": []\n}"
     );
 }
 
@@ -458,6 +376,31 @@ fn a_repository_with_no_allowlist_entry_is_still_a_repository() {
     let git = StubGit::new(Some(REPO), &[("origin", "git@github.com:JorisJonkers-dev/agent-kit.git")]);
     let runtime = runtime(StubFiles::new(), git, home_env("/home/me"));
     assert_eq!(resolve_scope(&runtime, Some(REPO)), Ok(DataScope::Repository { key: KEY.to_string(), entry: None }));
+}
+
+#[test]
+fn a_repository_whose_visibility_cannot_be_read_is_held_to_its_entry() {
+    // The stub process starts nothing, so gh cannot answer: the repository is read as private, never as public.
+    let files = allowlist_file(r#""anthropic""#, false, false);
+    let git = StubGit::new(Some(REPO), &[("origin", "https://github.com/JorisJonkers-dev/agent-kit.git")]);
+    let runtime = runtime(files, git, home_env("/home/me"));
+    assert_eq!(
+        resolve_scope(&runtime, Some(REPO)),
+        Ok(DataScope::Repository { key: KEY.to_string(), entry: Some(entry(&["anthropic"], false, false)) })
+    );
+}
+
+#[test]
+fn an_allowlist_entry_recorded_with_the_old_public_flag_reads_without_it() {
+    let files = StubFiles::new().with(
+        ALLOWLIST,
+        &format!(r#"{{"repositories": {{"{KEY}": {{"code": true, "families": ["anthropic"], "history": false, "public": true, "updated_at": "2026-11-04T00:00:00.000Z"}}}}, "version": 1}}"#),
+    );
+    let git = StubGit::new(Some(REPO), &[("origin", "git@github.com:JorisJonkers-dev/agent-kit.git")]);
+    let runtime = runtime(files, git, home_env("/home/me"));
+    let scope = resolve_scope(&runtime, Some(REPO)).expect("the scope");
+    assert_eq!(scope, DataScope::Repository { key: KEY.to_string(), entry: Some(entry(&["anthropic"], true, false)) });
+    assert!(!claude_permission(&public_only_config(), &scope).permitted);
 }
 
 #[test]

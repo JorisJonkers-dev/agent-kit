@@ -98,8 +98,10 @@ paid provider serves is reachable there too.
 The critique runner enforces the last rule rather than leaving it to care (#737). Every Pi critic
 client in `skills/workstation/critique/routing.json` names its route's `data_scope` (`any` or
 `public`; `tests/test_critique_setup.py` checks it against `routes.json`). A client with
-`data_scope: public` is routed only to a repository whose entry in the machine's critique allowlist
-says `"public": true` (set with `critique allow`, off for every new entry). For any other repository
+`data_scope: public` is routed only to a repository GitHub says is public (`gh api
+repos/<owner>/<repo> --jq .visibility`); a public repository is not held to the critique allowlist
+at all. A private repository, one whose visibility cannot be read and a `nedap` one never are. For
+any other repository
 the roster drops it with the reason `data-scope`, it is never kept as a fallback, and a refute round
 passes it over. The check lives in `scripts/crates/critique`, each
 with tests.

@@ -15,7 +15,8 @@ use crate::run::{RunMode, RunTokens};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-/// A git whose answers the test chooses; the repository it finds belongs to nedap, which permits Claude Code.
+/// A git whose answers the test chooses; the repository it finds is a private one whose allowlist entry permits
+/// every family.
 struct FakeGit {
     common: Result<String, String>,
     add: Result<(), String>,
@@ -27,7 +28,7 @@ impl Git for FakeGit {
         Ok(Some(path.to_string()))
     }
     fn remotes(&self, _path: &str) -> Result<Vec<GitRemote>, String> {
-        Ok(vec![GitRemote { name: "origin".into(), url: "git@github.com:nedap/x.git".into() }])
+        Ok(vec![GitRemote { name: "origin".into(), url: "git@github.com:acme/x.git".into() }])
     }
     fn remove_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
         self.remove.clone()
@@ -84,6 +85,7 @@ fn machine() -> Machine {
     machine.process.install("vibe");
     machine.process.answer("claude", answer(CLAUDE_ANSWER));
     std::fs::create_dir_all(format!("{}/tmp", machine.sandbox.text())).expect("tmp");
+    machine.allow_everything("github.com/acme/x");
     machine
 }
 
@@ -455,6 +457,7 @@ fn pi_machine() -> Machine {
     )
     .expect("models");
     machine.runtime.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), "agent-launcher".to_string());
+    machine.allow_everything("github.com/acme/x");
     machine
 }
 
