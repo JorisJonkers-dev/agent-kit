@@ -189,10 +189,17 @@ impl Process for Sbx {
 struct Disk {
     files: Mutex<HashMap<String, String>>,
     removed: Mutex<Vec<String>>,
+    /// A file that cannot be read once the launch has written it, as one the owner removed under it would be.
+    unreadable: Option<String>,
+    /// Refuses the one write a loopback route makes: a config whose content names the sandbox's host.
+    refuse_rewrite: bool,
 }
 
 impl Files for Disk {
     fn read_text(&self, path: &str) -> Result<String, FsError> {
+        if self.unreadable.as_deref() == Some(path) {
+            return Err(FsError { code: "ENOENT".into(), message: format!("ENOENT: {path}") });
+        }
         self.files.lock().expect("files").get(path).cloned().ok_or(FsError { code: "ENOENT".into(), message: format!("ENOENT: {path}") })
     }
     fn write_atomic(&self, path: &str, content: &str) -> Result<(), FsError> {
@@ -221,6 +228,9 @@ impl Files for Disk {
         None
     }
     fn write_private(&self, path: &str, content: &str) -> Result<(), FsError> {
+        if self.refuse_rewrite && content.contains("host.docker.internal") {
+            return Err(FsError { code: "EACCES".into(), message: format!("EACCES: {path}") });
+        }
         self.files.lock().expect("files").insert(path.to_string(), content.to_string());
         Ok(())
     }
@@ -585,4 +595,69 @@ fn a_create_that_failed_leaves_no_removal_warning_and_a_removal_after_a_create_s
         assert_eq!(run.warnings.len(), 1, "{:?}", run.warnings);
         assert!(run.warnings[0].contains("sbx rm --force mg-test"), "{:?}", run.warnings);
     }
+}
+
+#[test]
+fn a_loopback_route_whose_config_cannot_be_read_back_refuses_the_sbx_launch_after_its_directory_is_removed() {
+    let disk = Disk { unreadable: Some("/run/export/pi-agent/models.json".to_string()), ..pi_disk("http://localhost:4000/v1") };
+    let sbx = Sbx::new(healthy);
+    let env = sbx_env();
+    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("refused"));
+    assert_eq!(code, "sandbox-unsupported");
+    assert!(message.contains("the route's config /run/export/pi-agent/models.json cannot be read"), "{message}");
+    assert_eq!(sbx.calls(), ["sbx version"], "no sandbox is named");
+    assert!(disk.removed.lock().expect("removed").iter().any(|dir| dir == "/run/export/pi-agent"), "the agent directory goes before the refusal");
+}
+
+#[test]
+fn a_loopback_rewrite_that_cannot_be_written_refuses_the_sbx_launch_before_sbx_creates_anything() {
+    let disk = Disk { refuse_rewrite: true, ..pi_disk("http://localhost:4000/v1") };
+    let sbx = Sbx::new(healthy);
+    let env = sbx_env();
+    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("refused"));
+    assert_eq!(code, "unexpected", "the write's own error, as from_fs names it");
+    assert!(message.contains("EACCES: /run/export/pi-agent/models.json"), "{message}");
+    assert_eq!(sbx.calls(), ["sbx version"], "no sandbox is named");
+}
+
+#[test]
+fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
+    let disk = pi_disk("https://litellm.example.com/v1");
+    let sbx = Sbx::new(healthy);
+    let env = sbx_env();
+    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
+    assert_eq!(outcome.result.stdout, "ok\n");
+    let calls = sbx.calls();
+    assert!(calls[2].ends_with(" litellm.example.com:443"), "{calls:?}");
+    assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("https://litellm.example.com/v1"));
+}
+
+#[test]
+fn a_client_the_backend_does_not_run_and_an_sbx_call_that_did_not_run_are_named() {
+    let plain = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "pi"]);
+    let refused = sbx_launch::translate(RunClient::Codex, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect_err("codex has no sandbox program");
+    assert_eq!(refused.code, "sandbox-unsupported");
+    assert_eq!(refused.message, "codex: no sbx program");
+
+    let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
+    let process = Sbx::new(|args| if args.first() == Some(&"create") { Err("the binary is missing".to_string()) } else { healthy(args) });
+    let run = sbx_launch::run(&process, &sbx, &plain, &Notes::default());
+    assert_eq!(run.ran.err().as_deref(), Some("sbx run failed: sbx create did not run: the binary is missing"));
+    assert!(run.warnings.is_empty(), "a sandbox sbx never made leaves nothing to warn about");
+}
+
+#[test]
+fn an_opencode_keyed_run_reads_its_key_from_the_secret_store_and_allows_the_remote_route() {
+    let disk = Disk::default();
+    disk.files.lock().expect("files").insert("/home/me/.config/opencode/opencode.json".to_string(), ROUTE_REMOTE.replace("litellm-x", "litellm-vibe"));
+    let sbx = Sbx::new(|args| if args.first() == Some(&"get") { answer("value\n", "", 0) } else { healthy(args) });
+    let env = sbx_env();
+    let mut request = pi_request(RunClient::Opencode, Some(RunMode::ReadOnly));
+    request.launch.model = "litellm-vibe/glm-5.3".to_string();
+    request.launch.provider = None;
+    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&request).expect("a run");
+    assert_eq!(outcome.result.stdout, "ok\n");
+    let calls = sbx.calls();
+    assert!(calls.contains(&"agent-kit-secret get LITELLM_VIBE_KEY".to_string()), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" litellm.example.com:443")), "{calls:?}");
 }
