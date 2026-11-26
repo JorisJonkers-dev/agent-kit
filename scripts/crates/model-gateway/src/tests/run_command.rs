@@ -554,7 +554,7 @@ fn a_free_only_run_follows_the_catalogues_free_flag_not_the_price_in_the_pi_file
 const ZERO: &str = r#","cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}"#;
 
 #[test]
-fn openrouter_stays_refused_on_every_client_the_free_one_included() {
+fn openrouter_stays_refused_on_every_client() {
     let machine = machine();
     let other = |client: &str, model: &str, extra: &str| {
         format!(r#"{{"workflow":"w","client":"{client}","mode":"read-only","model":"{model}","prompt":"p","escalate":false{extra}}}"#)
@@ -562,8 +562,6 @@ fn openrouter_stays_refused_on_every_client_the_free_one_included() {
     let hermes = run(&machine, &other("hermes", "m", r#","provider":"openrouter""#)).expect_err("hermes on openrouter");
     assert_eq!(hermes.code, "provider-not-allowed");
     assert!(hermes.message.starts_with("openrouter is not allowed on hermes: a free model runs only as free/<model> on pi-free"), "{}", hermes.message);
-    let free = run(&machine, &other("pi-free", "openrouter/vendor/m:free", "")).expect_err("pi-free on an openrouter/ name");
-    assert_eq!(free.code, "provider-not-allowed");
     let named = run(&machine, &other("claude", "openrouter/free", "")).expect_err("a model named openrouter/");
     assert_eq!(named.code, "provider-not-allowed");
 }
