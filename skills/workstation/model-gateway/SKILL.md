@@ -517,6 +517,21 @@ to: mounts (`PATH` or `PATH:ro`), the variables passed in by name (never their
 values), ports, and the gaps sbx does not hold the same way. Any other value
 is refused (`sandbox-unknown`) before anything is made.
 
+`sbx` runs a read-only Pi or OpenCode launch in its own Docker Sandbox, from
+Docker's prebuilt `docker.io/sbx/pi-image` or `docker.io/sbx/opencode-image`,
+pinned by digest to the newest tag dated at least two days ago (a cooldown, so a
+fresh build never runs at once). Its variables reach the client through a 0600
+env file that is removed after the run. A launch refuses (`sandbox-unsupported`)
+before sbx is asked anything for a client other than Pi or OpenCode, a write run,
+a plan with no written mount, or a route that names no base URL; `sandbox-unavailable`
+when `sbx version` does not answer (the install command is named), or when no image
+is recorded and the refresh failed. The records are `sbx-images.json` under the
+gateway's state directory, one per client with its `tag`, `digest` and `checked_at`.
+A launch refreshes a record that is missing or older than a day. `model-gateway sandbox refresh [--json]`
+asks Docker Hub for the newest image of each enabled client and records it; it exits 1
+only when every client failed and holds no record. `model-gateway sandbox status [--json]`
+prints the records and makes no network call.
+
 Codex runs non-interactively with its own sandbox: `-s read-only` for a
 read-only run and `-s workspace-write` for a writing one, so the sandbox is
 Codex's, not the gateway's. Its reasoning effort is the model id's last word

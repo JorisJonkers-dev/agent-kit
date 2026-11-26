@@ -12,11 +12,12 @@ use crate::json::{self, Value};
 use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
 use crate::pi_launch::{launcher_of, prepare_pi};
-use crate::ports::{Ending, Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult, Unwatched};
+use crate::ports::{Clock, Ending, Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
 use crate::sandbox::{dry_run, SandboxBackend};
-use crate::sbx_launch::{self, SbxLaunch};
+use crate::sbx_images;
+use crate::sbx_launch;
 use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
@@ -121,6 +122,8 @@ pub fn require_supported_extras(client: RunClient, extras: &RunExtras) -> Result
 pub struct ClientRun<'a> {
     pub process: &'a dyn Process,
     pub files: &'a dyn Files,
+    /// The clock the sbx image records are dated by.
+    pub clock: &'a dyn Clock,
     /// The environment the client's home is named in.
     pub env: &'a HashMap<String, String>,
 }
@@ -168,9 +171,13 @@ impl ClientRun<'_> {
             discard();
             return Err(dry_run(request.client.as_str(), &command).into());
         }
+        let mut image_warnings = Vec::new();
         let sandboxed = if backend == SandboxBackend::Sbx {
             match self.sandboxed(request, &command, confine.as_ref(), home.as_ref()) {
-                Ok(sandboxed) => Some(sandboxed),
+                Ok((sandboxed, warnings)) => {
+                    image_warnings = warnings;
+                    Some(sandboxed)
+                }
                 Err(error) => {
                     discard();
                     return Err(error.into());
@@ -181,7 +188,7 @@ impl ClientRun<'_> {
         };
         let (ran, sandbox_warnings) = match sandboxed {
             Some(sandboxed) => {
-                let run = sbx_launch::run(self.process, &sandboxed, &command, watch);
+                let run = sbx_launch::run(self.process, self.files, &sandboxed, &command, watch);
                 (run.ran, run.warnings)
             }
             None => (self.process.run_watched(&command, watch), Vec::new()),
@@ -197,6 +204,7 @@ impl ClientRun<'_> {
             .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
             .chain(unsynced)
             .chain(sandbox_warnings)
+            .chain(image_warnings)
             .collect();
         let Launched { result, ending } = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
@@ -207,17 +215,21 @@ impl ClientRun<'_> {
         Ok(ClientRunOutcome { result, ending, exported, output, warnings: leftovers })
     }
 
-    /// The sbx side of a launch: its route is read from the launch's own config, which the sandbox must reach through
-    /// the host name it sees, so a loopback base URL is rewritten in that file once the rule for it is taken.
-    fn sandboxed(&self, request: &ClientRunRequest, command: &ProcessCommand, confine: Option<&PiConfinement>, home: Option<&RunHome>) -> Result<SbxLaunch, GatewayError> {
+    /// The sbx side of a launch: its image is the client's current record (refreshed first when it is stale), its
+    /// route is read from the launch's own config, which the sandbox must reach through the host name it sees, so a
+    /// loopback base URL is rewritten in that file once the rule for it is taken. The image's warnings come with it.
+    fn sandboxed(&self, request: &ClientRunRequest, command: &ProcessCommand, confine: Option<&PiConfinement>, home: Option<&RunHome>) -> Result<(sbx_launch::SbxLaunch, Vec<String>), GatewayError> {
+        let (reference, warnings) = sbx_images::ensure(self.process, self.files, self.clock, self.env, request.client.as_str())?;
         let dir = confine.map(|confine| confine.agent_dir.clone()).or_else(|| home.map(|home| home.dir.clone())).unwrap_or_default();
         let path = sbx_launch::config_path(request.client, &dir);
         let text = self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", request.client.as_str(), error.message)))?;
-        let sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
+        let mut sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
+        sandboxed.image = reference;
+        sandboxed.env_file = join(&[&dir, "sbx.env"]);
         if let Some(rewritten) = sbx_launch::rewritten_config(&text) {
             self.files.write_private(&path, &rewritten).map_err(GatewayError::from_fs)?;
         }
-        Ok(sandboxed)
+        Ok((sandboxed, warnings))
     }
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,

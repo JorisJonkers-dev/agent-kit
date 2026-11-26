@@ -1,9 +1,23 @@
 //! The sandbox backend a launch runs in, and the sbx plan a dry run turns a confined launch into.
 
 use crate::json::{self, Value};
-use crate::ports::ProcessCommand;
+use crate::ports::{Clock, ProcessCommand};
 use crate::sandbox::{dry_run, Mount, SandboxBackend, SbxPlan, SANDBOX_VARIABLE};
 use std::collections::HashMap;
+
+/// The clock every sbx launch test runs at: 2026-11-27 12:00 UTC, so a tag dated the 25th is two days old.
+const SBX_NOW: i64 = 1_795_780_800_000;
+
+struct Fixed;
+
+impl Clock for Fixed {
+    fn now_ms(&self) -> i64 {
+        SBX_NOW
+    }
+    fn monotonic_ms(&self) -> f64 {
+        0.0
+    }
+}
 
 fn env(value: Option<&str>) -> HashMap<String, String> {
     value.map(|value| HashMap::from([(SANDBOX_VARIABLE.to_string(), value.to_string())])).unwrap_or_default()
@@ -34,7 +48,7 @@ fn confine_is_the_backend_unless_the_machine_names_another_and_an_unknown_name_i
 fn a_read_only_launch_mounts_its_grants_read_only_and_its_run_directory_written() {
     let command = confined(&["--read", "/work", "--read", "/repo/.git/worktrees/w", "--run-from", "opencode", "--run", "/opt/git", "--write", "/run/export", "--net-connect", "443", "--net-loopback", "--env", "HOME"]);
     let plan = SbxPlan::of_command("opencode", &command).expect("a confined launch");
-    assert_eq!(plan.template, "agent-kit/opencode");
+    assert_eq!(plan.template, "docker.io/sbx/opencode-image");
     assert_eq!(plan.workdir, "/work");
     assert_eq!(plan.mounts.iter().map(Mount::arg).collect::<Vec<_>>(), ["/work:ro", "/repo/.git/worktrees/w:ro", "/run/export"]);
     assert_eq!(plan.programs, ["opencode", "/opt/git"]);
@@ -114,7 +128,7 @@ fn the_plan_json_carries_every_field_with_the_grants_it_was_built_from() {
     let list = |items: &[&str]| Value::Arr(items.iter().map(|item| Value::str(item)).collect());
     assert_eq!(object.get("backend"), Some(&text("sbx-dry-run")));
     assert_eq!(object.get("client"), Some(&text("opencode")));
-    assert_eq!(object.get("template"), Some(&text("agent-kit/opencode")));
+    assert_eq!(object.get("template"), Some(&text("docker.io/sbx/opencode-image")));
     assert_eq!(object.get("workdir"), Some(&text("/work")));
     assert_eq!(object.get("mounts"), Some(&list(&["/work:ro", "/run/export"])));
     assert_eq!(object.get("programs"), Some(&list(&["opencode", "/opt/git"])));
@@ -155,9 +169,21 @@ fn answer(stdout: &str, stderr: &str, exit_code: i32) -> Result<ProcessResult, S
 }
 
 /// Every `sbx` call succeeds, and the client prints `ok`.
-fn healthy(_args: &[&str]) -> Result<ProcessResult, String> {
+fn healthy(args: &[&str]) -> Result<ProcessResult, String> {
+    // The one `curl` a launch makes is the Docker Hub listing of the client's image.
+    if args.first() == Some(&"-fsS") {
+        return answer(HUB_TAGS, "", 0);
+    }
     answer("", "", 0)
 }
+
+/// The tags Docker Hub lists for a client's image: one too new (the 26th), one old enough (the 25th), and two that
+/// are not dated tags at all.
+pub(super) const HUB_TAGS: &str = r#"{"results":[{"name":"latest","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","last_updated":"2026-11-27T01:00:00Z"},{"name":"20261126-c279c9da843e51b135a5be3750ffcdf8078485b4","digest":"sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210","last_updated":"2026-11-26T09:00:00Z"},{"name":"20261125-c279c9da843e51b135a5be3750ffcdf8078485b4","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","last_updated":"2026-11-25T09:00:00Z"}]}"#;
+
+/// The pinned image the chosen tag resolves to.
+const PI_IMAGE: &str = "docker.io/sbx/pi-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const OPENCODE_IMAGE: &str = "docker.io/sbx/opencode-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 impl Sbx {
     fn new(exec: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
@@ -193,6 +219,9 @@ struct Disk {
     unreadable: Option<String>,
     /// Refuses the one write a loopback route makes: a config whose content names the sandbox's host.
     refuse_rewrite: bool,
+    /// Refuses the write of an sbx env file, and the removal of one.
+    refuse_env_file: bool,
+    refuse_env_remove: bool,
 }
 
 impl Files for Disk {
@@ -228,7 +257,7 @@ impl Files for Disk {
         None
     }
     fn write_private(&self, path: &str, content: &str) -> Result<(), FsError> {
-        if self.refuse_rewrite && content.contains("host.docker.internal") {
+        if self.refuse_rewrite && content.contains("host.docker.internal") || self.refuse_env_file && path.ends_with("sbx.env") {
             return Err(FsError { code: "EACCES".into(), message: format!("EACCES: {path}") });
         }
         self.files.lock().expect("files").insert(path.to_string(), content.to_string());
@@ -242,6 +271,9 @@ impl Files for Disk {
     }
     fn remove(&self, path: &str) -> Result<(), FsError> {
         self.removed.lock().expect("removed").push(path.to_string());
+        if self.refuse_env_remove && path.ends_with("sbx.env") {
+            return Err(FsError { code: "EBUSY".into(), message: format!("EBUSY: {path}") });
+        }
         Ok(())
     }
 }
@@ -306,7 +338,7 @@ fn every_refusal_before_a_launch_makes_nothing_and_names_its_reason() {
     let disk = pi_disk("http://localhost:4000/v1");
     let run = |process: &Sbx, client: RunClient, mode: Option<RunMode>| {
         let env = sbx_env();
-        gateway_code(ClientRun { process, files: &disk, env: &env }.launch(&pi_request(client, mode)).expect_err("refused"))
+        gateway_code(ClientRun { process, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(client, mode)).expect_err("refused"))
     };
     // A client the backend does not run, and a write run, are refused before sbx is even asked.
     let healthy_sbx = Sbx::new(healthy);
@@ -337,22 +369,26 @@ fn a_read_only_pi_run_creates_allows_execs_and_removes_its_sandbox_in_that_order
     let sbx = Sbx::new(healthy);
     let env = sbx_env();
     let notes = Notes::default();
-    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch_watched(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly)), None, &notes).expect("a run");
+    let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch_watched(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly)), None, &notes).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     assert!(outcome.warnings.is_empty());
     let calls = sbx.calls();
     let name = sbx_name_in(&calls);
     assert!(name.starts_with("mg-"), "{name}");
-    assert_eq!(calls.len(), 5, "{calls:?}");
+    assert_eq!(calls.len(), 6, "{calls:?}");
     assert_eq!(calls[0], "sbx version");
-    assert_eq!(calls[1], format!("sbx create --name {name} --no-input --pull never -t agent-kit/pi:current shell /run/export/pi-agent /run/work:ro"));
-    assert_eq!(calls[2], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000"));
-    // The client runs with its stdin open (the prompt), in the workdir, with only the two variables its launch names.
-    let exec = format!("sbx exec -i -w /run/work -e PI_CODING_AGENT_DIR=/run/export/pi-agent -e TMPDIR=/run/export/pi-agent {name} pi -p --mode json ");
-    assert!(calls[3].starts_with(&exec), "{}", calls[3]);
-    assert!(calls[3].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[3]);
-    assert!(!calls[3].contains("HOME") && !calls[3].contains("PATH="), "{}", calls[3]);
-    assert_eq!(calls[4], format!("sbx rm --force {name}"));
+    assert!(calls[1].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[1]);
+    assert_eq!(calls[2], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
+    assert_eq!(calls[3], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000"));
+    // The client runs with its stdin open (the prompt), in the workdir; its two variables come from the env file, never the arguments.
+    let exec = format!("sbx exec -i -w /run/work --env-file /run/export/pi-agent/sbx.env {name} pi -p --mode json ");
+    assert!(calls[4].starts_with(&exec), "{}", calls[4]);
+    assert!(calls[4].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[4]);
+    assert!(!calls[4].contains("HOME") && !calls[4].contains("PATH=") && !calls[4].contains("PI_CODING_AGENT_DIR"), "{}", calls[4]);
+    assert_eq!(calls[5], format!("sbx rm --force {name}"));
+    let env_file = disk.files.lock().expect("files").get("/run/export/pi-agent/sbx.env").cloned().expect("the env file was written");
+    assert_eq!(env_file, "PI_CODING_AGENT_DIR=/run/export/pi-agent\nTMPDIR=/run/export/pi-agent\n");
+    assert!(disk.removed.lock().expect("removed").contains(&"/run/export/pi-agent/sbx.env".to_string()), "the env file is removed after the run");
     // The loopback proxy is rewritten to the name the sandbox sees, in the launch's own file.
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("http://host.docker.internal:4000/v1"));
     assert!(notes.0.lock().expect("notes").iter().any(|note| note.contains(&name) && note.contains("(sbx)")));
@@ -363,7 +399,7 @@ fn a_failed_exec_still_removes_the_sandbox_and_is_the_runs_error() {
     let disk = pi_disk("http://localhost:4000/v1");
     let sbx = Sbx { run: Box::new(|_| Err("the program could not start".to_string())), ..Sbx::new(healthy) };
     let env = sbx_env();
-    let error = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("the exec failed");
+    let error = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("the exec failed");
     let (code, message) = match error {
         ClientRunError::Spawn(message) => ("spawn".to_string(), message),
         other => panic!("{other:?}"),
@@ -379,12 +415,12 @@ fn a_failed_create_names_its_reason_and_still_removes_what_it_named() {
     let disk = pi_disk("http://localhost:4000/v1");
     let sbx = Sbx::new(|args| if args[0] == "create" { answer("", "no room for a microVM\n", 1) } else { healthy(args) });
     let env = sbx_env();
-    let error = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("the create failed");
+    let error = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("the create failed");
     let ClientRunError::Spawn(message) = error else { panic!("a spawn error") };
     assert!(message.contains("sbx create exited 1: no room for a microVM"), "{message}");
     let calls = sbx.calls();
-    assert_eq!(calls.len(), 3, "{calls:?}");
-    assert!(calls[2].starts_with("sbx rm --force mg-"), "{calls:?}");
+    assert_eq!(calls.len(), 4, "{calls:?}");
+    assert!(calls[3].starts_with("sbx rm --force mg-"), "{calls:?}");
     assert!(!calls.iter().any(|call| call.starts_with("sbx exec")), "{calls:?}");
 }
 
@@ -393,13 +429,13 @@ fn a_failed_removal_is_a_warning_the_outcome_carries_not_a_panic() {
     let disk = pi_disk("http://localhost:4000/v1");
     let env = sbx_env();
     let exited = Sbx::new(|args| if args[0] == "rm" { answer("", "busy", 1) } else { healthy(args) });
-    let outcome = ClientRun { process: &exited, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("the run");
+    let outcome = ClientRun { process: &exited, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("the run");
     assert_eq!(outcome.result.stdout, "ok\n");
     assert_eq!(outcome.warnings.len(), 1, "{:?}", outcome.warnings);
     assert!(outcome.warnings[0].contains("was not removed (sbx rm exited 1)") && outcome.warnings[0].contains("sbx rm --force mg-"), "{:?}", outcome.warnings);
 
     let unrun = Sbx::new(|args| if args[0] == "rm" { Err("sbx rm did not run".to_string()) } else { healthy(args) });
-    let outcome = ClientRun { process: &unrun, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("the run");
+    let outcome = ClientRun { process: &unrun, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("the run");
     assert!(outcome.warnings[0].contains("(sbx rm did not run)"), "{:?}", outcome.warnings);
 }
 
@@ -409,11 +445,11 @@ fn sbx_own_exit_statuses_are_said_to_be_sbxs_and_the_clients_pass_through() {
     let env = sbx_env();
     let sbx = Sbx { run: Box::new(|_| answer("", "", 125)), ..Sbx::new(healthy) };
     let notes = Notes::default();
-    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch_watched(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly)), None, &notes).expect("the run");
+    let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch_watched(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly)), None, &notes).expect("the run");
     assert_eq!(outcome.result.exit_code, 125);
     assert!(notes.0.lock().expect("notes").iter().any(|note| note.contains("sbx could not run pi (exit 125)")));
     let sbx = Sbx { run: Box::new(|_| answer("", "", 3)), ..Sbx::new(healthy) };
-    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("the run");
+    let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("the run");
     assert_eq!(outcome.result.exit_code, 3, "the client's own status passes through");
 }
 
@@ -441,7 +477,8 @@ fn an_opencode_keyed_launch_runs_its_client_in_the_opencode_template_with_the_ke
     // The plan's order: the variables in the order the launcher was given them.
     assert_eq!(sbx.env, ["LITELLM_KEY=secret-value", "XDG_CONFIG_HOME=/run/export.client-home/.config"]);
     assert_eq!(sbx.allow, ["litellm.example.com:443"]);
-    assert_eq!(sbx.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "never", "-t", "agent-kit/opencode:current", "shell", "/run/export.client-home", "/run/work:ro"]);
+    let pinned = SbxLaunch { image: OPENCODE_IMAGE.to_string(), ..sbx.clone() };
+    assert_eq!(pinned.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "missing", "-t", OPENCODE_IMAGE, "shell", "/run/export.client-home", "/run/work:ro"]);
     assert_eq!(sbx.plan.workdir, "/run/work");
 
     // Without the wrapper's env pairs the launch's own environment is the one the values come from.
@@ -541,10 +578,10 @@ fn an_opencode_route_with_no_litellm_base_url_is_refused_under_sbx_and_its_home_
     let mut request = pi_request(RunClient::Opencode, Some(RunMode::ReadOnly));
     request.launch.model = "opencode-go/kimi".to_string();
     request.launch.provider = None;
-    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, env: &env }.launch(&request).expect_err("refused"));
+    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&request).expect_err("refused"));
     assert_eq!(code, "sandbox-unsupported");
     assert!(message.contains("names no base URL"), "{message}");
-    assert_eq!(sbx.calls(), ["sbx version"], "nothing created");
+    assert!(!sbx.calls().iter().any(|call| call.starts_with("sbx create")), "nothing created");
     assert!(disk.removed.lock().expect("removed").contains(&"/run/export.client-home".to_string()));
 }
 
@@ -552,7 +589,8 @@ fn an_opencode_route_with_no_litellm_base_url_is_refused_under_sbx_and_its_home_
 fn the_written_mounts_come_first_in_the_create_args_and_each_group_keeps_its_order() {
     let command = ProcessCommand::new("/opt/agent-launcher", &["confine", "--read", "/run/a", "--write", "/run/b", "--read", "/run/c", "--write", "/run/d", "--", "pi"]);
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &command, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
-    assert_eq!(sbx.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "never", "-t", "agent-kit/pi:current", "shell", "/run/b", "/run/d", "/run/a:ro", "/run/c:ro"]);
+    let pinned = SbxLaunch { image: PI_IMAGE.to_string(), ..sbx };
+    assert_eq!(pinned.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "missing", "-t", PI_IMAGE, "shell", "/run/b", "/run/d", "/run/a:ro", "/run/c:ro"]);
 }
 
 #[test]
@@ -581,7 +619,7 @@ fn a_create_that_failed_leaves_no_removal_warning_and_a_removal_after_a_create_s
         _ => healthy(args),
     });
     for process in [&create_refused_rm_exits, &create_refused_rm_unrun] {
-        let run = sbx_launch::run(process, &sbx, &command, &Notes::default());
+        let run = sbx_launch::run(process, &Disk::default(), &sbx, &command, &Notes::default());
         assert!(run.ran.is_err(), "the create was refused");
         assert!(run.warnings.is_empty(), "{:?}", run.warnings);
     }
@@ -590,7 +628,7 @@ fn a_create_that_failed_leaves_no_removal_warning_and_a_removal_after_a_create_s
     let rm_exits = Sbx::new(|args| if args[0] == "rm" { answer("", "busy", 1) } else { healthy(args) });
     let rm_unrun = Sbx::new(|args| if args[0] == "rm" { Err("sbx rm did not run".to_string()) } else { healthy(args) });
     for process in [&rm_exits, &rm_unrun] {
-        let run = sbx_launch::run(process, &sbx, &command, &Notes::default());
+        let run = sbx_launch::run(process, &Disk::default(), &sbx, &command, &Notes::default());
         assert!(run.ran.is_ok(), "the create and the exec went through");
         assert_eq!(run.warnings.len(), 1, "{:?}", run.warnings);
         assert!(run.warnings[0].contains("sbx rm --force mg-test"), "{:?}", run.warnings);
@@ -602,10 +640,10 @@ fn a_loopback_route_whose_config_cannot_be_read_back_refuses_the_sbx_launch_afte
     let disk = Disk { unreadable: Some("/run/export/pi-agent/models.json".to_string()), ..pi_disk("http://localhost:4000/v1") };
     let sbx = Sbx::new(healthy);
     let env = sbx_env();
-    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("refused"));
+    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("refused"));
     assert_eq!(code, "sandbox-unsupported");
     assert!(message.contains("the route's config /run/export/pi-agent/models.json cannot be read"), "{message}");
-    assert_eq!(sbx.calls(), ["sbx version"], "no sandbox is named");
+    assert!(!sbx.calls().iter().any(|call| call.starts_with("sbx create")), "no sandbox is named");
     assert!(disk.removed.lock().expect("removed").iter().any(|dir| dir == "/run/export/pi-agent"), "the agent directory goes before the refusal");
 }
 
@@ -614,10 +652,10 @@ fn a_loopback_rewrite_that_cannot_be_written_refuses_the_sbx_launch_before_sbx_c
     let disk = Disk { refuse_rewrite: true, ..pi_disk("http://localhost:4000/v1") };
     let sbx = Sbx::new(healthy);
     let env = sbx_env();
-    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("refused"));
+    let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect_err("refused"));
     assert_eq!(code, "unexpected", "the write's own error, as from_fs names it");
     assert!(message.contains("EACCES: /run/export/pi-agent/models.json"), "{message}");
-    assert_eq!(sbx.calls(), ["sbx version"], "no sandbox is named");
+    assert!(!sbx.calls().iter().any(|call| call.starts_with("sbx create")), "no sandbox is named");
 }
 
 #[test]
@@ -625,10 +663,10 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
     let disk = pi_disk("https://litellm.example.com/v1");
     let sbx = Sbx::new(healthy);
     let env = sbx_env();
-    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
+    let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
-    assert!(calls[2].ends_with(" litellm.example.com:443"), "{calls:?}");
+    assert!(calls[3].ends_with(" litellm.example.com:443"), "{calls:?}");
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("https://litellm.example.com/v1"));
 }
 
@@ -641,7 +679,7 @@ fn a_client_the_backend_does_not_run_and_an_sbx_call_that_did_not_run_are_named(
 
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
     let process = Sbx::new(|args| if args.first() == Some(&"create") { Err("the binary is missing".to_string()) } else { healthy(args) });
-    let run = sbx_launch::run(&process, &sbx, &plain, &Notes::default());
+    let run = sbx_launch::run(&process, &Disk::default(), &sbx, &plain, &Notes::default());
     assert_eq!(run.ran.err().as_deref(), Some("sbx run failed: sbx create did not run: the binary is missing"));
     assert!(run.warnings.is_empty(), "a sandbox sbx never made leaves nothing to warn about");
 }
@@ -655,9 +693,53 @@ fn an_opencode_keyed_run_reads_its_key_from_the_secret_store_and_allows_the_remo
     let mut request = pi_request(RunClient::Opencode, Some(RunMode::ReadOnly));
     request.launch.model = "litellm-vibe/glm-5.3".to_string();
     request.launch.provider = None;
-    let outcome = ClientRun { process: &sbx, files: &disk, env: &env }.launch(&request).expect("a run");
+    let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&request).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
     assert!(calls.contains(&"agent-kit-secret get LITELLM_VIBE_KEY".to_string()), "{calls:?}");
     assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" litellm.example.com:443")), "{calls:?}");
+}
+
+/// The opencode launch whose key is read from the store, translated with its sbx env file in the launch's own directory.
+fn keyed_launch() -> SbxLaunch {
+    let sbx = sbx_launch::translate(RunClient::Opencode, "mg-test", &keyed_opencode(true), ROUTE_REMOTE, &|_| Ok("secret-value".to_string())).expect("a translation");
+    SbxLaunch { image: OPENCODE_IMAGE.to_string(), env_file: "/run/export.client-home/sbx.env".to_string(), ..sbx }
+}
+
+#[test]
+fn the_env_file_holds_the_values_for_one_exec_and_is_removed_after_it_and_no_value_reaches_argv() {
+    let process = Sbx::new(healthy);
+    let disk = Disk::default();
+    let run = sbx_launch::run(&process, &disk, &keyed_launch(), &keyed_opencode(true), &Notes::default());
+    assert!(run.ran.is_ok(), "{:?}", run.ran);
+    assert!(run.warnings.is_empty(), "{:?}", run.warnings);
+    assert_eq!(disk.files.lock().expect("files").get("/run/export.client-home/sbx.env").expect("written"), "LITELLM_KEY=secret-value\nXDG_CONFIG_HOME=/run/export.client-home/.config\n");
+    assert!(disk.removed.lock().expect("removed").contains(&"/run/export.client-home/sbx.env".to_string()));
+    let calls = process.calls();
+    assert!(calls.iter().any(|call| call.starts_with("sbx exec -i -w /run/work --env-file /run/export.client-home/sbx.env mg-test opencode")), "{calls:?}");
+    assert!(calls.iter().all(|call| !call.contains("secret-value")), "a value is in argv: {calls:?}");
+}
+
+#[test]
+fn an_env_file_is_removed_even_when_the_exec_fails_and_one_that_cannot_be_written_or_removed_is_named() {
+    let failing = Sbx { run: Box::new(|_| Err("the program could not start".to_string())), ..Sbx::new(healthy) };
+    let disk = Disk::default();
+    let run = sbx_launch::run(&failing, &disk, &keyed_launch(), &keyed_opencode(true), &Notes::default());
+    assert_eq!(run.ran.err().as_deref(), Some("sbx run failed: the program could not start"));
+    assert!(disk.removed.lock().expect("removed").contains(&"/run/export.client-home/sbx.env".to_string()));
+
+    // Refused to write: nothing is exec'd, and the sandbox is still removed.
+    let process = Sbx::new(healthy);
+    let refusing = Disk { refuse_env_file: true, ..Disk::default() };
+    let run = sbx_launch::run(&process, &refusing, &keyed_launch(), &keyed_opencode(true), &Notes::default());
+    assert_eq!(run.ran.err().as_deref(), Some("sbx run failed: the sandbox's env file was not written: EACCES: /run/export.client-home/sbx.env"));
+    let calls = process.calls();
+    assert!(!calls.iter().any(|call| call.starts_with("sbx exec")), "{calls:?}");
+    assert!(calls.last().expect("calls").starts_with("sbx rm --force mg-test"), "{calls:?}");
+
+    // Refused to remove: a warning the outcome carries, naming the file.
+    let stuck = Disk { refuse_env_remove: true, ..Disk::default() };
+    let run = sbx_launch::run(&Sbx::new(healthy), &stuck, &keyed_launch(), &keyed_opencode(true), &Notes::default());
+    assert!(run.ran.is_ok());
+    assert_eq!(run.warnings, ["the sandbox's env file /run/export.client-home/sbx.env was not removed: EBUSY: /run/export.client-home/sbx.env"]);
 }

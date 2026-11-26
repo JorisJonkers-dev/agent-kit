@@ -217,7 +217,7 @@ fn vibe(extras: RunExtras) -> ClientRunRequest {
 }
 
 fn launch(files: &Memory, process: &Fake, request: &ClientRunRequest) -> Result<crate::client_run::ClientRunOutcome, ClientRunError> {
-    ClientRun { process, files, env: &env() }.launch(request)
+    ClientRun { process, files, clock: &crate::adapters::clock::SystemClock, env: &env() }.launch(request)
 }
 
 fn gateway(error: ClientRunError) -> GatewayError {
@@ -982,7 +982,7 @@ fn a_dry_run_of_a_client_with_a_run_home_removes_the_home_and_starts_nothing() {
     let files = Memory::default();
     let mut machine = env();
     machine.insert("AGENT_KIT_SANDBOX".to_string(), "sbx-dry-run".to_string());
-    let refused = ClientRun { process: &process, files: &files, env: &machine }.launch(&request(RunClient::Opencode, "opencode", "opencode-go/kimi", RunExtras::default()));
+    let refused = ClientRun { process: &process, files: &files, clock: &crate::adapters::clock::SystemClock, env: &machine }.launch(&request(RunClient::Opencode, "opencode", "opencode-go/kimi", RunExtras::default()));
     let error = gateway(refused.expect_err("a dry run"));
     assert_eq!(error.code, "sandbox-dry-run");
     // The working directory read-only, the run directory and the run home written, the prompt read.

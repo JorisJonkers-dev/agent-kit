@@ -72,7 +72,7 @@ impl Mount {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SbxPlan {
     pub client: String,
-    /// The image the sandbox starts from: the client's own install lives there, not on a mount of the host's.
+    /// The Docker Hub repository of the image the sandbox starts from: the client's own install lives there, not on a mount of the host's.
     pub template: String,
     /// The directory the client starts in.
     pub workdir: String,
@@ -95,7 +95,8 @@ impl SbxPlan {
             return None;
         }
         let end = command.args.iter().position(|word| word == "--")?;
-        let mut plan = SbxPlan { client: client.to_string(), template: format!("agent-kit/{client}"), workdir: command.cwd.clone().unwrap_or_default(), ..SbxPlan::default() };
+        let template = crate::sbx_images::image_of(client).map_or_else(String::new, |image| format!("docker.io/sbx/{}", image.repo));
+        let mut plan = SbxPlan { client: client.to_string(), template, workdir: command.cwd.clone().unwrap_or_default(), ..SbxPlan::default() };
         let mut words = command.args[1..end].iter();
         while let Some(flag) = words.next() {
             match flag.as_str() {

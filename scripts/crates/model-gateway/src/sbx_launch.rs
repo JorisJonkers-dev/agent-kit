@@ -2,7 +2,7 @@
 //!
 //! The confined command the launcher would have run is the source: its grants become one sandbox's mounts
 //! (`SbxPlan`), its variables pass by name with their values from the command, and its route's base URL decides the
-//! one network rule the sandbox gets. A run is `sbx create` (named, from the client's template), `sbx policy allow
+//! one network rule the sandbox gets. A run is `sbx create` (named, from the client's prebuilt image pinned by digest), `sbx policy allow
 //! network --sandbox` for the route, `sbx exec` of the client with the watch on its output, and `sbx rm --force`
 //! whatever happened before. Everything goes through the `Process` port, so tests use a fake and no real sbx starts.
 
@@ -10,7 +10,7 @@ use crate::error::GatewayError;
 use crate::json::{self, Value};
 use crate::launchers::{OPENCODE_KEYED, SECRET_TOOL};
 use crate::pi_launch::url_port;
-use crate::ports::{LaunchWatch, Launched, Process, ProcessCommand, ProcessResult};
+use crate::ports::{Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
 use crate::sandbox::{Mount, SbxPlan};
 use crate::text::join;
@@ -20,7 +20,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// The program that drives Docker Sandboxes.
 const SBX: &str = "sbx";
 
-/// The longest one `sbx` call may take: a cold template pull is about 16 s, a warm create about 2.5 s.
+/// The longest one `sbx` call may take: a cold image pull is about 16 s, a warm create about 2.5 s.
 const SBX_TIMEOUT_MS: u64 = 120_000;
 
 /// What the owner runs to get `sbx`, named in every refusal that is about its absence.
@@ -29,7 +29,7 @@ pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/
 /// The host name a sandbox reaches the host's loopback by.
 const HOST_FROM_SANDBOX: &str = "host.docker.internal";
 
-/// The client's program in its template, which is also the client's name: Pi and OpenCode are the only clients the
+/// The client's program in its image, which is also the client's name: Pi and OpenCode are the only clients the
 /// sbx backend runs so far. A write run and every other client are refused before anything is made.
 pub fn program_of(client: RunClient) -> Option<&'static str> {
     match client {
@@ -70,6 +70,10 @@ pub fn sandbox_name() -> String {
 pub struct SbxLaunch {
     pub name: String,
     pub program: &'static str,
+    /// The image reference the sandbox starts from, pinned by digest (`docker.io/sbx/<repo>@sha256:...`).
+    pub image: String,
+    /// Where the `NAME=value` lines for `sbx exec --env-file` are written for the run, 0600, and removed after it.
+    pub env_file: String,
     pub plan: SbxPlan,
     /// The client's own arguments, after its binary in the confined command.
     pub args: Vec<String>,
@@ -80,10 +84,10 @@ pub struct SbxLaunch {
 }
 
 impl SbxLaunch {
-    /// `sbx create`: the named sandbox from the client's template, with the plan's mounts.
+    /// `sbx create`: the named sandbox from the client's prebuilt image, with the plan's mounts. The image is pinned by
+    /// digest, and sbx pulls it only when the machine does not hold it yet.
     pub fn create_args(&self) -> Vec<String> {
-        // The template is the pinned image loaded into sbx's store (`sbx template load`); sbx would otherwise pull it from a registry.
-        let mut args = strings(&["create", "--name", &self.name, "--no-input", "--pull", "never", "-t", &format!("agent-kit/{}:current", self.program), "shell"]);
+        let mut args = strings(&["create", "--name", &self.name, "--no-input", "--pull", "missing", "-t", &self.image, "shell"]);
         // sbx takes the first mount as the primary workspace and refuses it read-only, so the written mounts go first.
         let (written, read): (Vec<&Mount>, Vec<&Mount>) = self.plan.mounts.iter().partition(|mount| !mount.read_only);
         args.extend(written.into_iter().chain(read).map(Mount::arg));
@@ -95,11 +99,12 @@ impl SbxLaunch {
         strings(&["policy", "allow", "network", "--sandbox", &self.name, &self.allow.join(",")])
     }
 
-    /// `sbx exec`: the client in the sandbox, from the plan's workdir, with only the variables the launch names.
+    /// `sbx exec`: the client in the sandbox, from the plan's workdir, with the variables the launch names read from
+    /// the env file, so no value is ever part of the argument list.
     pub fn exec_args(&self) -> Vec<String> {
         let mut args = strings(&["exec", "-i", "-w", &self.plan.workdir]);
-        for pair in &self.env {
-            args.extend(strings(&["-e", pair]));
+        if !self.env.is_empty() {
+            args.extend(strings(&["--env-file", &self.env_file]));
         }
         args.push(self.name.clone());
         args.push(self.program.to_string());
@@ -139,7 +144,7 @@ pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_
     }
     let env = plan.env.iter().filter_map(|name| values.get(name).map(|value| format!("{name}={value}"))).collect();
     let allow = allowed_hosts(route_text)?;
-    Ok(SbxLaunch { name: name.to_string(), program, plan, args, env, allow })
+    Ok(SbxLaunch { name: name.to_string(), program, image: String::new(), env_file: String::new(), plan, args, env, allow })
 }
 
 /// The confined command with OpenCode's keyed wrapper taken off: the key's name, and the `env NAME=value` pairs the
@@ -222,17 +227,22 @@ pub fn config_path(client: RunClient, dir: &str) -> String {
     }
 }
 
-/// Runs one translated launch: create, allow, exec, then remove, whatever came before. A failure to create,
-/// allow or start is the run's error; a failure to remove is a warning the outcome carries.
-pub fn run(process: &dyn Process, sbx: &SbxLaunch, command: &ProcessCommand, watch: &dyn LaunchWatch) -> SbxRun {
+/// Runs one translated launch: create, allow, exec, then remove, whatever came before. The variables go to the env
+/// file just before the exec and that file is removed right after it, failed or not. A failure to create, allow,
+/// write or start is the run's error; a failure to remove is a warning the outcome carries.
+pub fn run(process: &dyn Process, files: &dyn Files, sbx: &SbxLaunch, command: &ProcessCommand, watch: &dyn LaunchWatch) -> SbxRun {
     let create = sbx_call(process, &sbx.create_args());
     let created_ok = create.is_ok();
     let created = create.and_then(|()| sbx_call(process, &sbx.policy_args()));
     let ran = created.and_then(|()| {
-        watch.note(&format!("sandbox {} (sbx): {} in agent-kit/{}:current", sbx.name, sbx.program, sbx.program));
-        let exec = ProcessCommand { command: SBX.to_string(), args: sbx.exec_args(), cwd: None, env: BTreeMap::new(), timeout_ms: command.timeout_ms, stdin: command.stdin.clone() };
-        process.run_watched(&exec, watch)
+        watch.note(&format!("sandbox {} (sbx): {} from {}", sbx.name, sbx.program, sbx.image));
+        let written = if sbx.env.is_empty() { Ok(()) } else { write_env_file(files, sbx) };
+        written.and_then(|()| {
+            let exec = ProcessCommand { command: SBX.to_string(), args: sbx.exec_args(), cwd: None, env: BTreeMap::new(), timeout_ms: command.timeout_ms, stdin: command.stdin.clone() };
+            process.run_watched(&exec, watch)
+        })
     });
+    let env_file_warning = if sbx.env.is_empty() { None } else { files.remove(&sbx.env_file).err().map(|error| format!("the sandbox's env file {} was not removed: {}", sbx.env_file, error.message)) };
     if let Ok(launched) = &ran {
         if matches!(launched.result.exit_code, 125 | 127) {
             watch.note(&format!("sbx could not run {} (exit {}); this is sbx's own status, not the client's", sbx.program, launched.result.exit_code));
@@ -240,14 +250,21 @@ pub fn run(process: &dyn Process, sbx: &SbxLaunch, command: &ProcessCommand, wat
     }
     let made = created_ok;
     let removed = process.exec(SBX, &["rm", "--force", &sbx.name], Some(SBX_TIMEOUT_MS));
-    let warnings = match removed {
+    let mut warnings: Vec<String> = env_file_warning.into_iter().collect();
+    warnings.extend(match removed {
         Ok(result) if result.exit_code == 0 => Vec::new(),
         // A sandbox `sbx create` refused was never made: there is nothing left to warn about.
         Ok(_) | Err(_) if !made => Vec::new(),
         Ok(result) => vec![format!("sandbox {} was not removed (sbx rm exited {}); remove it with sbx rm --force {}", sbx.name, result.exit_code, sbx.name)],
         Err(reason) => vec![format!("sandbox {} was not removed ({reason}); remove it with sbx rm --force {}", sbx.name, sbx.name)],
-    };
+    });
     SbxRun { ran: ran.map_err(|message| format!("sbx run failed: {message}")), warnings }
+}
+
+/// The `NAME=value` lines `sbx exec --env-file` reads, written 0600 into the launch's own directory.
+fn write_env_file(files: &dyn Files, sbx: &SbxLaunch) -> Result<(), String> {
+    let text: String = sbx.env.iter().map(|pair| format!("{pair}\n")).collect();
+    files.write_private(&sbx.env_file, &text).map_err(|error| format!("the sandbox's env file was not written: {}", error.message))
 }
 
 /// One `sbx` call that must succeed; its output or its status is the reason when it does not.
