@@ -221,6 +221,8 @@ fn an_agy_critic_is_launched_read_only_and_its_result_is_kept() {
     assert_eq!(report.vibe_cost_usd, None);
     assert_eq!(report.tokens, None);
     assert!(saved(&files, "/run/c1/result.json").contains("\"response\": \"x\""));
+    // The export directory the confinement grants is made before the launch: the launcher refuses a missing grant.
+    assert_eq!(files.made(), ["/run/c1/export"]);
     let command = process.commands().remove(0);
     assert_eq!(command.cwd.as_deref(), Some("/run/c1/packet"));
     assert_eq!(command.timeout_ms, Some(360_000));
@@ -339,4 +341,16 @@ fn a_vibe_critic_is_launched_in_its_packet_and_priced_from_its_export() {
     assert_eq!(report.tokens.map(|tokens| (tokens.input, tokens.output)), Some((10.0, 5.0)));
     let command = process.commands().remove(0);
     assert_eq!(command.cwd.as_deref(), Some("/run/c1/packet"));
+}
+
+#[test]
+fn every_critic_client_makes_the_export_directory_its_confinement_writes_before_it_launches() {
+    for config in [CriticClient::Codex(codex_config()), CriticClient::Claude(claude_config()), CriticClient::Vibe(vibe_config())] {
+        let files = prompt_files();
+        let process = FakeProcess::answering(said(1, "", "refused"));
+        let runtime = fake_runtime(&files, &process, &[("HOME", "/home/owner")]);
+        let routed = critic(config);
+        let _ = review_with(&runtime, &launch(&routed));
+        assert_eq!(files.made().first().map(String::as_str), Some("/run/c1/export"));
+    }
 }

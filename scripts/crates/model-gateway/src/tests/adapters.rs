@@ -885,3 +885,19 @@ fn git_names_where_it_keeps_its_programs_or_says_why_it_cannot() {
     let failing = SystemGit { env: env_with_path(&text(&bin)), timeout_ms: TIMEOUT_MS };
     assert_eq!(failing.exec_path(), Err("unknown option".to_string()));
 }
+
+#[test]
+fn mkdir_private_makes_the_directory_owner_only_or_says_why_not() {
+    let sandbox = Sandbox::new();
+    let files = SystemFiles { cwd: sandbox.text() };
+
+    assert_eq!(files.mkdir_private("critic/export"), Ok(()));
+    let mode = std::fs::metadata(sandbox.path.join("critic/export")).expect("the directory").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o700);
+    // Already there is no error.
+    assert_eq!(files.mkdir_private("critic/export"), Ok(()));
+
+    std::fs::write(sandbox.path.join("file"), "x").expect("file");
+    let error = files.mkdir_private("file/export").expect_err("a file is in the way");
+    assert_eq!(error.code, "ENOTDIR");
+}
