@@ -1,6 +1,6 @@
 //! The sandbox backend a launch runs in, and the sbx plan a dry run turns a confined launch into.
 
-use crate::json;
+use crate::json::{self, Value};
 use crate::ports::ProcessCommand;
 use crate::sandbox::{dry_run, Mount, SandboxBackend, SbxPlan, SANDBOX_VARIABLE};
 use std::collections::HashMap;
@@ -87,4 +87,42 @@ fn a_dry_run_refuses_with_the_plan_as_json_and_never_a_value() {
     assert_eq!(object.get("env"), Some(&json::parse(r#"["LITELLM_KEY"]"#).expect("JSON")));
     assert_eq!(object.get("ports"), Some(&json::parse("[4000]").expect("JSON")));
     assert_eq!(object.get("loopback"), Some(&json::parse("false").expect("JSON")));
+}
+
+#[test]
+fn a_path_granted_read_only_twice_stays_read_only() {
+    let command = confined(&["--read", "/work", "--read", "/work"]);
+    let plan = SbxPlan::of_command("pi", &command).expect("a confined launch");
+    assert_eq!(plan.mounts, [Mount { path: "/work".to_string(), read_only: true }]);
+    assert_eq!(plan.mounts[0].arg(), "/work:ro");
+}
+
+#[test]
+fn the_sbx_backend_is_named_sbx_dry_run_in_the_plan() {
+    assert_eq!(SandboxBackend::SbxDryRun.as_str(), "sbx-dry-run");
+}
+
+#[test]
+fn the_plan_json_carries_every_field_with_the_grants_it_was_built_from() {
+    let command = confined(&["--read", "/work", "--write", "/run/export", "--run-from", "opencode", "--run", "/opt/git", "--env", "HOME", "--net-connect", "443", "--net-connect", "https", "--net-loopback", "--keychain"]);
+    let plan = SbxPlan::of_command("opencode", &command).expect("a confined launch");
+    let json = plan.to_json();
+    let object = json.as_object().expect("an object");
+    let text = |value: &str| Value::str(value);
+    let list = |items: &[&str]| Value::Arr(items.iter().map(|item| Value::str(item)).collect());
+    assert_eq!(object.get("backend"), Some(&text("sbx-dry-run")));
+    assert_eq!(object.get("client"), Some(&text("opencode")));
+    assert_eq!(object.get("template"), Some(&text("agent-kit/opencode")));
+    assert_eq!(object.get("workdir"), Some(&text("/work")));
+    assert_eq!(object.get("mounts"), Some(&list(&["/work:ro", "/run/export"])));
+    assert_eq!(object.get("programs"), Some(&list(&["opencode", "/opt/git"])));
+    assert_eq!(object.get("env"), Some(&list(&["HOME"])));
+    assert_eq!(object.get("ports"), Some(&Value::Arr(vec![Value::Num(443.0)])));
+    assert_eq!(object.get("loopback"), Some(&Value::Bool(true)));
+    // The https grant is a gap, the keychain is a gap, and the port rule is a gap: three, in grant order.
+    assert_eq!(object.get("gaps"), Some(&Value::Arr(plan.gaps.iter().map(|gap| Value::str(gap)).collect())));
+    assert_eq!(plan.gaps.len(), 3);
+    assert_eq!(plan.gaps[0], "--net-connect https is not a port");
+    assert!(plan.gaps[1].starts_with("keychain:"), "{}", plan.gaps[1]);
+    assert!(plan.gaps[2].starts_with("network: confine allows TCP ports 443 to any host"), "{}", plan.gaps[2]);
 }
