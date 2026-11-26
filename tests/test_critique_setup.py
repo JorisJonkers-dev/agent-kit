@@ -1117,7 +1117,8 @@ def test_a_rerun_replaces_an_edited_critic_agent(tmp_path: Path) -> None:
     agents.mkdir(parents=True)
     (agents / "critic-glm-flash.toml").write_text('enabled_tools = ["read_file", "bash"]\n')
     assert _run_critic_step(tmp_path, _registry()).returncode == 0
-    assert (agents / "critic-glm-flash.toml").read_text() == (KIT_ROOT / AGENTS_DIR / "critic-glm-flash.toml").read_text()
+    expected = (KIT_ROOT / AGENTS_DIR / "critic-glm-flash.toml").read_text()
+    assert (agents / "critic-glm-flash.toml").read_text() == expected
 
 
 def test_setup_installs_the_critic_agents_only_into_the_shared_home() -> None:
