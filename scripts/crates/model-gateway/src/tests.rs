@@ -36,4 +36,5 @@ mod run_home;
 mod quota;
 mod tier_slots;
 mod visibility;
+mod run_events;
 mod git_view;

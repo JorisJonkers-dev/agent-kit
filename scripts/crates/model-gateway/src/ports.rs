@@ -49,6 +49,10 @@ pub trait Files: Send + Sync {
     fn copy_tree(&self, _from: &str, _to: &str) -> Result<(), FsError> {
         Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot copy".into() })
     }
+    /// The names in a directory, sorted; a file system that cannot list says so.
+    fn list_dir(&self, _path: &str) -> Result<Vec<String>, FsError> {
+        Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot list".into() })
+    }
 }
 
 /// What `stamp` reports of a file, followed through every symlink.
@@ -91,8 +95,64 @@ impl ProcessCommand {
     }
 }
 
+/// Which output stream of a launched program a chunk came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stream {
+    Stdout,
+    Stderr,
+}
+
+/// What a delegation's launch reports while it runs: its process id once it started, and each chunk of output
+/// the moment it is read. The run's event log is one; a caller that needs neither passes `Unwatched`.
+pub trait LaunchWatch: Sync {
+    fn spawned(&self, pid: u32);
+    fn output(&self, stream: Stream, chunk: &[u8]);
+    /// Something the runner itself did to the process (the time limit's SIGTERM, a SIGKILL after the grace).
+    fn note(&self, text: &str);
+}
+
+/// A watch that wants nothing.
+pub struct Unwatched;
+
+impl LaunchWatch for Unwatched {
+    fn spawned(&self, _pid: u32) {}
+    fn output(&self, _stream: Stream, _chunk: &[u8]) {}
+    fn note(&self, _text: &str) {}
+}
+
+/// How a launched program ended, past the exit code `ProcessResult` carries (which reads 124 for a signal).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Ending {
+    /// The signal that ended it (9 for SIGKILL), when one did; its exit code is then none.
+    pub signal: Option<i32>,
+    /// The signal the gateway itself was stopped with (SIGINT, SIGTERM, SIGHUP) and passed on to the launch.
+    pub cancelled_by: Option<i32>,
+    /// The process id it ran as; `None` when the runner does not know it.
+    pub pid: Option<u32>,
+}
+
+/// A watched launch's result and how it ended.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Launched {
+    pub result: ProcessResult,
+    pub ending: Ending,
+}
+
 /// The programs the gateway starts: the clients' own listing and status commands, and a delegation's client.
 pub trait Process: Send + Sync {
+    /// `run`, telling `watch` what happens as it happens and saying how the program ended. A runner that cannot
+    /// stream hands the whole output over once the program is done, and knows no signal.
+    fn run_watched(&self, command: &ProcessCommand, watch: &dyn LaunchWatch) -> Result<Launched, String> {
+        let result = self.run(command)?;
+        watch.output(Stream::Stdout, result.stdout.as_bytes());
+        watch.output(Stream::Stderr, result.stderr.as_bytes());
+        Ok(Launched { result, ending: Ending::default() })
+    }
+    /// Whether a process with this id is running. A runner that cannot tell says it is, so nothing is declared
+    /// lost on a guess.
+    fn is_alive(&self, _pid: u32) -> bool {
+        true
+    }
     /// The path of the first executable file named `binary` in a folder of PATH; `None` when there is none.
     fn resolve(&self, binary: &str) -> Option<String>;
     /// Runs `command args` to its end, or kills it after `timeout_ms`; an `Err` is a command that could not start.

@@ -270,6 +270,10 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
         write: None,
         attempt: Some(2),
         attempt_of: Some("r0".into()),
+        exit_code: None,
+        signal: Some(9),
+        stderr_tail: Some("killed".into()),
+        failure: Some(crate::run_failure::Failure { kind: crate::run_failure::FailureKind::Signalled, reason: "the client was ended by SIGKILL".into(), output_tail: None }),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
         routing: crate::routing::Routing::unseen("claude"),
@@ -283,7 +287,7 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
     };
     assert_eq!(
         keys.join(","),
-        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,attempt,attempt_of,cleanup_warning,warnings"
+        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,exit_code,signal,stderr_tail,failure,attempt,attempt_of,cleanup_warning,warnings"
     );
 }
 
@@ -386,7 +390,8 @@ fn a_client_a_run_cannot_launch_is_a_launch_failure() {
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"m","prompt":"p"}"#).expect("JSON")).expect("input");
     let input = crate::run::RunInput { client: "foo".into(), ..input };
     let paths = crate::launchers::LaunchPaths::default();
-    let (result, _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", None, false);
+    let ((result, ending), _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", (None, false), &crate::ports::Unwatched);
+    assert_eq!(ending, crate::ports::Ending::default());
     assert_eq!((failure.as_deref(), result.exit_code), (Some("launch-failed"), 1));
     assert_eq!(result.stderr, "foo is not a client a run can launch");
     assert_eq!(routing.capture, crate::routing::Capture::Hidden);

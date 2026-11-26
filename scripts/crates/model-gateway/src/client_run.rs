@@ -12,7 +12,7 @@ use crate::json::{self, Value};
 use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
 use crate::pi_launch::{launcher_of, prepare_pi};
-use crate::ports::{Files, Process, ProcessResult};
+use crate::ports::{Ending, Files, LaunchWatch, Launched, Process, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
 use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
@@ -41,6 +41,8 @@ pub struct ClientRunRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientRunOutcome {
     pub result: ProcessResult,
+    /// How the client's process ended past its exit code: the signal that ended it, a stop it was given.
+    pub ending: Ending,
     /// Parsed `export.json`, or `None` when the client wrote none or it does not parse.
     pub exported: Option<Value>,
     pub output: ClientOutput,
@@ -129,6 +131,11 @@ impl ClientRun<'_> {
     /// The launch, with the tool scope a delegation profile gives a Pi run: its home holds exactly the skills
     /// and plugins the scope lists.
     pub fn launch_scoped(&self, request: &ClientRunRequest, scope: Option<&ToolScope>) -> Result<ClientRunOutcome, ClientRunError> {
+        self.launch_watched(request, scope, &Unwatched)
+    }
+
+    /// `launch_scoped`, with what the client does reported to `watch` as it happens (a run's event log).
+    pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
@@ -147,7 +154,7 @@ impl ClientRun<'_> {
         let mut extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
         extras.env.extend(credential);
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
-        let ran = self.process.run(&command);
+        let ran = self.process.run_watched(&command, watch);
         // What the launch refreshed in its copy of a login goes back to the owner's, before the home goes.
         let unsynced: Vec<String> = home.iter().filter_map(|home| home.login.as_ref()).filter_map(|(owner, copy)| sync_login(self.files, owner, copy).err()).collect();
         // The agent directory holds the route's key, so it goes the moment the launch ends, and so does a run home; a
@@ -159,13 +166,13 @@ impl ClientRun<'_> {
             .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
             .chain(unsynced)
             .collect();
-        let result = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
+        let Launched { result, ending } = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
             Some(path) => self.read_report(&path(&request.paths))?,
             None => None,
         };
         let output = (launcher.read)(&result.stdout, exported.as_ref());
-        Ok(ClientRunOutcome { result, exported, output, warnings: leftovers })
+        Ok(ClientRunOutcome { result, ending, exported, output, warnings: leftovers })
     }
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
