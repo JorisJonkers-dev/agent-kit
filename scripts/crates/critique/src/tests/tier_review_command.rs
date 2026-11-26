@@ -127,11 +127,12 @@ impl Machine {
         git(&["-C", "repos/k1", "add", "-A"]);
         git(&["-C", "repos/k1", "commit", "-q", "-m", "base #12"]);
         let families: Vec<String> = setup.families.iter().map(|family| format!("\"{family}\"")).collect();
-        let public = if setup.public { ",\"public\":true" } else { "" };
         write(
             "home/.config/agent-kit/critique-allowlist.json",
-            &format!("{{\"repositories\":{{\"github.com/jorisjonkers-dev/example\":{{\"code\":false,\"families\":[{}],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"{public}}}}},\"version\":1}}\n", families.join(",")),
+            &format!("{{\"repositories\":{{\"github.com/jorisjonkers-dev/example\":{{\"code\":false,\"families\":[{}],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}}}},\"version\":1}}\n", families.join(",")),
         );
+        // What GitHub says about the repository's visibility, through the gh the runner asks.
+        write("bin/gh", &format!("#!/bin/sh\necho {}\n", if setup.public { "public" } else { "private" }));
         let port = litellm(setup.falling);
         write(
             "home/.pi/agent/models.json",
@@ -139,7 +140,7 @@ impl Machine {
         );
         write("bin/pi", &setup.pi.replace("@SANDBOX@", &sandbox.text()));
         write("bin/agent-launcher", LAUNCHER);
-        for program in ["pi", "agent-launcher"] {
+        for program in ["pi", "agent-launcher", "gh"] {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(root.join("bin").join(program), std::fs::Permissions::from_mode(0o755)).expect("chmod");
         }
@@ -269,11 +270,12 @@ fn a_reviewer_litellm_served_from_another_model_is_retried_through_a_family_not_
 
 #[test]
 fn a_review_whose_reviewers_span_fewer_than_three_families_fails_and_says_so() {
-    // Three families are allowed and nothing is left to retry through, so a collapsed reviewer leaves two.
-    let machine = Machine::new(&Setup { families: &["nvidia", "google", "zhipu"], falling: &["free/gemma-4-31b"], ..setup() });
+    // A private repository allows three families and nothing is left to retry through, so a collapsed reviewer
+    // leaves two. A public one is not held to its entry, so only a private one can be short of families.
+    let machine = Machine::new(&Setup { families: &["deepseek", "zhipu", "alibaba"], public: false, falling: &["vibe-tier/zai-glm-5-3-flash"], ..setup() });
     let (result, value) = machine.tier_review("");
     assert_eq!((result.exit_code, text(&value, "status")), (3, "failed"), "{}", result.stdout);
-    assert_eq!(families(&value), ["nvidia", "zhipu"]);
+    assert_eq!(families(&value), ["deepseek", "alibaba"]);
     assert!(text(&value, "message").contains("only 2 of 3 families reviewed"), "{value:?}");
     assert!(std::path::Path::new(text(&value, "synthesis_path")).exists());
 }
@@ -299,12 +301,13 @@ fn a_step_the_ledger_holds_as_rate_limited_is_left_for_the_next_family() {
 
 #[test]
 fn a_run_that_cannot_have_three_families_is_refused_with_what_was_passed_over() {
-    let machine = Machine::new(&Setup { families: &["nvidia", "google"], ..setup() });
+    let machine = Machine::new(&Setup { families: &["deepseek", "zhipu"], public: false, ..setup() });
     let (result, value) = machine.tier_review("");
-    assert_eq!((result.exit_code, text(&value, "status")), (0, "refused"));
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "refused"), "{}", result.stdout);
     let message = text(&value, "message");
     assert!(message.starts_with("tier-review resolved 2 of 3 families that are neither anthropic nor barred; passed over: "), "{message}");
-    assert!(message.contains("free-glm-4.7-flash (family-not-allowed)") && message.contains("free-gpt-oss-120b (family-not-allowed)"), "{message}");
+    // A free step is barred because the repository is not public, and a paid one because its family is not allowed.
+    assert!(message.contains("free-glm-4.7-flash (data-scope)") && message.contains("opencode-go-tier-qwen3.8-flash (family-not-allowed)"), "{message}");
 }
 
 #[test]
@@ -316,16 +319,41 @@ fn a_tier_whose_key_is_not_ready_is_refused_before_anything_is_frozen() {
 }
 
 #[test]
-fn the_roster_is_the_tiers_to_pick_and_a_work_repository_has_its_own() {
+fn the_roster_is_the_tiers_to_pick_and_a_nedap_repository_is_refused() {
     let machine = Machine::new(&setup());
     let (result, value) = machine.tier_review(",\"roster\":\"free\"");
     assert_eq!((result.exit_code, text(&value, "code")), (1, "invalid-input"));
     let (_, value) = machine.tier_review(",\"stage\":\"tickets\"");
     assert_eq!(text(&value, "code"), "invalid-input");
+    // GitHub says it is public, and it is still refused: a nedap repository sends nothing, whatever its visibility.
     let work = Machine::new(&Setup { remote: "git@github.com:nedap/example.git", ..setup() });
     let (_, value) = work.tier_review("");
     assert_eq!(text(&value, "status"), "refused");
-    assert!(text(&value, "message").contains("a nedap repository's critics are its work roster"), "{value:?}");
+    assert_eq!(text(&value, "reason"), "nedap", "{value:?}");
+    assert!(text(&value, "message").contains("nothing is sent to any critic"), "{value:?}");
+}
+
+#[test]
+fn a_public_repository_is_reviewed_without_an_allowlist_entry() {
+    let machine = Machine::new(&setup());
+    std::fs::remove_file(machine.sandbox.path.join("home/.config/agent-kit/critique-allowlist.json")).expect("no allowlist");
+    let (result, value) = machine.tier_review("");
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
+}
+
+#[test]
+fn a_repository_whose_visibility_cannot_be_read_is_private_and_needs_its_entry() {
+    let machine = Machine::new(&setup());
+    machine.put("bin/gh", "#!/bin/sh\necho 'gh: Not Found (HTTP 404)' >&2\nexit 1\n");
+    // With its entry it is held to it like a private repository: no free step reviews it.
+    let (result, value) = machine.tier_review("");
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
+    let asked: Vec<&str> = list(&value, "reviewers").iter().map(|reviewer| text(field(reviewer, "routing"), "requested_model")).collect();
+    assert!(asked.iter().all(|model| !model.starts_with("free/")), "{asked:?}");
+    // Without one it is refused.
+    std::fs::remove_file(machine.sandbox.path.join("home/.config/agent-kit/critique-allowlist.json")).expect("no allowlist");
+    let (_, value) = machine.tier_review("");
+    assert_eq!((text(&value, "status"), text(&value, "reason")), ("refused", "not-opted-in"), "{value:?}");
 }
 
 #[test]
@@ -458,7 +486,7 @@ fn a_ledger_that_cannot_be_read_stops_the_review_before_any_run_is_frozen() {
 #[test]
 fn a_string_field_given_as_a_number_is_an_invalid_input_whichever_field_it_is() {
     let machine = Machine::new(&setup());
-    for field in ["head", "base", "decision_summary", "feature", "flow", "spec", "plan", "ticket", "workflow"] {
+    for field in ["head", "base", "decision_summary", "feature", "flow", "spec", "plan", "ticket"] {
         let (result, value) = machine.tier_review(&format!(",\"{field}\":5"));
         assert_eq!((result.exit_code, text(&value, "code")), (1, "invalid-input"), "{field}: {}", result.stdout);
     }

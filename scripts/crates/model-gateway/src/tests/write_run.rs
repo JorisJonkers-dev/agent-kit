@@ -48,8 +48,8 @@ struct GitState {
     calls: Vec<String>,
 }
 
-/// A git whose answers the test chooses; the repository it finds belongs to nedap, which permits Codex and
-/// Claude Code. A worktree it creates is a real directory, as git's own would be.
+/// A git whose answers the test chooses; the repository it finds is a private one whose allowlist entry permits
+/// every family. A worktree it creates is a real directory, as git's own would be.
 #[derive(Clone, Default)]
 struct FakeGit {
     state: Arc<Mutex<GitState>>,
@@ -84,7 +84,7 @@ impl Git for FakeGit {
     }
 
     fn remotes(&self, _path: &str) -> Result<Vec<GitRemote>, String> {
-        Ok(vec![GitRemote { name: "origin".to_string(), url: "git@github.com:nedap/x.git".to_string() }])
+        Ok(vec![GitRemote { name: "origin".to_string(), url: "git@github.com:acme/x.git".to_string() }])
     }
 
     fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
@@ -288,6 +288,7 @@ fn machine() -> WriteMachine {
     // A confined Codex run links its home to the owner's login, which the owner has.
     std::fs::create_dir_all(format!("{root}/home/.codex")).expect("codex home");
     std::fs::write(format!("{root}/home/.codex/auth.json"), "{}").expect("codex login");
+    machine.allow_everything("github.com/acme/x");
     WriteMachine { machine, git, process }
 }
 

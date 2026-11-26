@@ -154,6 +154,15 @@ impl Machine {
         std::fs::write(path, text).expect("write file");
     }
 
+    /// An allowlist entry for `key` that lets every family the shipped defaults name read code and history.
+    pub fn allow_everything(&self, key: &str) {
+        let families = r#"["alibaba","anthropic","cohere","deepseek","google","inclusionai","meituan","meta","minimax","mistral","moonshot","nvidia","openai","opencode","qwen","tencent","xai","xiaomi","zai","zhipu"]"#;
+        self.write_at(
+            &crate::locations::allowlist_path(&self.runtime.env).expect("allowlist path"),
+            &format!(r#"{{"version":1,"repositories":{{"{key}":{{"code":true,"families":{families},"history":true,"updated_at":"2026-11-04T00:00:00.000Z"}}}}}}"#),
+        );
+    }
+
     pub fn write_override(&self, text: &str) {
         self.write_at(&override_path(&self.runtime.env).expect("override path"), text);
     }

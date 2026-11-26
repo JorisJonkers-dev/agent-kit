@@ -542,7 +542,7 @@ impl RunCommand<'_> {
                 .map_err(|reason| GatewayError::new("profile-refused", format!("profile {profile} cannot run on {}: {reason}", input.client)))?;
         }
         Ok(match scope {
-            DataScope::Repository { key, .. } => Some(key),
+            DataScope::Repository { key, .. } | DataScope::Public { key } => Some(key),
             _ => None,
         })
     }

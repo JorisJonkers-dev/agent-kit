@@ -67,6 +67,7 @@ pub mod timestamps;
 pub mod toml;
 pub mod usage;
 pub mod vibe_sign_in;
+pub mod visibility;
 pub mod workflows;
 pub mod worktrees;
 pub mod write_run;

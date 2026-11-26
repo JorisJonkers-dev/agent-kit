@@ -11,18 +11,22 @@ finding's evidence and rules on it. Bold words are defined in
 critique stage when you say yes, and names the Pocock command when only you
 can type it.
 
-Nothing is sent until the repository has a **family allowlist** entry
-(per machine, `~/.config/agent-kit/critique-allowlist.json`, keyed by the
-remote). A repository with no remote never sends. A `nedap` remote needs no entry and
-has a work-only roster instead: Codex on the nedap account, only under a live
-model-gateway grant for the `workflow` the call names, and the work Claude
-agent, each never in the orchestrator's own family, and no other family. An
-entry covers documents only until its code permission is on, which the code
-stages need, and leaves out commit messages and issue text until its history
-permission is on. Both are off by default. The first stage that needs one
-offers it. A third flag, `public`, is off too and is only ever set by `allow`:
-a repository is private until the owner says it is public, and a client on a
-public-only LiteLLM route (below) is never routed to a private repository.
+Which critics a repository may send to depends first on where it lives. A
+repository with a `nedap` remote sends nothing to any critic, whatever its
+visibility. A repository GitHub says is public (`gh api repos/<owner>/<repo>
+--jq .visibility`, cached for fifteen minutes) is not held to the allowlist:
+every family, the public-only LiteLLM routes among them, may critique its
+documents, code and history. Every other repository, including one whose
+visibility cannot be read (no gh, offline, not on github.com), sends nothing
+until it has a **family allowlist** entry (per machine,
+`~/.config/agent-kit/critique-allowlist.json`, keyed by the remote), and a
+repository with no remote never sends. An entry covers documents only until
+its code permission is on, which the code stages need, and leaves out commit
+messages and issue text until its history permission is on. Both are off by
+default. The first stage that needs one offers it. An entry has no `public`
+flag: `allow` refuses one, and one an older `allow` recorded is ignored, so a
+client on a public-only route (below) is never routed to a repository GitHub
+does not say is public.
 
 ## Stages
 
@@ -601,13 +605,12 @@ read are unchanged.
 `registry/generated/litellm/routes.json` has it: `any`, or `public` for a
 route whose key is for public work only (`public`, `openrouter`). The field
 is required, and a test checks it against `routes.json`. A client with
-`data_scope: public` is routed only to a repository whose allowlist entry has
-`"public": true` (`critique allow --json '{"repo": ..., "families": [...],
-"public": true}'`); for any other repository it is dropped from the roster
-with the reason `data-scope` (its slot goes to the next fallback), it is not
-kept as a fallback, and a refute round passes it over. The run's manifest
-carries `public_repository: true` only when the entry did, so a refute round
-applies the same bar as the run it follows. No public-scope client leads a
+`data_scope: public` is routed only to a repository GitHub says is public; for
+any other repository it is dropped from the roster with the reason `data-scope`
+(its slot goes to the next fallback), it is not kept as a fallback, and a refute
+round passes it over. The run's manifest carries `public_repository: true` only
+when GitHub said so at prepare, so a refute round applies the same bar as the run
+it follows. No public-scope client leads a
 slot in the shipped routing: `pi-public-gemini-flash` is only a last fallback,
 so it runs for a public repository when everything before it could not.
 
@@ -619,7 +622,7 @@ available and all three could land on one family. `tier_review.rs` reads the cha
 (a compiled-in copy of `registry/litellm-tiers.json`, so it cannot drift from the
 snapshot) and takes the first step of each of three families in ladder order, free,
 then Vibe Flash, then Go Flash, skipping a step whose data scope bars it (a free step
-for a repository not recorded as public), whose family the allowlist does not name,
+for a repository GitHub does not say is public), whose family the allowlist does not name,
 is the writer's or is already taken, or whose last answer through the tier's key the
 gateway ledger holds as a refusal that still stands. Each reviewer then calls its own
 step model through the tier's key (`litellm-tier-review`, which holds the steps' access
@@ -649,9 +652,7 @@ and `pi-free`'s catalogue): `pi-free-nemotron-ultra` (nvidia), `pi-free-gemma`
 roster's roles and lenses, and `pi-free-north-mini-code` and `pi-free-opencode-go-beam`
 are the fallbacks of the first two. A run asks for it with `"roster": "free"` in
 the prepare input. Free models are for public material only, so prepare refuses
-(`not-public`) unless the repository's allowlist entry has `"public": true`,
-the owner's own mark (`critique allow --json '{"repo": ..., "families": ["nvidia",
-"google", "cohere", "reflection"], "public": true}'`), and refuses
+(`not-public`) unless GitHub says the repository is public, and refuses
 `no-free-roster` for a stage routing gives no free slots. Nothing else changes: the same
 read-only tripwire, quote check, writer-family exclusion (the orchestrator's family
 never critiques) and refute round, except that the round draws only on the stage's free
