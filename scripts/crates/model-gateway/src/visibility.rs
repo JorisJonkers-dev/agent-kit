@@ -30,14 +30,6 @@ impl Visibility {
     pub fn is_public(self) -> bool {
         self == Visibility::Public
     }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Visibility::Public => "public",
-            Visibility::Private => "private",
-            Visibility::Unknown => "unknown",
-        }
-    }
 }
 
 /// How long a known visibility is kept before GitHub is asked again.
@@ -69,10 +61,13 @@ pub fn repository_visibility(runtime: &Runtime, location: &RemoteLocation) -> Vi
         return cached;
     }
     let visibility = ask_github(runtime, location);
-    if visibility != Visibility::Unknown {
-        if let Some(path) = cache.as_deref() {
-            remember(runtime, path, &key, visibility, now);
-        }
+    let word = match visibility {
+        Visibility::Public => "public",
+        Visibility::Private => "private",
+        Visibility::Unknown => return visibility,
+    };
+    if let Some(path) = cache.as_deref() {
+        remember(runtime, path, &key, word, now);
     }
     visibility
 }
@@ -125,9 +120,9 @@ fn read_cache(runtime: &Runtime, path: &str) -> Option<Object> {
 }
 
 /// Keeps a known visibility; a cache that cannot be written is left as it is.
-fn remember(runtime: &Runtime, path: &str, key: &str, visibility: Visibility, now: i64) {
+fn remember(runtime: &Runtime, path: &str, key: &str, word: &str, now: i64) {
     let mut repositories = read_cache(runtime, path).unwrap_or_default();
-    repositories.set(key, json::object(vec![("checked_at_ms", Value::Num(now as f64)), ("visibility", Value::str(visibility.as_str()))]));
+    repositories.set(key, json::object(vec![("checked_at_ms", Value::Num(now as f64)), ("visibility", Value::str(word))]));
     let file = json::object(vec![("version", Value::Num(1.0)), ("repositories", Value::Obj(repositories))]);
     let _ = runtime.files.mkdir_all(crate::text::dirname(path));
     let _ = runtime.files.write_atomic(path, &format!("{}\n", json::pretty(&file)));

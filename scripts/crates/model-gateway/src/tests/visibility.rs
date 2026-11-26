@@ -188,6 +188,23 @@ fn a_cache_that_says_something_else_is_no_cache() {
     assert_eq!(gh.calls().len(), 2);
     std::fs::write(&path, "not json").expect("cache");
     assert_eq!(repository_visibility(&runtime, &github("acme", "widgets")), Visibility::Private);
+    // A check time that is not a number, and a cache of another version, are no cache either.
+    std::fs::write(&path, r#"{"version":1,"repositories":{"github.com/acme/widgets":{"checked_at_ms":"soon","visibility":"public"}}}"#).expect("cache");
+    assert_eq!(repository_visibility(&runtime, &github("acme", "widgets")), Visibility::Private);
+    std::fs::write(&path, r#"{"version":2,"repositories":{"github.com/acme/widgets":{"checked_at_ms":900,"visibility":"public"}}}"#).expect("cache");
+    assert_eq!(repository_visibility(&runtime, &github("acme", "widgets")), Visibility::Private);
+    assert_eq!(gh.calls().len(), 5);
+}
+
+#[test]
+fn a_machine_with_no_cache_directory_asks_github_each_time() {
+    let sandbox = Sandbox::new();
+    let gh = Gh::says("public\n", 0);
+    let mut runtime = machine(&sandbox, &gh, 1_000);
+    runtime.env.clear();
+    assert_eq!(repository_visibility(&runtime, &github("acme", "widgets")), Visibility::Public);
+    assert_eq!(repository_visibility(&runtime, &github("acme", "widgets")), Visibility::Public);
+    assert_eq!(gh.calls().len(), 2);
 }
 
 #[test]
