@@ -79,6 +79,10 @@ struct Output {
 }
 
 fn run(args: &[&str], path: &str, log: &Path) -> Output {
+    run_with_env(args, path, log, &[])
+}
+
+fn run_with_env(args: &[&str], path: &str, log: &Path, extra: &[(&str, &str)]) -> Output {
     let home = log.parent().expect("log has a parent");
     let out = Command::new("/bin/sh")
         .arg(script())
@@ -87,6 +91,7 @@ fn run(args: &[&str], path: &str, log: &Path) -> Output {
         .env("PATH", path)
         .env("SBX_TEST_DOCKER_LOG", log)
         .env("HOME", home)
+        .envs(extra.iter().copied())
         .output()
         .expect("run /bin/sh build-sbx-images.sh");
     Output {
@@ -283,4 +288,147 @@ fn sbx_build_script_is_posix_sh() {
     assert_eq!(text.lines().next(), Some("#!/bin/sh"));
     let mode = fs::metadata(script()).expect("script metadata").permissions().mode();
     assert_ne!(mode & 0o111, 0, "build-sbx-images.sh is not executable");
+}
+
+#[test]
+fn sbx_dry_run_without_package_vars_passes_no_secret() {
+    let scratch = Scratch::new("no-secrets");
+    let (path, log) = stub_path(&scratch.0);
+    let result = run(&["--dry-run"], &path, &log);
+
+    assert_eq!(result.code, 0, "stderr: {}", result.stderr);
+    assert!(!result.stdout.contains("--secret"), "stdout: {}", result.stdout);
+}
+
+#[test]
+fn sbx_dry_run_passes_each_existing_package_secret() {
+    let scratch = Scratch::new("secrets");
+    let (path, log) = stub_path(&scratch.0);
+    let netrc = scratch.0.join("netrc with space");
+    let npmrc = scratch.0.join("npmrc");
+    fs::write(&netrc, "machine packages.jorisjonkers.dev login packages password x\n").expect("netrc");
+    fs::write(&npmrc, "registry=https://packages.jorisjonkers.dev/npm/\n").expect("npmrc");
+    let netrc_s = netrc.display().to_string();
+    let npmrc_s = npmrc.display().to_string();
+    let result = run_with_env(
+        &["--dry-run"],
+        &path,
+        &log,
+        &[("AGENT_KIT_PACKAGES_NETRC", &netrc_s), ("AGENT_KIT_PACKAGES_NPMRC", &npmrc_s)],
+    );
+
+    assert_eq!(result.code, 0, "stderr: {}", result.stderr);
+    for line in result.stdout.lines().filter(|l| l.starts_with("docker build")) {
+        assert!(
+            line.contains(&format!("--secret id=packages-netrc,src={netrc_s}")),
+            "{line}"
+        );
+        assert!(
+            line.contains(&format!("--secret id=packages-npmrc,src={npmrc_s}")),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn sbx_package_secret_for_missing_file_is_not_passed() {
+    let scratch = Scratch::new("missing-secret");
+    let (path, log) = stub_path(&scratch.0);
+    let missing = scratch.0.join("absent");
+    let missing_s = missing.display().to_string();
+    let result = run_with_env(
+        &["--client", "opencode"],
+        &path,
+        &log,
+        &[("AGENT_KIT_PACKAGES_NETRC", &missing_s), ("AGENT_KIT_PACKAGES_NPMRC", &missing_s)],
+    );
+
+    assert_eq!(result.code, 0, "stderr: {}", result.stderr);
+    assert!(!read(&log).contains("--secret"), "docker log: {}", read(&log));
+}
+
+#[test]
+fn sbx_real_run_passes_package_secret_before_context() {
+    let scratch = Scratch::new("real-secret");
+    let (path, log) = stub_path(&scratch.0);
+    let netrc = scratch.0.join("netrc");
+    fs::write(&netrc, "machine packages.jorisjonkers.dev\n").expect("netrc");
+    let netrc_s = netrc.display().to_string();
+    let result = run_with_env(
+        &["--client", "pi"],
+        &path,
+        &log,
+        &[("AGENT_KIT_PACKAGES_NETRC", &netrc_s)],
+    );
+
+    assert_eq!(result.code, 0, "stderr: {}", result.stderr);
+    let pi_version = arg(&pi_dockerfile(), "VERSION");
+    let pi_dir = pi_dockerfile().parent().unwrap().to_path_buf();
+    let calls = read(&log);
+    assert_eq!(
+        calls.trim_end(),
+        format!(
+            "build -f {} -t agent-kit/pi:{pi_version} -t agent-kit/pi:current --secret id=packages-netrc,src={netrc_s} {}",
+            pi_dockerfile().display(),
+            pi_dir.display()
+        )
+    );
+}
+
+/// The RUN instructions of a Dockerfile, backslash continuations joined, as the guard reads them.
+fn run_instructions(text: &str) -> Vec<String> {
+    let mut runs = Vec::new();
+    let mut current: Option<String> = None;
+    for raw in text.lines() {
+        let line = raw.trim();
+        if current.is_none() {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            current = Some(String::new());
+        }
+        let buffer = current.as_mut().expect("instruction in progress");
+        if let Some(part) = line.strip_suffix('\\') {
+            buffer.push_str(part.trim_end());
+            buffer.push(' ');
+            continue;
+        }
+        buffer.push_str(line);
+        let done = current.take().expect("instruction in progress");
+        if first_token_after(&done, "RUN").is_some() {
+            runs.push(done);
+        }
+    }
+    runs
+}
+
+#[test]
+fn sbx_package_installs_carry_the_matching_proxy_mount() {
+    let mut checked = BTreeSet::new();
+    let sbx_dir = root().join("images/sbx");
+    for entry in fs::read_dir(&sbx_dir).expect("images/sbx") {
+        let dockerfile = entry.expect("dir entry").path().join("Dockerfile");
+        if !dockerfile.is_file() {
+            continue;
+        }
+        let text = read(&dockerfile);
+        for run in run_instructions(&text) {
+            let name = dockerfile.display().to_string();
+            if run.contains("apt-get install") || run.contains("apt install") {
+                assert!(
+                    run.contains("id=packages-netrc") && run.contains("https://packages.jorisjonkers.dev/debian"),
+                    "{name}: apt RUN lacks the packages-netrc mount or the proxy URL: {run}"
+                );
+                checked.insert(format!("apt {name}"));
+            }
+            if run.contains("npm install") {
+                assert!(
+                    run.contains("id=packages-npmrc"),
+                    "{name}: npm RUN lacks the packages-npmrc mount: {run}"
+                );
+                checked.insert(format!("npm {name}"));
+            }
+        }
+    }
+    assert_eq!(checked.len(), 4, "expected apt and npm installs in both images: {checked:?}");
 }

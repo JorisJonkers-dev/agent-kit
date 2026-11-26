@@ -14,12 +14,27 @@ ARG VERSION
 ARG PI_ACP_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
- && apt-get install -y --no-install-recommends git ca-certificates curl ripgrep \
+# Packages come through the estate package proxy when the packages-netrc secret is
+# given (scripts/build-sbx-images.sh, AGENT_KIT_PACKAGES_NETRC); otherwise the
+# default Debian mirrors. The base image has no CA bundle and its sources are
+# plain http, so ca-certificates is installed first over the default mirror, then
+# the sources move to the proxy's https URLs and the package list is installed.
+RUN --mount=type=secret,id=packages-netrc,target=/etc/apt/auth.conf.d/packages.conf,required=false \
+    apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && if [ -s /etc/apt/auth.conf.d/packages.conf ]; then \
+      sed -i -e 's|http://deb.debian.org/debian-security|https://packages.jorisjonkers.dev/debian/security|' \
+             -e 's|http://deb.debian.org/debian|https://packages.jorisjonkers.dev/debian|' \
+             /etc/apt/sources.list.d/debian.sources \
+      && apt-get update; \
+    fi \
+ && apt-get install -y --no-install-recommends git curl ripgrep \
  && rm -rf /var/lib/apt/lists/*
 
 # Scripts off, as in setup: Pi needs none to run.
-RUN npm install -g --ignore-scripts \
+RUN --mount=type=secret,id=packages-npmrc,target=/run/secrets/packages-npmrc,required=false \
+    if [ -s /run/secrets/packages-npmrc ]; then export NPM_CONFIG_USERCONFIG=/run/secrets/packages-npmrc; fi \
+ && npm install -g --ignore-scripts \
       "@earendil-works/pi-coding-agent@${VERSION}" \
       "pi-acp@${PI_ACP_VERSION}" \
  && npm cache clean --force

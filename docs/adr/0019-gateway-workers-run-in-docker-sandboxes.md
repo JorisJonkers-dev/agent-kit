@@ -49,7 +49,7 @@ both operating systems.
 
 ## Templates
 
-A sandbox starts from its client's template image, `agent-kit/<client>:<version>` (also tagged `:current`), built on this machine from `images/sbx/<client>/Dockerfile` by `scripts/build-sbx-images.sh`. The image holds the client's pinned install, git, ca-certificates, curl and ripgrep, and runs as a non-root `agent` user with no agent process started, so the gateway drives it with `sbx exec`. The Pi pins equal those in `installer/setup-workstation.sh`, which `scripts/crates/ci-helpers/tests/sbx_images.rs` checks; `--dry-run` prints the builds without running them. Setup does not build the images yet.
+A sandbox starts from its client's template image, `agent-kit/<client>:<version>` (also tagged `:current`), built on this machine from `images/sbx/<client>/Dockerfile` by `scripts/build-sbx-images.sh`. The image holds the client's pinned install, git, ca-certificates, curl and ripgrep, and runs as a non-root `agent` user with no agent process started, so the gateway drives it with `sbx exec`. The Pi pins equal those in `installer/setup-workstation.sh`, which `scripts/crates/ci-helpers/tests/sbx_images.rs` checks; `--dry-run` prints the builds without running them. Each template installs its packages through the estate package proxy: every RUN that installs apt or npm packages carries its `packages-netrc` or `packages-npmrc` secret mount (apt also names the proxy's Debian URL), and the build passes those secrets from `AGENT_KIT_PACKAGES_NETRC` and `AGENT_KIT_PACKAGES_NPMRC` when the files exist, falling back to the default mirrors without them. Setup does not build the images yet.
 
 ## Migration
 
