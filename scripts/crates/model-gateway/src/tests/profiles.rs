@@ -419,9 +419,8 @@ fn the_opencode_harness_takes_the_first_model_opencode_can_run() {
     let config = shipped();
     let pick = |models: Vec<ProfileModel>| crate::harness::opencode_pick(&config, models).map(|model| format!("{}:{}", model.client, model.model));
     assert_eq!(pick(vec![profile_model("pi-free", "small"), profile_model("pi-vibe", "glm-5.3")]).as_deref(), Some("opencode:litellm-vibe/glm-5.3"));
-    assert_eq!(pick(vec![profile_model("opencode-free", "opencode/glm-5.3-flash-free")]).as_deref(), Some("opencode-free:opencode/glm-5.3-flash-free"));
     assert_eq!(pick(vec![profile_model("opencode", "litellm-opencode-go/kimi")]).as_deref(), Some("opencode:litellm-opencode-go/kimi"));
-    assert_eq!(pick(vec![profile_model("claude", "haiku"), profile_model("pi-openrouter", "small")]), None);
+    assert_eq!(pick(vec![profile_model("claude", "haiku"), profile_model("pi-free", "free/small")]), None);
 }
 
 #[test]

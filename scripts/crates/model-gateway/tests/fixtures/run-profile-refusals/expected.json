@@ -125,8 +125,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"policy-refused\",\"message\":\"pi-public:public/gemini-3.6-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\"}\n",
-      "stderr": "model-gateway run: pi-public:public/gemini-3.6-flash is not permitted: github.com/jorisjonkers-dev/demo: the entry allows google\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"free-only-refused\",\"message\":\"pi-free:free/gemini-3.6-flash is not priced at zero: this client runs free models only, so a billed one is never run\"}\n",
+      "stderr": "model-gateway run: pi-free:free/gemini-3.6-flash is not priced at zero: this client runs free models only, so a billed one is never run\n",
       "files": {
         "home/": null,
         "home/.config/": null,

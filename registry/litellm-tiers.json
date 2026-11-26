@@ -4,7 +4,7 @@
     "path": "catalog/routing.json",
     "key": "tier_groups",
     "ref": "main",
-    "blob": "2de59bc34187d0d385235b0c4f5c3a59b62d9a17"
+    "blob": "f81eb4927f4f4dafac74e3a5a09bb4c24ff63733"
   },
   "tier_groups": {
     "tier-free": {
@@ -15,15 +15,15 @@
       ],
       "steps": [
         {
-          "model": "free/hy4-flash-free",
+          "model": "free/hy4-flash",
           "cost": "free"
         },
         {
-          "model": "free/longcat-2.5-free",
+          "model": "free/longcat-2.5",
           "cost": "free"
         },
         {
-          "model": "free/beam-free",
+          "model": "free/beam-1.0-501b-a23b",
           "cost": "free"
         },
         {
@@ -126,7 +126,7 @@
           "cost": "free"
         },
         {
-          "model": "free/gemma-4-31b",
+          "model": "free/gemma-4-31b-it",
           "cost": "free"
         },
         {

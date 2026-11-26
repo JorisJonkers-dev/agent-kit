@@ -51,9 +51,9 @@ model-gateway usage --json '{}'
   `narrow.writer_family`. `red-team` is adversarial and read-only: it tries to
   break the artifact, attack the spec and find unsafe assumptions, and reports
   findings with evidence, not fixes. Every role is deny-all on tools, capped per
-  run, and cut by the data policy: a repository never reaches `pi-public`,
-  `pi-openrouter` or `pi-free`, which `research` and `triage` list for
-  public-data work only.
+  run, and cut by the data policy: a repository GitHub does not say is public
+  never reaches `pi-free`, which `research` and `triage` list for public-data
+  work only.
 
 ## Rate each task
 
@@ -112,16 +112,16 @@ falling back.
 - Prefer Pi. Within a class, take a `pi-<route>` client over any other client
   whose model covers the tier: Pi runs confined to its working directory, on a
   LiteLLM route's own budget. Take another client only when no Pi model covers
-  the tier or the family the task needs. `pi-public`, `pi-openrouter` and
-  `pi-free` are the Pi clients the data policy never lists for a repository:
-  use one only for public-data work, a task with no `repo` and nothing private
-  in the prompt. `pi-openrouter` and `pi-free` run free models only (the owner
-  allows free OpenRouter models, nothing billed): they are the first choice for
-  such a task, since a free model is the cheapest class, and the gateway refuses
-  a billed model on them.
+  the tier or the family the task needs. `pi-free` is the Pi client the data
+  policy never lists for a repository GitHub does not say is public: use it
+  only for public-data work, a task with no private `repo` and nothing private
+  in the prompt. `pi-free` runs free models only, each named `free/<model>`
+  (the proxy tries every free copy of the model, never a paid one): it is the
+  first choice for such a task, since a free model is the cheapest class, and
+  the gateway refuses a billed model on it.
 - Within one class, choose by the models' capability notes, excluding any
-  `opencode/...` model (only `opencode-go/...`) and any OpenRouter model that
-  does not come through `pi-openrouter` or `pi-free`, and never a model with
+  `opencode/...` model (only `opencode-go/...`) and any free model that is not
+  `pi-free`'s `free/<model>`, and never a model with
   `tier: null`.
 - metered-employer (Codex) is not a routine last rung. It is eligible only when
   a live grant already covers the workflow, obtained by asking the owner first.
@@ -207,8 +207,9 @@ the Workflow tool for those tasks.
 ## Money rules
 
 - Codex is metered-employer: never without a live grant.
-- OpenRouter only through `pi-openrouter` and `pi-free`, free models and public
-  data only, never through any other client or a billed model.
+- Free models only as `pi-free`'s `free/<model>`, public data only, never
+  through any other client, name or provider (OpenRouter is refused on every
+  client) and never a billed model.
 - OpenCode only through its `opencode-go/...` models, never `opencode/...`.
 - The family you name is binding: a delegation to a model of one family is never
   answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with

@@ -30,7 +30,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 /// The clients that never call LiteLLM: their routing is not LiteLLM's to report.
-const NOT_LITELLM: [&str; 4] = ["claude", "codex", "agy", "opencode-free"];
+const NOT_LITELLM: [&str; 3] = ["claude", "codex", "agy"];
 
 /// The most of a request's head the proxy reads before it gives up on it.
 const MAX_HEAD: usize = 64 * 1024;
