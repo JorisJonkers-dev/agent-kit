@@ -410,7 +410,7 @@ fn plugins(machine: &Machine, fake: &mut Fake, keep: &str, extra: &[&str]) -> (i
 fn plugins_go_before_their_marketplaces_and_a_kept_one_stays() {
     let (machine, mut fake) = plugin_machine(
         &["agent-kit-official", "caveman", "claude-plugins-official", "hindsight", "nedap-ai-skills"],
-        &[("caveman@caveman", "user"), ("github@agent-kit-official", "user"), ("plugin-dev@agent-kit-official", "user"), ("hindsight-memory@hindsight", "user"), ("review@nedap-ai-skills", "user"), ("local@agent-kit-official", "project")],
+        &[("caveman@caveman", "user"), ("github@agent-kit-official", "user"), ("plugin-dev@agent-kit-official", "user"), ("hindsight-memory@hindsight", "user"), ("review@nedap-ai-skills", "user"), ("local@agent-kit-official", "project"), ("cc-plugin-easel@builtin", "user")],
     );
     let (status, out, _) = plugins(&machine, &mut fake, "keep: [nedap-ai-skills]\n", &[]);
     assert_eq!(status, 0, "{out}");
@@ -419,7 +419,7 @@ fn plugins_go_before_their_marketplaces_and_a_kept_one_stays() {
         "removed hindsight-memory@hindsight (claude plugin, retired)\nremoved plugin-dev@agent-kit-official (claude plugin, undeclared)\nremoved claude-plugins-official (claude marketplace, undeclared)\nremoved hindsight (claude marketplace, retired)\n"
     );
     assert_eq!(fake.plugins.markets, ["agent-kit-official", "caveman", "nedap-ai-skills"]);
-    assert_eq!(fake.plugins.plugins.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["caveman@caveman", "github@agent-kit-official", "review@nedap-ai-skills", "local@agent-kit-official"]);
+    assert_eq!(fake.plugins.plugins.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["caveman@caveman", "github@agent-kit-official", "review@nedap-ai-skills", "local@agent-kit-official", "cc-plugin-easel@builtin"]);
     assert!(fake.removals().iter().all(|call| call.ends_with("@ -")), "{:?}", fake.calls);
 }
 
