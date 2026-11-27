@@ -1074,7 +1074,7 @@ marketplaces:
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
     ref: main
-    commit: 73d6f9a63effc9aba948f5ea5a29fd73e65f547b
+    commit: df305282f4a01bde8be0cf09e731593ece7a3915
 
 # -------------------------------------------------------------------
 # Claude Code plugins.
