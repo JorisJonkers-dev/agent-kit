@@ -4,7 +4,7 @@
     "path": "catalog/routing.json",
     "key": "tier_groups",
     "ref": "main",
-    "blob": "fd3cae2278c94c9c59bd55e7b17d65db8621f6ae"
+    "blob": "ba324035e160ca66d41a063af752993270e0251c"
   },
   "tier_groups": {
     "tier-free": {
@@ -32,6 +32,10 @@
         },
         {
           "model": "free/qwen3.8-27b",
+          "cost": "free"
+        },
+        {
+          "model": "free-router/openrouter",
           "cost": "free"
         }
       ]
