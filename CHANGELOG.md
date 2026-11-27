@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.9.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.8.0...v6.9.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** run Claude Code, Codex and Hermes in Docker Sandboxes under AGENT_KIT_SANDBOX=sbx ([#971](https://github.com/JorisJonkers-dev/agent-kit/issues/971)) ([1a5d230](https://github.com/JorisJonkers-dev/agent-kit/commit/1a5d230a00c39fff8e75e74641c1ee40f804f445))
+
 ## [6.8.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.7.0...v6.8.0) (2026-11-27)
 
 
