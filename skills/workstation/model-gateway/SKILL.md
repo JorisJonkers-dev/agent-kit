@@ -517,16 +517,23 @@ to: mounts (`PATH` or `PATH:ro`), the variables passed in by name (never their
 values), ports, and the gaps sbx does not hold the same way. Any other value
 is refused (`sandbox-unknown`) before anything is made.
 
-`sbx` runs a read-only Pi, OpenCode or Vibe launch in its own Docker Sandbox, from
-Docker's prebuilt `docker.io/sbx/pi-image`, `docker.io/sbx/opencode-image` or `docker.io/sbx/vibe-image`,
+`sbx` runs a Pi, OpenCode, Vibe, Claude Code, Codex or Hermes launch in its own Docker Sandbox, from
+Docker's prebuilt `docker.io/sbx/<client>-image` (`pi`, `opencode`, `vibe`, `claude`, `codex`, `hermes-agent`),
 pinned by digest to the newest tag dated at least two days ago (a cooldown, so a
 fresh build never runs at once). Its variables reach the client through a 0600
 env file that is removed after the run. A launch refuses (`sandbox-unsupported`)
-before sbx is asked anything for a client other than Pi, OpenCode or Vibe, a write run,
+before sbx is asked anything for Antigravity (its sign-in is the macOS login keychain and its state is in
+the owner's `~/.gemini`, which no sandbox holds),
 a plan with no written mount, or a route that names no base URL (a Vibe model on
 Mistral's own provider names none and is allowed `api.mistral.ai:443`; its
 `MISTRAL_API_KEY` is read from the keychain outside and passed by name, and a
-login the gateway cannot read there is refused as a keychain gap); `sandbox-unavailable`
+login the gateway cannot read there is refused as a keychain gap). Claude Code gets its
+`CLAUDE_CODE_OAUTH_TOKEN` the same way and reaches `api.anthropic.com:443` alone, never the LiteLLM proxy.
+Codex signs in with the copy of `auth.json` in its run home (the home is mounted written, the owner's
+file never is), reaches `chatgpt.com`, `api.openai.com` and `auth.openai.com` on 443, runs with its own sandbox off
+(`-s danger-full-access`, the microVM is the sandbox), and the tokens it refreshed go back to the owner's file
+after the run. Hermes takes its LiteLLM key by name and the proxy host from its run home's `config.yaml`
+(a Hermes provider of the owner's own, with no `base_url`, is refused). `sandbox-unavailable`
 when `sbx version` does not answer (the install command is named), or when no image
 is recorded and the refresh failed. The records are `sbx-images.json` under the
 gateway's state directory, one per client with its `tag`, `digest` and `checked_at`.

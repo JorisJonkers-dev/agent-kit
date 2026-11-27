@@ -8,7 +8,7 @@ use std::collections::HashMap;
 /// The clock every sbx launch test runs at: 2026-11-27 12:00 UTC, so a tag dated the 25th is two days old.
 const SBX_NOW: i64 = 1_795_780_800_000;
 
-struct Fixed;
+pub(super) struct Fixed;
 
 impl Clock for Fixed {
     fn now_ms(&self) -> i64 {
@@ -158,22 +158,22 @@ type Answer = Box<dyn Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync
 
 /// A process that records every program it is asked to run and answers `sbx` from two closures: `exec` for the
 /// calls that wait for their status, `run` for the client's own launch.
-struct Sbx {
+pub(super) struct Sbx {
     calls: Mutex<Vec<String>>,
     exec: Answer,
-    run: Answer,
+    pub(super) run: Answer,
     /// How the client's launch ended when it did not exit by itself (a stop of the gateway, or the time limit), and whether it timed out.
     end: Option<(Ending, bool)>,
     /// The gateway pids that are still running.
     alive: Vec<u32>,
 }
 
-fn answer(stdout: &str, stderr: &str, exit_code: i32) -> Result<ProcessResult, String> {
+pub(super) fn answer(stdout: &str, stderr: &str, exit_code: i32) -> Result<ProcessResult, String> {
     Ok(ProcessResult { stdout: stdout.to_string(), stderr: stderr.to_string(), exit_code, timed_out: false })
 }
 
 /// Every `sbx` call succeeds, and the client prints `ok`.
-fn healthy(args: &[&str]) -> Result<ProcessResult, String> {
+pub(super) fn healthy(args: &[&str]) -> Result<ProcessResult, String> {
     // The one `curl` a launch makes is the Docker Hub listing of the client's image.
     if args.first() == Some(&"-fsS") {
         return answer(HUB_TAGS, "", 0);
@@ -191,11 +191,16 @@ const VIBE_IMAGE: &str = "docker.io/sbx/vibe-image@sha256:0123456789abcdef012345
 const OPENCODE_IMAGE: &str = "docker.io/sbx/opencode-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 impl Sbx {
-    fn new(exec: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
+    pub(super) fn new(exec: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
         Sbx { calls: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)), end: None, alive: Vec::new() }
     }
 
-    fn calls(&self) -> Vec<String> {
+    /// The same sandbox answering the client's own launch with `run`.
+    pub(super) fn running(self, run: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
+        Sbx { run: Box::new(run), ..self }
+    }
+
+    pub(super) fn calls(&self) -> Vec<String> {
         self.calls.lock().expect("calls").clone()
     }
 }
@@ -233,9 +238,9 @@ impl Process for Sbx {
 
 /// A file system in memory: what the gateway writes, what it removes.
 #[derive(Default)]
-struct Disk {
-    files: Mutex<HashMap<String, String>>,
-    removed: Mutex<Vec<String>>,
+pub(super) struct Disk {
+    pub(super) files: Mutex<HashMap<String, String>>,
+    pub(super) removed: Mutex<Vec<String>>,
     /// A file that cannot be read once the launch has written it, as one the owner removed under it would be.
     unreadable: Option<String>,
     /// Refuses the one write a loopback route makes: a config whose content names the sandbox's host.
@@ -307,7 +312,7 @@ impl Files for Disk {
 
 /// What a watch saw: the notes the runner made.
 #[derive(Default)]
-struct Notes(Mutex<Vec<String>>);
+pub(super) struct Notes(pub(super) Mutex<Vec<String>>);
 
 impl LaunchWatch for Notes {
     fn spawned(&self, _pid: u32) {}
@@ -326,7 +331,7 @@ fn pi_disk(base: &str) -> Disk {
     disk
 }
 
-fn sbx_env() -> HashMap<String, String> {
+pub(super) fn sbx_env() -> HashMap<String, String> {
     HashMap::from([
         ("HOME".to_string(), "/home/me".to_string()),
         ("AGENT_KIT_LAUNCHER_BIN".to_string(), "/opt/agent-launcher".to_string()),
@@ -334,13 +339,13 @@ fn sbx_env() -> HashMap<String, String> {
     ])
 }
 
-fn pi_request(client: RunClient, mode: Option<RunMode>) -> ClientRunRequest {
+pub(super) fn pi_request(client: RunClient, mode: Option<RunMode>) -> ClientRunRequest {
     let paths = LaunchPaths { export_dir: "/run/export".to_string(), prompt_path: "/run/prompt.md".to_string(), work_dir: "/run/work".to_string(), ..LaunchPaths::default() };
     let launch = LaunchRequest { model: "glm-5.3".to_string(), time_limit_s: 900.0, max_price_usd: None, mode, provider: Some("litellm-vibe".to_string()) };
     ClientRunRequest { launch, binary: "pi".to_string(), client, prompt: "say ok".to_string(), paths, extras: RunExtras::default() }
 }
 
-fn gateway_code(error: ClientRunError) -> (String, String) {
+pub(super) fn gateway_code(error: ClientRunError) -> (String, String) {
     match error {
         ClientRunError::Gateway(error) => (error.code, error.message),
         other => panic!("a refusal, not {other:?}"),
@@ -353,11 +358,11 @@ fn sbx_name_in(calls: &[String]) -> String {
 }
 
 #[test]
-fn sbx_is_a_selectable_backend_and_only_pi_and_opencode_read_only_runs_reach_it() {
+fn sbx_is_a_selectable_backend_and_every_client_but_antigravity_reaches_it_for_read_only_runs() {
     assert_eq!(SandboxBackend::select(&env(Some("sbx"))), Ok(SandboxBackend::Sbx));
     assert_eq!(sbx_launch::program_of(RunClient::Pi), Some("pi"));
     assert_eq!(sbx_launch::program_of(RunClient::Opencode), Some("opencode"));
-    assert_eq!(sbx_launch::program_of(RunClient::Claude), None);
+    assert_eq!(sbx_launch::program_of(RunClient::Agy), None);
 }
 
 #[test]
@@ -369,9 +374,9 @@ fn every_refusal_before_a_launch_makes_nothing_and_names_its_reason() {
     };
     // A client the backend does not run is refused before sbx is even asked.
     let healthy_sbx = Sbx::new(healthy);
-    let (code, message) = run(&healthy_sbx, RunClient::Claude, Some(RunMode::ReadOnly));
+    let (code, message) = run(&healthy_sbx, RunClient::Agy, Some(RunMode::ReadOnly));
     assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("runs only pi, opencode and vibe"), "{message}");
+    assert!(message.contains("does not run this client") && message.contains("login keychain") && message.contains("~/.gemini"), "{message}");
     assert!(healthy_sbx.calls().is_empty(), "nothing asked of sbx");
 
     // sbx missing, and sbx that does not answer, are refused with the install command and no create.
@@ -699,9 +704,9 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
 #[test]
 fn a_client_the_backend_does_not_run_and_an_sbx_call_that_did_not_run_are_named() {
     let plain = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "pi"]);
-    let refused = sbx_launch::translate(RunClient::Codex, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect_err("codex has no sandbox program");
+    let refused = sbx_launch::translate(RunClient::Agy, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect_err("antigravity has no sandbox program");
     assert_eq!(refused.code, "sandbox-unsupported");
-    assert_eq!(refused.message, "codex: no sbx program");
+    assert_eq!(refused.message, "agy: no sbx program");
 
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
     let process = Sbx::new(|args| if args.first() == Some(&"create") { Err("the binary is missing".to_string()) } else { healthy(args) });

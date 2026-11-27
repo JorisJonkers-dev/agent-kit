@@ -224,12 +224,15 @@ impl ClientRun<'_> {
         let (reference, warnings) = sbx_images::ensure(self.process, self.files, self.clock, self.env, request.client.as_str())?;
         let dir = confine.map(|confine| confine.agent_dir.clone()).or_else(|| home.map(|home| home.dir.clone())).unwrap_or_default();
         let path = sbx_launch::config_path(request.client, &dir);
-        let text = self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", request.client.as_str(), error.message)))?;
+        // Claude Code and Codex reach their own provider at fixed hosts: they have no route file to read.
+        let text = if crate::sbx_clients::fixed_hosts(request.client).is_some() { String::new() } else { self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", request.client.as_str(), error.message)))? };
         let mut sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
         sandboxed.image = reference;
         sandboxed.env_file = join(&[&dir, "sbx.env"]);
-        if let Some(rewritten) = sbx_launch::rewritten_config(request.client, &text) {
-            self.files.write_private(&path, &rewritten).map_err(GatewayError::from_fs)?;
+        let config = crate::sbx_clients::with_model(request.client, &text, &sandboxed.args);
+        let config = sbx_launch::rewritten_config(request.client, &config).unwrap_or(config);
+        if config != text {
+            self.files.write_private(&path, &config).map_err(GatewayError::from_fs)?;
         }
         Ok((sandboxed, warnings))
     }
