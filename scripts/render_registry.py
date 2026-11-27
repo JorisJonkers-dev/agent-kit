@@ -2825,8 +2825,10 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w('  command -v python3 >/dev/null 2>&1 || return 1')
     w('  while IFS= read -r ctx; do')
     w(f'    case "${{ctx}}" in *{cluster["context_suffix"]}) ;; *) continue ;; esac')
-    w(f'    secrets="$(kubectl --context "${{ctx}}" -n {cluster["namespace"]} get secrets -o json 2>/dev/null)" || continue')
-    w(f"    key=\"$(printf '%s' \"${{secrets}}\" | python3 -c {_q(cluster_python)} {cluster['key']} 2>/dev/null)\" || continue")
+    namespace, data_key = cluster["namespace"], cluster["key"]
+    w(f'    secrets="$(kubectl --context "${{ctx}}" -n {namespace} get secrets -o json 2>/dev/null)" || continue')
+    picker = _q(cluster_python)
+    w(f"    key=\"$(printf '%s' \"${{secrets}}\" | python3 -c {picker} {data_key} 2>/dev/null)\" || continue")
     w('    if [ -n "${key}" ]; then')
     w("      printf '%s' \"${key}\"")
     w("      return 0")
