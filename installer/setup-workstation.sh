@@ -4632,11 +4632,13 @@ for entry in (data.get("clients", []) if isinstance(data, dict) else data):
         # sbx creates no sandbox at all until its network policy is chosen, so
         # every image fails the same way; one warning names the step.
         *'network policy has not been initialized'*)
-          warn "sbx: its network policy is not chosen yet, so no sandbox can start; run sbx policy init balanced yourself (or allow-all / deny-all), then re-run setup for the images"
+          warn "sbx: its network policy is not chosen yet, so no sandbox can start;" \
+            "run sbx policy init balanced yourself (or allow-all / deny-all), then re-run setup for the images"
           return 0
           ;;
       esac
-      warn "sbx: ${name} image ${shown} did not pull ($(printf '%s' "${create_out}" | head -1)); its first sandboxed run downloads it"
+      warn "sbx: ${name} image ${shown} did not pull ($(printf '%s' "${create_out}" | head -1));" \
+        "its first sandboxed run downloads it"
     fi
     sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
   done <<< "${line_list}"
