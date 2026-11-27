@@ -3,7 +3,7 @@
     "repo": "JorisJonkers-dev/litellm",
     "path": "catalog/routing.json",
     "key": "tier_groups",
-    "ref": "a96a570 (local, unpushed litellm commit)",
+    "ref": "main",
     "blob": "fd3cae2278c94c9c59bd55e7b17d65db8621f6ae"
   },
   "tier_groups": {
