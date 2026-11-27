@@ -541,7 +541,7 @@ fn opencode_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
 }
 
 static OPENCODE: ClientLauncher = ClientLauncher {
-    extras: &["env"],
+    extras: &["env", "network_allow"],
     sandboxed_extras: &[],
     protected_env: &OPENCODE_PROTECTED_ENV,
     command: opencode_command,
@@ -782,7 +782,7 @@ fn pi_read(stdout: &str, _exported: Option<&Value>) -> ClientOutput {
 }
 
 static PI: ClientLauncher = ClientLauncher {
-    extras: &["env"],
+    extras: &["env", "network_allow"],
     sandboxed_extras: &[],
     protected_env: &["PATH", "PI_CODING_AGENT_DIR", "TMPDIR"],
     command: pi_command,

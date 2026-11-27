@@ -154,12 +154,16 @@ use crate::run::{RunClient, RunMode};
 use crate::sbx_launch::{self, SbxLaunch};
 use std::sync::Mutex;
 
+mod reach;
+
 type Answer = Box<dyn Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync>;
 
 /// A process that records every program it is asked to run and answers `sbx` from two closures: `exec` for the
 /// calls that wait for their status, `run` for the client's own launch.
 pub(super) struct Sbx {
     calls: Mutex<Vec<String>>,
+    /// What each `run` call was given on stdin, in order.
+    stdins: Mutex<Vec<String>>,
     exec: Answer,
     pub(super) run: Answer,
     /// How the client's launch ended when it did not exit by itself (a stop of the gateway, or the time limit), and whether it timed out.
@@ -178,12 +182,27 @@ pub(super) fn healthy(args: &[&str]) -> Result<ProcessResult, String> {
     if args.first() == Some(&"-fsS") {
         return answer(HUB_TAGS, "", 0);
     }
+    // The machine's global policy and the secrets it stores.
+    if args.starts_with(&["policy", "ls"]) {
+        return answer(GLOBAL_POLICY, "", 0);
+    }
+    if args.starts_with(&["secret", "ls"]) {
+        return answer(r#"{"secrets":[],"custom_secrets":[],"shadowed_services":[],"env_only_count":0}"#, "", 0);
+    }
     answer("", "", 0)
 }
 
 /// The tags Docker Hub lists for a client's image: one too new (the 26th), one old enough (the 25th), and two that
 /// are not dated tags at all.
 pub(super) const HUB_TAGS: &str = r#"{"results":[{"name":"latest","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","last_updated":"2026-11-27T01:00:00Z"},{"name":"20261126-c279c9da843e51b135a5be3750ffcdf8078485b4","digest":"sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210","last_updated":"2026-11-26T09:00:00Z"},{"name":"20261125-c279c9da843e51b135a5be3750ffcdf8078485b4","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","last_updated":"2026-11-25T09:00:00Z"}]}"#;
+
+/// `sbx policy ls --json` on a machine with a few global allows: the LiteLLM route's own host, npm, GitHub and an AI
+/// provider, a wildcard under GitHub, one allow scoped to a sandbox, a deny, and a filesystem rule.
+const GLOBAL_POLICY: &str = r#"{"rules":[
+{"scope":"global","decision":"allow","resource_type":"network","resources":["api.anthropic.com:443","registry.npmjs.org:443","**.github.com:443","pypi.org:443"]},
+{"scope":"global","decision":"allow","resource_type":"filesystem:read","resources":["**"]},
+{"scope":"sandbox:other","decision":"allow","resource_type":"network","resources":["elsewhere.example:443"]},
+{"scope":"global","decision":"deny","resource_type":"network","resources":["**"]}]}"#;
 
 /// The pinned image the chosen tag resolves to.
 const PI_IMAGE: &str = "docker.io/sbx/pi-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -192,7 +211,7 @@ const OPENCODE_IMAGE: &str = "docker.io/sbx/opencode-image@sha256:0123456789abcd
 
 impl Sbx {
     pub(super) fn new(exec: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
-        Sbx { calls: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)), end: None, alive: Vec::new() }
+        Sbx { calls: Mutex::new(Vec::new()), stdins: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)), end: None, alive: Vec::new() }
     }
 
     /// The same sandbox answering the client's own launch with `run`.
@@ -202,6 +221,10 @@ impl Sbx {
 
     pub(super) fn calls(&self) -> Vec<String> {
         self.calls.lock().expect("calls").clone()
+    }
+
+    fn stdins(&self) -> Vec<String> {
+        self.stdins.lock().expect("stdins").clone()
     }
 }
 
@@ -232,6 +255,7 @@ impl Process for Sbx {
     fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
         let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
         self.calls.lock().expect("calls").push(format!("{} {}", command.command, args.join(" ")));
+        self.stdins.lock().expect("stdins").push(command.stdin.clone().unwrap_or_default());
         (self.run)(&args)
     }
 }
@@ -404,21 +428,24 @@ fn a_read_only_pi_run_creates_allows_execs_and_removes_its_sandbox_in_that_order
     let calls = sbx.calls();
     let name = sbx_name_in(&calls);
     assert!(name.starts_with("mg-"), "{name}");
-    assert_eq!(calls.len(), 7, "{calls:?}");
+    assert_eq!(calls.len(), 10, "{calls:?}");
     assert_eq!(calls[0], "sbx version");
-    assert_eq!(calls[1], "sbx ls -q");
-    let calls: Vec<String> = calls.into_iter().skip(1).collect();
-    assert!(calls[1].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[1]);
-    assert_eq!(calls[2], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
-    assert_eq!(calls[3], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000"));
+    assert_eq!(calls[1], "sbx secret ls -g --json");
+    assert_eq!(calls[2], "sbx ls -q");
+    assert!(calls[3].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[3]);
+    assert_eq!(calls[4], "sbx policy ls --json");
+    assert_eq!(calls[5], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
+    assert_eq!(calls[6], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
+    assert!(calls[7].starts_with(&format!("sbx policy deny network --sandbox {name} ")), "{}", calls[7]);
     // The client runs with its stdin open (the prompt), in the workdir; its two variables come from the env file, never the arguments.
     let exec = format!("sbx exec -i -w /run/work --env-file /run/export/pi-agent/sbx.env {name} pi -p --mode json ");
-    assert!(calls[4].starts_with(&exec), "{}", calls[4]);
-    assert!(calls[4].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[4]);
-    assert!(!calls[4].contains("HOME") && !calls[4].contains("PATH=") && !calls[4].contains("PI_CODING_AGENT_DIR"), "{}", calls[4]);
-    assert_eq!(calls[5], format!("sbx rm --force {name}"));
+    assert!(calls[8].starts_with(&exec), "{}", calls[8]);
+    assert!(calls[8].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[8]);
+    assert!(!calls[8].contains("HOME") && !calls[8].contains("PATH=") && !calls[8].contains("PI_CODING_AGENT_DIR"), "{}", calls[8]);
+    assert_eq!(calls[9], format!("sbx rm --force {name}"));
     let env_file = disk.files.lock().expect("files").get("/run/export/pi-agent/sbx.env").cloned().expect("the env file was written");
-    assert_eq!(env_file, "PI_CODING_AGENT_DIR=/run/export/pi-agent\nTMPDIR=/run/export/pi-agent\n");
+    // The client's own two variables come first, then the package managers' settings (no key on this machine).
+    assert!(env_file.starts_with("PI_CODING_AGENT_DIR=/run/export/pi-agent\nTMPDIR=/run/export/pi-agent\nGOPROXY=https://packages.jorisjonkers.dev/go\n"), "{env_file}");
     assert!(disk.removed.lock().expect("removed").contains(&"/run/export/pi-agent/sbx.env".to_string()), "the env file is removed after the run");
     // The loopback proxy is rewritten to the name the sandbox sees, in the launch's own file.
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("http://host.docker.internal:4000/v1"));
@@ -450,8 +477,8 @@ fn a_failed_create_names_its_reason_and_still_removes_what_it_named() {
     let ClientRunError::Spawn(message) = error else { panic!("a spawn error") };
     assert!(message.contains("sbx create exited 1: no room for a microVM"), "{message}");
     let calls = sbx.calls();
-    assert_eq!(calls.len(), 5, "{calls:?}");
-    assert!(calls[4].starts_with("sbx rm --force mg-"), "{calls:?}");
+    assert_eq!(calls.len(), 7, "{calls:?}");
+    assert!(calls[6].starts_with("sbx rm --force mg-"), "{calls:?}");
     assert!(!calls.iter().any(|call| call.starts_with("sbx exec")), "{calls:?}");
 }
 
@@ -697,7 +724,7 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
     let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
-    assert!(calls[4].ends_with(" litellm.example.com:443"), "{calls:?}");
+    assert!(calls[6].ends_with(" litellm.example.com:443,packages.jorisjonkers.dev:443"), "{calls:?}");
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("https://litellm.example.com/v1"));
 }
 
@@ -728,7 +755,7 @@ fn an_opencode_keyed_run_reads_its_key_from_the_secret_store_and_allows_the_remo
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
     assert!(calls.contains(&"agent-kit-secret get LITELLM_VIBE_KEY".to_string()), "{calls:?}");
-    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" litellm.example.com:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" litellm.example.com:443,packages.jorisjonkers.dev:443")), "{calls:?}");
 }
 
 /// The opencode launch whose key is read from the store, translated with its sbx env file in the launch's own directory.
@@ -936,7 +963,26 @@ fn a_vibe_login_only_in_the_keychain_is_refused_naming_the_keychain_and_a_key_re
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = keyed.calls();
     assert!(calls.iter().any(|call| call.starts_with("sbx create ") && call.contains(&format!("-t {VIBE_IMAGE} "))), "{calls:?}");
-    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" api.mistral.ai:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" api.mistral.ai:443,packages.jorisjonkers.dev:443")), "{calls:?}");
     assert!(calls.iter().any(|call| call.starts_with("sbx exec ") && call.contains(" vibe ") && !call.contains("mistral-secret")), "{calls:?}");
     assert!(calls.last().is_some_and(|call| call.starts_with("sbx rm --force mg-")), "{calls:?}");
+}
+
+#[test]
+fn a_litellm_routed_vibe_launch_gets_the_proxy_and_the_package_proxy_in_one_rule() {
+    let mut request = pi_request(RunClient::Vibe, Some(RunMode::ReadOnly));
+    request.launch.model = "litellm-vibe/glm-5.3".to_string();
+    request.launch.provider = Some("litellm-vibe".to_string());
+    request.paths.run_dir = Some("/run".to_string());
+    let disk = Disk::default();
+    disk.files.lock().expect("files").insert("/home/me/.vibe/config.toml".to_string(), VIBE_CONFIG.to_string());
+    let sbx = Sbx::new(|args| if args.first() == Some(&"find-generic-password") { answer("litellm-secret\n", "", 0) } else { healthy(args) });
+    let env = sbx_env();
+    ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&request).expect("a run");
+    let calls = sbx.calls();
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy deny network ")), "{calls:?}");
+    let ls = calls.iter().position(|call| call == "sbx ls -q").expect("orphans pruned");
+    let create = calls.iter().position(|call| call.starts_with("sbx create ")).expect("created");
+    assert!(ls < create, "{calls:?}");
 }

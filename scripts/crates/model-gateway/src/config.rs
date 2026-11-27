@@ -265,6 +265,10 @@ pub struct DelegationProfile {
     pub tier: Option<String>,
     /// What a LiteLLM key must hold to call the tier, which a refusal names when this machine has no such key.
     pub key_models: Option<Vec<String>>,
+    /// The network reach a run of the profile has in a Docker Sandbox; none is the narrowest, the route alone.
+    pub network: Option<crate::network::Reach>,
+    /// The sbx service secrets the profile names: a sandbox starts while one of them is stored.
+    pub sbx_secrets: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

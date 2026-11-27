@@ -66,6 +66,8 @@
         "exclude_writer_family": { "type": "boolean" },
         "tier": { "type": "string", "pattern": "^tier-[a-z0-9-]+$", "description": "The LiteLLM tier the profile is, which is also the model name the proxy is sent; `run --tier` names it." },
         "key_models": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "description": "The model names and access groups a LiteLLM key must hold to call the tier (litellm key_models)." },
+        "network": { "enum": ["open-web", "packages", "proxy-only"], "description": "The network reach of a sandboxed run of the profile; the narrowest (proxy-only) where it is absent." },
+        "sbx_secrets": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 }, "description": "The stored sbx service secrets the profile's sandboxed runs may be launched beside." },
         "tools": {
           "type": "object",
           "required": ["mcp", "skills", "plugins"],
