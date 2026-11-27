@@ -183,6 +183,7 @@ pub(super) const HUB_TAGS: &str = r#"{"results":[{"name":"latest","digest":"sha2
 
 /// The pinned image the chosen tag resolves to.
 const PI_IMAGE: &str = "docker.io/sbx/pi-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const VIBE_IMAGE: &str = "docker.io/sbx/vibe-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const OPENCODE_IMAGE: &str = "docker.io/sbx/opencode-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 impl Sbx {
@@ -266,6 +267,12 @@ impl Files for Disk {
     fn write_text(&self, path: &str, content: &str) -> Result<(), FsError> {
         self.write_private(path, content)
     }
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        let mut files = self.files.lock().expect("files");
+        let copied: Vec<(String, String)> = files.iter().filter(|(path, _)| path.as_str() == from).map(|(_, text)| (to.to_string(), text.clone())).collect();
+        files.extend(copied);
+        Ok(())
+    }
     fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError> {
         Ok(format!("{parent}/{prefix}-tmp"))
     }
@@ -344,7 +351,7 @@ fn every_refusal_before_a_launch_makes_nothing_and_names_its_reason() {
     let healthy_sbx = Sbx::new(healthy);
     let (code, message) = run(&healthy_sbx, RunClient::Claude, Some(RunMode::ReadOnly));
     assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("runs only pi and opencode"), "{message}");
+    assert!(message.contains("runs only pi, opencode and vibe"), "{message}");
     let (code, message) = run(&healthy_sbx, RunClient::Pi, Some(RunMode::Write));
     assert_eq!(code, "sandbox-unsupported");
     assert!(message.contains("runs only read-only launches"), "{message}");
@@ -554,9 +561,9 @@ fn a_loopback_route_allows_both_names_and_its_config_is_rewritten_to_the_one_the
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, local, &|_| Ok(String::new())).expect("a translation");
     assert_eq!(sbx.allow, ["host.docker.internal:4000", "localhost:4000"]);
     assert_eq!(sbx.policy_args().join(" "), "policy allow network --sandbox mg-test host.docker.internal:4000,localhost:4000");
-    assert_eq!(sbx_launch::rewritten_config(local).as_deref(), Some(r#"{"x":{"baseUrl":"http://host.docker.internal:4000/v1"}}"#));
-    assert_eq!(sbx_launch::rewritten_config(ROUTE_REMOTE), None, "a remote host needs no rewrite");
-    assert_eq!(sbx_launch::rewritten_config("not json"), None);
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Pi, local).as_deref(), Some(r#"{"x":{"baseUrl":"http://host.docker.internal:4000/v1"}}"#));
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Pi, ROUTE_REMOTE), None, "a remote host needs no rewrite");
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Pi, "not json"), None);
     let remote = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
     assert_eq!(remote.allow, ["litellm.example.com:443"]);
 }
@@ -742,4 +749,107 @@ fn an_env_file_is_removed_even_when_the_exec_fails_and_one_that_cannot_be_writte
     let run = sbx_launch::run(&Sbx::new(healthy), &stuck, &keyed_launch(), &keyed_opencode(true), &Notes::default());
     assert!(run.ran.is_ok());
     assert_eq!(run.warnings, ["the sandbox's env file /run/export.client-home/sbx.env was not removed: EBUSY: /run/export.client-home/sbx.env"]);
+}
+
+const VIBE_CONFIG: &str = r#"active_model = "mistral-medium"
+[[providers]]
+name = "mistral"
+api_base = "https://api.mistral.ai/v1"
+api_key_env_var = "MISTRAL_API_KEY"
+backend = "mistral"
+
+[[providers]]
+name = "litellm-vibe"
+api_base = "http://localhost:4000/v1"
+api_key_env_var = "LITELLM_VIBE_KEY"
+backend = "generic"
+
+[[models]]
+name = "devstral-small"
+provider = "mistral"
+alias = "devstral-small"
+
+[[models]]
+name = "glm-5.3"
+provider = "litellm-vibe"
+alias = "litellm-vibe/glm-5.3"
+"#;
+
+/// A Vibe launch as `launchers` builds it for a confined run: no wrapper, the key named by `--env`.
+fn confined_vibe(model: &str) -> ProcessCommand {
+    let words = ["confine", "--read", "/run/work", "--write", "/run/export", "--write", "/run/export.client-home", "--net-connect", "443", "--env", "MISTRAL_API_KEY", "--env", "VIBE_HOME", "--", "vibe", "--prompt-file", "/run/prompt.md", "--model", model, "--agent", "delegate"];
+    ProcessCommand {
+        cwd: Some("/run/work".to_string()),
+        env: [("MISTRAL_API_KEY".to_string(), "mistral-secret".to_string()), ("VIBE_HOME".to_string(), "/run/export.client-home/vibe".to_string())].into_iter().collect(),
+        ..ProcessCommand::new("/opt/agent-launcher", &words)
+    }
+}
+
+#[test]
+fn a_direct_mistral_vibe_launch_allows_api_mistral_ai_and_passes_its_key_by_name_only() {
+    let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("devstral-small"), VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation");
+    assert_eq!(sbx.program, "vibe");
+    assert_eq!(sbx.allow, ["api.mistral.ai:443"]);
+    assert_eq!(sbx.env, ["MISTRAL_API_KEY=mistral-secret", "VIBE_HOME=/run/export.client-home/vibe"]);
+    let pinned = SbxLaunch { image: VIBE_IMAGE.to_string(), env_file: "/run/export.client-home/sbx.env".to_string(), ..sbx };
+    assert_eq!(pinned.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "missing", "-t", VIBE_IMAGE, "shell", "/run/export", "/run/export.client-home", "/run/work:ro"]);
+    let exec = pinned.exec_args();
+    assert!(exec.windows(2).any(|pair| pair == ["--env-file", "/run/export.client-home/sbx.env"]), "{exec:?}");
+    assert!(exec.iter().all(|word| !word.contains("mistral-secret")), "no value in argv: {exec:?}");
+    assert_eq!(exec.iter().skip_while(|word| *word != "mg-test").nth(1).map(String::as_str), Some("vibe"));
+}
+
+#[test]
+fn a_litellm_routed_vibe_launch_allows_the_proxy_by_both_loopback_names_and_a_config_without_models_goes_direct() {
+    let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("litellm-vibe/glm-5.3"), VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation");
+    assert_eq!(sbx.allow, ["host.docker.internal:4000", "localhost:4000"]);
+    let rewritten = sbx_launch::rewritten_config(RunClient::Vibe, VIBE_CONFIG).expect("a rewrite");
+    assert!(rewritten.contains("api_base = \"http://host.docker.internal:4000/v1\"") && rewritten.contains("https://api.mistral.ai/v1"), "{rewritten}");
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Vibe, "[[providers]]\nname = \"m\"\nbase = 1\n[[providers]]\nname = \"r\"\napi_base = \"https://x.example/v1\"\n"), None);
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Vibe, "= not toml"), None);
+    assert_eq!(sbx_launch::config_path(RunClient::Vibe, "/run/home"), "/run/home/vibe/config.toml");
+    // No config, an unknown model, a provider without a base and a model-less launch are all Mistral's own.
+    for config in ["", "models = 1\nproviders = 1", "[[models]]\nname = \"devstral-small\"\nprovider = \"gone\"\n"] {
+        let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("devstral-small"), config, &|_| Ok(String::new())).expect("a translation");
+        assert_eq!(sbx.allow, ["api.mistral.ai:443"], "{config}");
+    }
+    let agent_picks = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "vibe", "--agent", "a"]);
+    assert_eq!(sbx_launch::translate(RunClient::Vibe, "mg-test", &agent_picks, VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation").allow, ["api.mistral.ai:443"]);
+    let broken = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("x"), "[[models", &|_| Ok(String::new())).expect_err("refused");
+    assert_eq!(broken.code, "sandbox-unsupported");
+    assert!(broken.message.starts_with("vibe: the run home's config.toml does not parse"), "{}", broken.message);
+}
+
+#[test]
+fn a_vibe_login_only_in_the_keychain_is_refused_naming_the_keychain_and_a_key_read_outside_runs_in_the_vibe_image() {
+    let request = |provider: &str| {
+        let mut request = pi_request(RunClient::Vibe, Some(RunMode::ReadOnly));
+        request.launch.model = "devstral-small".to_string();
+        request.launch.provider = Some(provider.to_string());
+        request.paths.run_dir = Some("/run".to_string());
+        request
+    };
+    let owner_disk = || {
+        let disk = Disk::default();
+        disk.files.lock().expect("files").insert("/home/me/.vibe/config.toml".to_string(), VIBE_CONFIG.to_string());
+        disk
+    };
+    let (disk, kept) = (owner_disk(), owner_disk());
+    let env = sbx_env();
+    // The keychain holds nothing the gateway can read: the launch would need `--keychain`, which no sandbox reaches.
+    let none = Sbx::new(|args| if args.first() == Some(&"find-generic-password") { answer("", "", 44) } else { healthy(args) });
+    let (code, message) = gateway_code(ClientRun { process: &none, files: &disk, clock: &Fixed, env: &env }.launch(&request("mistral")).expect_err("refused"));
+    assert_eq!(code, "sandbox-unsupported");
+    assert!(message.starts_with("vibe: the sbx plan holds no way to give keychain:"), "{message}");
+    assert!(!none.calls().iter().any(|call| call.starts_with("sbx create")), "nothing was made");
+
+    // The key read outside goes in by name, and the sandbox starts from the Vibe image with Mistral allowed.
+    let keyed = Sbx::new(|args| if args.first() == Some(&"find-generic-password") { answer("mistral-secret\n", "", 0) } else { healthy(args) });
+    let outcome = ClientRun { process: &keyed, files: &kept, clock: &Fixed, env: &env }.launch(&request("mistral")).expect("a run");
+    assert_eq!(outcome.result.stdout, "ok\n");
+    let calls = keyed.calls();
+    assert!(calls.iter().any(|call| call.starts_with("sbx create ") && call.contains(&format!("-t {VIBE_IMAGE} "))), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" api.mistral.ai:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx exec ") && call.contains(" vibe ") && !call.contains("mistral-secret")), "{calls:?}");
+    assert!(calls.last().is_some_and(|call| call.starts_with("sbx rm --force mg-")), "{calls:?}");
 }
