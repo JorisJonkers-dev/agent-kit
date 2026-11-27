@@ -33,14 +33,14 @@ pub struct Image {
     pub enabled: bool,
 }
 
-/// Every client that has an image. Only Pi and OpenCode run in sandboxes so far; the rest are listed so the
+/// Every client that has an image. Only Pi, OpenCode and Vibe run in sandboxes so far; the rest are listed so the
 /// slices that enable them change one flag.
 pub const IMAGES: [Image; 6] = [
     Image { client: "pi", repo: "pi-image", enabled: true },
     Image { client: "opencode", repo: "opencode-image", enabled: true },
     Image { client: "claude", repo: "claude-image", enabled: false },
     Image { client: "codex", repo: "codex-image", enabled: false },
-    Image { client: "vibe", repo: "vibe-image", enabled: false },
+    Image { client: "vibe", repo: "vibe-image", enabled: true },
     Image { client: "hermes", repo: "hermes-agent-image", enabled: false },
 ];
 

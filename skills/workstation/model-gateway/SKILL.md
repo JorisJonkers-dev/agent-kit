@@ -517,13 +517,16 @@ to: mounts (`PATH` or `PATH:ro`), the variables passed in by name (never their
 values), ports, and the gaps sbx does not hold the same way. Any other value
 is refused (`sandbox-unknown`) before anything is made.
 
-`sbx` runs a read-only Pi or OpenCode launch in its own Docker Sandbox, from
-Docker's prebuilt `docker.io/sbx/pi-image` or `docker.io/sbx/opencode-image`,
+`sbx` runs a read-only Pi, OpenCode or Vibe launch in its own Docker Sandbox, from
+Docker's prebuilt `docker.io/sbx/pi-image`, `docker.io/sbx/opencode-image` or `docker.io/sbx/vibe-image`,
 pinned by digest to the newest tag dated at least two days ago (a cooldown, so a
 fresh build never runs at once). Its variables reach the client through a 0600
 env file that is removed after the run. A launch refuses (`sandbox-unsupported`)
-before sbx is asked anything for a client other than Pi or OpenCode, a write run,
-a plan with no written mount, or a route that names no base URL; `sandbox-unavailable`
+before sbx is asked anything for a client other than Pi, OpenCode or Vibe, a write run,
+a plan with no written mount, or a route that names no base URL (a Vibe model on
+Mistral's own provider names none and is allowed `api.mistral.ai:443`; its
+`MISTRAL_API_KEY` is read from the keychain outside and passed by name, and a
+login the gateway cannot read there is refused as a keychain gap); `sandbox-unavailable`
 when `sbx version` does not answer (the install command is named), or when no image
 is recorded and the refresh failed. The records are `sbx-images.json` under the
 gateway's state directory, one per client with its `tag`, `digest` and `checked_at`.
