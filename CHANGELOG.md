@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.9.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.9.0...v6.9.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **setup:** read the packages proxy key from the cluster; skip non-UTF-8 environment entries ([#972](https://github.com/JorisJonkers-dev/agent-kit/issues/972)) ([75d05fd](https://github.com/JorisJonkers-dev/agent-kit/commit/75d05fd8f2b3dc891369a769f0c067c66b5b2881))
+
 ## [6.9.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.8.0...v6.9.0) (2026-11-27)
 
 
