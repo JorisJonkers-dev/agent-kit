@@ -78,10 +78,10 @@ impl FallbackReport {
 const REASON_CHARS: usize = 400;
 
 /// What a failed run's own words say when no free copy of its model is available: the proxy's limiter refusal, a
-/// daily limit, every copy blocked, or a rate limit of the client itself. The first text that says so, else
+/// daily limit (a 402 or 429 whose text says the plan's allowance is used), every copy blocked, or a rate limit of the client itself. The first text that says so, else
 /// the first text of a rate-limited run; `None` for any other failure, which falls back to nothing.
 pub fn refusal_in(reason: Option<&str>, texts: &[&str]) -> Option<String> {
-    const MARKERS: [&str; 6] = ["limiter refusal", "every free", "all free", "daily limit", "daily quota", "no free copy"];
+    const MARKERS: [&str; 10] = ["limiter refusal", "every free", "all free", "daily limit", "daily quota", "no free copy", "free plan limit", "all used", "402:", "429:"];
     let said = |text: &str| {
         let lower = text.to_ascii_lowercase();
         MARKERS.iter().any(|marker| lower.contains(marker))

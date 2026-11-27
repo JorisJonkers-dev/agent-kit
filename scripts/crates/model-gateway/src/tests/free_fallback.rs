@@ -29,7 +29,7 @@ fn offering(models: &[&str]) -> Machine {
 #[test]
 fn the_proxys_limiter_refusal_and_its_kin_are_no_free_copy() {
     assert_eq!(refusal_in(Some("exit-1"), &["", LIMITER]).as_deref(), Some(LIMITER));
-    for said in ["every free copy is blocked", "all free deployments are limited", "daily limit reached", "the daily quota is spent", "there is no free copy"] {
+    for said in ["every free copy is blocked", "all free deployments are limited", "daily limit reached", "the daily quota is spent", "there is no free copy", "the client reported: 402: Free plan limit: 100 requests per UTC day, all used. It resets at 00:00 UTC.", "429: slow down"] {
         assert_eq!(refusal_in(None, &[said]).as_deref(), Some(said));
     }
     assert_eq!(refusal_in(Some("exit-1"), &["boom", "the client crashed"]), None);
