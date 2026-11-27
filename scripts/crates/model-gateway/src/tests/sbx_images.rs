@@ -215,7 +215,7 @@ fn sandbox_refresh_records_what_it_chose_and_sandbox_status_prints_the_records_w
 
     let status = cli(&runtime, &["sandbox", "status"]);
     assert_eq!(status.exit_code, 0);
-    assert_eq!(status.stdout, "pi: none none checked none\nopencode: none none checked none\n", "{}", status.stdout);
+    assert_eq!(status.stdout, "pi: none none checked none\nopencode: none none checked none\nvibe: none none checked none\n", "{}", status.stdout);
 
     let refreshed = cli(&runtime, &["sandbox", "refresh", "--json"]);
     assert_eq!((refreshed.exit_code, refreshed.stderr.as_str()), (0, ""));

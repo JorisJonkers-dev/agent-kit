@@ -228,7 +228,7 @@ impl ClientRun<'_> {
         let mut sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
         sandboxed.image = reference;
         sandboxed.env_file = join(&[&dir, "sbx.env"]);
-        if let Some(rewritten) = sbx_launch::rewritten_config(&text) {
+        if let Some(rewritten) = sbx_launch::rewritten_config(request.client, &text) {
             self.files.write_private(&path, &rewritten).map_err(GatewayError::from_fs)?;
         }
         Ok((sandboxed, warnings))
