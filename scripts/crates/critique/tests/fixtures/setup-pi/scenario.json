@@ -57,13 +57,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n*/setup-checks/pi-vibe-study-glm/packet)\nprintf '%s\\n' '{\"type\":\"session\"}\n{\"message\":{\"content\":[{\"text\":\"```json\\n{\\\"findings\\\": [], \\\"no_findings_reason\\\": \\\"setup check: nothing to review\\\"}\\n```\\n\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"stop\",\"usage\":{\"cacheRead\":0,\"cost\":{\"total\":0.0004},\"input\":900,\"output\":30}},\"type\":\"message_end\"}'\nexit 0\n;;\n*/setup-checks/pi-opencode-go-deepseek/packet)\nprintf '%s\\n' '{\"type\":\"session\"}\n{\"message\":{\"content\":[{\"text\":\"\",\"type\":\"text\"}],\"role\":\"assistant\",\"stopReason\":\"error\",\"usage\":{\"cacheRead\":0,\"cost\":{\"total\":0.0004},\"input\":900,\"output\":30}},\"type\":\"message_end\"}'\nexit 0\n;;\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -149,13 +149,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"not_ready\",\"provider\":\"x\",\"reason\":\"provider_not_found\"}'\nexit 1\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -176,13 +176,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"invalid\"}'\nexit 2\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -203,13 +203,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' 'Error: unknown command' >&2\nexit 1\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -230,13 +230,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nexit 1\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -257,13 +257,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'litellm-opencode-go other-model 128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -284,13 +284,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'boom' >&2\nexit 1\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\ncase \" $* \" in *\" --check \"*) printf '%s\\n' 'confine: ok'; exit 0;; esac\ncase \"$PWD\" in\n\n*) ;;\nesac\nprintf '%s\\n' \"$@\" > \"$PWD/../launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [
@@ -311,13 +311,13 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nif [ \"$1\" = --version ]; then\nprintf '%s\\n' '1.5.0'\nexit 0\nfi\nif [ \"$1\" = auth ]; then\nprintf '%s\\n' '{\"status\":\"ready\",\"provider\":\"x\",\"authType\":\"api_key\"}'\nexit 0\nfi\nif [ \"$1\" = --offline ]; then\nprintf '%s\\n' 'provider             model              context' 'litellm-vibe-study   glm-5-3            128K' 'litellm-opencode-go  deepseek-v4-flash  128K'\nexit 0\nfi\nprintf '%s\\n' \"$@\" > \"$PWD/../argv.txt\"\ncat > \"$PWD/../stdin.txt\"\ncat \"$PI_CODING_AGENT_DIR/models.json\" > \"$PWD/../agent-models.json\"\nprintf '%s\\n' \"$PI_CODING_AGENT_DIR\" \"$TMPDIR\" > \"$PWD/../agent-env.txt\"\ncase \"$PWD\" in\n\n*)\nexit 9\n;;\nesac\n",
-        "bin/agent-launcher": "#!/bin/sh\nprintf '%s\\n' 'agent-launcher: confine: the confinement cannot be applied here: Landlock ABI 3 cannot limit the network; nothing started' >&2\nexit 125\n",
+        "bin/sbx-plan": "#!/bin/sh\nprintf '%s\\n' 'sbx: the sandbox cannot start here: no microVM; nothing started' >&2\nexit 125\n",
         "bin/agent-kit-secret": "#!/bin/sh\nprintf 'sk-%s\\n' \"$2\"\n",
         "home/.pi/agent/models.json": "{\n  \"providers\": {\n    \"litellm-opencode-go\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_OPENCODE_GO_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"deepseek-v4-flash\"\n        }\n      ]\n    },\n    \"litellm-vibe-study\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"!@SANDBOX@/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY\",\n      \"baseUrl\": \"https://litellm.example.test/v1\",\n      \"models\": [\n        {\n          \"cost\": {\n            \"input\": 0.5,\n            \"output\": 1\n          },\n          \"id\": \"glm-5-3\"\n        }\n      ]\n    }\n  }\n}\n"
       },
       "exec": [
         "bin/pi",
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "shims": [

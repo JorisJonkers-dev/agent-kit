@@ -845,7 +845,7 @@ def test_a_refresh_with_two_clients_pre_pulls_each_image_then_removes_its_sandbo
     ]
     assert "setup:   ok    sbx: pi image docker.io/sbx/pi-image:20261125 ready" in run.stdout
     assert "setup:   ok    sbx: opencode image docker.io/sbx/opencode-image:20261125 ready" in run.stdout
-    assert "AGENT_KIT_SANDBOX=sbx" in run.stdout
+    assert "sandboxes are the default and required for every model-gateway run" in run.stdout
 
 
 def test_an_uninitialised_network_policy_gets_one_policy_hint_and_no_more_pulls(tmp_path: Path) -> None:
@@ -908,4 +908,4 @@ def test_a_gateway_without_the_sandbox_subcommand_is_skipped_and_setup_goes_on(t
     )
     assert "model-gateway has no sandbox subcommand; images not refreshed" in run.stdout
     assert not _sbx_lines(run)
-    assert "AGENT_KIT_SANDBOX=sbx" not in run.stdout
+    assert "sandboxes are the default and required" not in run.stdout

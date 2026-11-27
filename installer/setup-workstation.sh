@@ -4560,8 +4560,8 @@ fi
 # -----------------------------------------------------------------
 # Docker Sandboxes (sbx) for the model gateway: installed where setup can (Homebrew
 # on Apple silicon), signed in to by hand, and each client's prebuilt image pulled so
-# the first sandboxed run does not wait for a ~3 GB download. AGENT_KIT_SANDBOX=sbx
-# turns sandboxed gateway runs on; setup never sets it or any other sbx policy.
+# the first sandboxed run does not wait for a ~3 GB download. Sandboxes are the default and
+# required for every gateway run (ADR-0019); setup never sets AGENT_KIT_SANDBOX or any other sbx policy.
 # -----------------------------------------------------------------
 sandbox_setup() {
   if [ "${CLOUD}" = 1 ]; then
@@ -4680,7 +4680,7 @@ for entry in (data.get("clients", []) if isinstance(data, dict) else data):
     fi
     sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
   done <<< "${line_list}"
-  log "sbx: AGENT_KIT_SANDBOX=sbx runs model-gateway delegations in sandboxes; the default stays confine for now"
+  log "sbx: sandboxes are the default and required for every model-gateway run"
 }
 sandbox_setup
 

@@ -198,13 +198,13 @@ entry lists; `models` with a `repo` follows the same rule, listing the
 client's models for a public repository and leaving them out for any other. With no `repo` it lists as before, since such a
 run carries only what the caller declares.
 
-A Pi run starts through `agent-launcher confine`, never bare: Pi has no
+A Pi run starts in a Docker Sandbox, never bare: Pi has no
 sandbox of its own and its tools run inside its own process. The launch's own
 agent directory (`<run dir>/<client>/pi-agent`, `PI_CODING_AGENT_DIR` and
 `TMPDIR` for the launch) holds only the route's provider with its key, read from
 the secret store just now and written 0600, and is removed when the launch ends.
-A launch that cannot be confined (no provider for the route in `models.json`,
-a key the store cannot give, no `agent-launcher`) never starts: the run is
+A launch that cannot be sandboxed (no provider for the route in `models.json`,
+a key the store cannot give, no working `sbx`) never starts: the run is
 `launch-failed`, its `stderr.txt` names the reason, and no key is ever in a
 message. See "The `run` command".
 
@@ -486,8 +486,8 @@ opencode run --standalone --model <provider>/<model> --format json <prompt>
 hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider> \
     -t web --ignore-rules                    # -t web,file for a writing run; HERMES_HOME in <run dir>/client-home;
                                              # --safe-mode off a LiteLLM route
-agent-launcher confine --read <dir> --run-from pi [--run <home's Pi bin>] \
-    --write <run dir>/<client>/pi-agent --net-connect <proxy port> -- \
+# Pi, in its own sandbox with <dir> mounted (read-only for a read-only run), its agent directory written
+# and the proxy reachable (grants: --read <dir> --write <run dir>/<client>/pi-agent --net-connect <proxy port>):
   pi -p --mode json --no-session --offline --provider litellm-<route> --model <id> \
     --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates \
     --no-themes --no-context-files --no-mcp --no-approve --system-prompt <read-only delegate>
@@ -506,16 +506,21 @@ every assistant message counted (`input` plus `cacheRead`), and the dollars are
 what Pi priced them at from the model's entry in `models.json`, none for a
 model that names no price. Pi exits 0 after a provider error, so a stream that
 ends in an assistant message with `stopReason` `error` or `aborted`, or has no
-assistant message, is a failed run with the error's own text. `AGENT_KIT_LAUNCHER_BIN`
-names the launcher, else `agent-launcher` on `PATH`.
+assistant message, is a failed run with the error's own text.
 
-`AGENT_KIT_SANDBOX` picks the sandbox every launch runs in. Unset, empty or
-`confine` is `agent-launcher confine`, as above. `sbx-dry-run` starts nothing:
-the launch is prepared as for `confine`, what it made is removed, and it is
+**Docker Sandboxes (`sbx`) are required (ADR-0019, #961).** Every launch the gateway
+makes (`run`, `batch`, `matrix` and the critique fan-out) runs in one, with no fallback,
+and `agent-launcher confine` is retired for gateway workers. A machine where `sbx`
+is missing, not signed in or cannot start a microVM refuses each launch with
+`sandbox-unavailable`, naming the fix, before anything is made. Install and sign in with
+`brew trust docker/tap && brew install docker/tap/sbx`, then `sbx login`.
+
+`AGENT_KIT_SANDBOX` is unset or empty on a normal machine, which is `sbx`. `sbx-dry-run` starts nothing:
+the launch is prepared, what it made is removed, and it is
 refused (`sandbox-dry-run`) with the Docker Sandboxes plan its grants translate
 to: mounts (`PATH` or `PATH:ro`), the variables passed in by name (never their
-values), ports, and the gaps sbx does not hold the same way. Any other value
-is refused (`sandbox-unknown`) before anything is made.
+values), ports, and the gaps sbx does not hold the same way. `confine` is refused
+(`sandbox-unknown`, retired); any other value is refused the same way, before anything is made.
 
 `sbx` runs a Pi, OpenCode, Vibe, Claude Code, Codex or Hermes launch in its own Docker Sandbox, from
 Docker's prebuilt `docker.io/sbx/<client>-image` (`pi`, `opencode`, `vibe`, `claude`, `codex`, `hermes-agent`),
@@ -1267,12 +1272,13 @@ where its skills are, and Codex's probe cell cannot run on a machine with no
 repository that allows `openai`. A client the profile does not name and that is
 not one of those stays refused with the reason.
 
-**Every client is confined at the OS level, as Pi is (#903, ADR-0016).** The launch
-is `agent-launcher confine <grants> -- <client> ...`. The client reads its working
+**Every client runs in a Docker Sandbox, as Pi does (#903, ADR-0019).** The launch's grants (the
+recipe below, once `agent-launcher confine` flags, ADR-0016) are the sandbox plan's input: mounts, variables
+by name and network reach. The client reads its working
 directory (or writes it, and a writing run's git directories, for `mode:
 "write"`), writes its run directory, runs its own install and the system
-runtime, and nothing else of the machine. A client that cannot be confined (no
-launcher, a home that cannot be made, a login that is not there) is refused with
+runtime, and nothing else of the machine. A client that cannot be sandboxed (no
+working `sbx`, a home that cannot be made, a login that is not there) is refused with
 `launch-failed` and the reason, never started bare. The client's own sign-in is
 the narrow exception each recipe names: the keychain for Antigravity and Codex only (`--keychain`; any item whose ACL allows any app is readable, ADR-0016), while Claude Code and Vibe get their token or key as a variable the gateway reads; a copy of the owner's `auth.json` for Codex
 (only its refreshed `tokens` go back after the launch); `~/.gemini/antigravity-cli`

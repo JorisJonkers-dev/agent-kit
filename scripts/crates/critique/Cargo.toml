@@ -10,3 +10,6 @@ description = "The critique runner: one JSON object in, one JSON object out, por
 # workspace), so nothing in the lockfile has an age to question (docs/RUST.md).
 [dependencies]
 model-gateway = { path = "../model-gateway" }
+
+[dev-dependencies]
+model-gateway = { path = "../model-gateway", features = ["unsandboxed-tests"] }

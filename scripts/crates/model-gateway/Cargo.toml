@@ -9,3 +9,8 @@ description = "The model gateway: one JSON object in, one JSON object out, porte
 # rather than pulled from a registry, so nothing in the lockfile has an age to
 # question (docs/RUST.md).
 [dependencies]
+
+# A build that can start a client on the host with no sandbox, for the tests of crates that drive the gateway's
+# launch path with a fake process. No shipped binary enables it: a gateway worker runs in a sandbox (ADR-0019).
+[features]
+unsandboxed-tests = []

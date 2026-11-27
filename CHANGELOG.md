@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.11.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.10.1...v6.11.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** require Docker Sandboxes for every gateway worker and retire confine ([#975](https://github.com/JorisJonkers-dev/agent-kit/issues/975)) ([1a2ee09](https://github.com/JorisJonkers-dev/agent-kit/commit/1a2ee09494e1fbce3212cd22a96a2de7ca0265a6))
+
+## [6.10.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.10.0...v6.10.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **setup:** clear dangling uv tool links before install and name sbx's uninitialised network policy ([#977](https://github.com/JorisJonkers-dev/agent-kit/issues/977)) ([6397064](https://github.com/JorisJonkers-dev/agent-kit/commit/639706416ba586bd8b8acc9e1b5c675b5a8bdf84))
+
 ## [6.10.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.9.1...v6.10.0) (2026-11-27)
 
 

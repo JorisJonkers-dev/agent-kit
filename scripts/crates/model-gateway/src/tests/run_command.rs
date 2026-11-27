@@ -450,7 +450,7 @@ const PI_STREAM: &str = r#"{"type":"message_end","message":{"role":"assistant","
 fn pi_machine() -> Machine {
     let mut machine = Machine::new(&defaults_with_a_skill());
     machine.process.install("pi");
-    machine.process.answer("agent-launcher", answer(PI_STREAM));
+    machine.process.answer("pi", answer(PI_STREAM));
     let home = format!("{}/home/.pi/agent", machine.sandbox.text());
     std::fs::create_dir_all(format!("{home}/skills/lint")).expect("lint");
     std::fs::create_dir_all(format!("{home}/skills/other")).expect("other");
@@ -461,7 +461,7 @@ fn pi_machine() -> Machine {
         r#"{"providers":{"litellm-vibe":{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{"id":"ministral-8b"}]}}}"#,
     )
     .expect("models");
-    machine.runtime.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), "agent-launcher".to_string());
+    machine.runtime.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
     machine.allow_everything("github.com/acme/x");
     machine
 }

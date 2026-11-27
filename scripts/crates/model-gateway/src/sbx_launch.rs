@@ -1,6 +1,6 @@
-//! The Docker Sandboxes (`sbx`) run of one read-only Pi, OpenCode, Vibe, Claude Code, Codex or Hermes launch, behind `AGENT_KIT_SANDBOX=sbx`.
+//! The Docker Sandboxes (`sbx`) run of one Pi, OpenCode, Vibe, Claude Code, Codex or Hermes launch: the only way the gateway starts a client.
 //!
-//! The confined command the launcher would have run is the source: its grants become one sandbox's mounts
+//! The plan command the launch is built as is the source: its grants become one sandbox's mounts
 //! (`SbxPlan`), its variables pass by name with their values from the command, and its route's base URL decides the
 //! network rules the sandbox gets, widened or narrowed by the run's reach (`network.rs`). A run is `sbx create`
 //! (named, from the client's prebuilt image pinned by digest), `sbx policy allow network --sandbox` for the route and
@@ -46,14 +46,19 @@ pub fn program_of(client: RunClient) -> Option<&'static str> {
     }
 }
 
-/// What must hold before a launch makes anything: a client the backend runs, an `sbx` that answers, and no stored
-/// sbx service secret the run's profile does not name. A writing run is the same launch as a read-only one: its
-/// worktree and the git directories it writes are the written mounts of its grants. Refused with the reason and the
-/// command that fixes it.
-pub fn preflight(process: &dyn Process, client: RunClient, scope: &NetworkScope) -> Result<(), GatewayError> {
-    if program_of(client).is_none() {
-        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend does not run this client: its sign-in is the macOS login keychain and its state is in the owner's ~/.gemini, which no sandbox holds; use confine or sbx-dry-run for it", client.as_str())));
+/// A client the backend runs, or the refusal that says it does not: Antigravity's sign-in is the macOS login
+/// keychain and its state is in the owner's ~/.gemini, which no sandbox holds, and no gateway worker runs outside one.
+pub fn require_client(client: RunClient) -> Result<(), GatewayError> {
+    match program_of(client) {
+        Some(_) => Ok(()),
+        None => Err(GatewayError::new("sandbox-unsupported", format!("{}: no sandbox can run this client, and every gateway worker runs in one: its sign-in is the macOS login keychain and its state is in the owner's ~/.gemini, which no sandbox holds", client.as_str()))),
     }
+}
+
+/// What must hold before a launch makes anything: an `sbx` that answers, and no stored sbx service secret the run's
+/// profile does not name. A writing run is the same launch as a read-only one: its worktree and the git directories
+/// it writes are the written mounts of its grants. Refused with the reason and the command that fixes it.
+pub fn preflight(process: &dyn Process, scope: &NetworkScope) -> Result<(), GatewayError> {
     match process.exec(SBX, &["version"], Some(SBX_TIMEOUT_MS)) {
         Ok(result) if result.exit_code == 0 && !result.timed_out => {}
         Ok(result) => return Err(unavailable(&format!("sbx version exited {}", result.exit_code))),
@@ -107,7 +112,7 @@ pub fn prune_orphans(process: &dyn Process) -> Vec<String> {
     warnings
 }
 
-/// The sandbox side of one launch, translated from its confined command and checked.
+/// The sandbox side of one launch, translated from its plan command and checked.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SbxLaunch {
     pub name: String,
@@ -119,7 +124,7 @@ pub struct SbxLaunch {
     pub plan: SbxPlan,
     /// The client's own arguments, after its binary in the confined command.
     pub args: Vec<String>,
-    /// `NAME=value` for each variable the confined launch passes, in the plan's order.
+    /// `NAME=value` for each variable the launch passes, in the plan's order.
     pub env: Vec<String>,
     /// The rules `sbx policy allow network` adds for the sandbox: the route's hosts first, then the run's reach.
     pub allow: Vec<String>,
@@ -190,13 +195,13 @@ pub struct SbxRun {
     pub warnings: Vec<String>,
 }
 
-/// Translates a confined command into its sandbox. `inner` is the confined command itself (`agent-launcher confine
-/// ... -- client args`), which OpenCode's keyed wrapper hides behind `/bin/sh`: the wrapper's `env` pairs and its key
+/// Translates a plan command into its sandbox. `inner` is the plan command itself (`sbx-plan grants ... -- client
+/// args`), which OpenCode's keyed wrapper hides behind `/bin/sh`: the wrapper's `env` pairs and its key
 /// name are unwrapped here, and the key's value comes from `read_key`, which reads the secret store the wrapper would.
 pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_text: &str, read_key: &dyn Fn(&str) -> Result<String, GatewayError>) -> Result<SbxLaunch, GatewayError> {
     let program = program_of(client).ok_or_else(|| GatewayError::new("sandbox-unsupported", format!("{}: no sbx program", client.as_str())))?;
     let (inner, wrapped, key) = unwrapped(command);
-    let plan = SbxPlan::of_command(client.as_str(), &inner).ok_or_else(|| GatewayError::new("sandbox-unsupported", format!("{}: the launch is not behind agent-launcher confine, so it has no sandbox plan", client.as_str())))?;
+    let plan = SbxPlan::of_command(client.as_str(), &inner).ok_or_else(|| GatewayError::new("sandbox-unsupported", format!("{}: the launch carries no grants, so it has no sandbox plan", client.as_str())))?;
     if plan.mounts.iter().all(|mount| mount.read_only) {
         return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx plan has no written mount, and sbx needs one as its primary workspace", client.as_str())));
     }
@@ -251,7 +256,7 @@ pub fn apply_network(sbx: &mut SbxLaunch, process: &dyn Process, files: &dyn Fil
     Ok(())
 }
 
-/// The confined command with OpenCode's keyed wrapper taken off: the key's name, and the `env NAME=value` pairs the
+/// The plan command with OpenCode's keyed wrapper taken off: the key's name, and the `env NAME=value` pairs the
 /// wrapper sets before the launch, with the launch itself. A command with no wrapper is returned as it is.
 fn unwrapped(command: &ProcessCommand) -> (ProcessCommand, BTreeMap<String, String>, Option<String>) {
     let words = &command.args;

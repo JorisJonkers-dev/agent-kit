@@ -12,7 +12,7 @@ use crate::locations::pi_models_path;
 use crate::models::ClientListing;
 use crate::outputs::pi_output;
 use crate::config::{ToolList, ToolScope};
-use crate::pi_launch::{home_agent_dir, prepare_pi, resolve_scope, url_port, PiScope, NO_LAUNCHER};
+use crate::pi_launch::{home_agent_dir, prepare_pi, resolve_scope, url_port, PiScope};
 use crate::ports::{FileStamp, Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{is_pi_client, pi_provider, RunClient, RunMode};
 use crate::sources::parse_pi_listing;
@@ -140,7 +140,7 @@ fn disk(api_key: &str) -> Disk {
 }
 
 fn home() -> HashMap<String, String> {
-    env(&[("HOME", "/home/me"), ("PATH", "/bin")])
+    env(&[("HOME", "/home/me"), ("PATH", "/bin"), ("AGENT_KIT_SANDBOX", "host")])
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn a_launch_is_prepared_with_the_key_read_just_now_and_the_homes_bin_when_there_
     assert_eq!(
         prepared,
         PiConfinement {
-            launcher: "agent-launcher".into(),
+
             agent_dir: "/run/pi-agent".into(),
             bin: Some("/home/me/.pi/agent/bin".into()),
             port: 4000,
@@ -202,13 +202,13 @@ fn a_launch_is_prepared_with_the_key_read_just_now_and_the_homes_bin_when_there_
 }
 
 #[test]
-fn a_literal_key_and_a_model_the_home_does_not_list_and_the_launcher_the_environment_names_are_taken_as_they_are() {
+fn a_literal_key_and_a_model_the_home_does_not_list_are_taken_as_they_are() {
     let files = Disk::default().with(MODELS, &provider("literal").replace("\"models\": [{\"id\": \"other\"}, {\"id\": \"glm-5.3\", \"cost\": {\"input\": 1}}]", "\"models\": 3"));
     let programs = Programs::new(Err("never asked".into()));
 
-    let prepared = prepare_pi(&files, &programs, &env(&[("HOME", "/home/me"), ("AGENT_KIT_LAUNCHER_BIN", "/opt/launcher")]), "litellm-vibe", "unlisted", "/run/pi-agent", None).expect("prepared");
+    let prepared = prepare_pi(&files, &programs, &env(&[("HOME", "/home/me")]), "litellm-vibe", "unlisted", "/run/pi-agent", None).expect("prepared");
 
-    assert_eq!(prepared, PiConfinement { launcher: "/opt/launcher".into(), agent_dir: "/run/pi-agent".into(), bin: None, port: 4000, path: None, skills: vec![], extensions: vec![] });
+    assert_eq!(prepared, PiConfinement { agent_dir: "/run/pi-agent".into(), bin: None, port: 4000, path: None, skills: vec![], extensions: vec![] });
     assert!(files.read_text("/run/pi-agent/models.json").expect("models").contains("\"id\": \"unlisted\""));
 }
 
@@ -220,8 +220,6 @@ fn a_launch_that_cannot_be_prepared_says_why() {
     assert!(run(&Disk::default().with(MODELS, "[]"), &home()).contains("has no litellm-vibe provider"));
     assert!(run(&Disk::default().with(MODELS, r#"{"providers": {"litellm-vibe": {"api": "x"}}}"#), &home()).contains("lacks a baseUrl, api or apiKey"));
     assert!(run(&Disk::default().with(MODELS, &provider("k").replace("http://127.0.0.1:4000", "ftp://x")), &home()).contains("not an http or https URL"));
-    assert_eq!(run(&disk("k").with("/bin/agent-launcher", ""), &env(&[("HOME", "/home/me"), ("PATH", ":/nowhere")])), NO_LAUNCHER);
-    assert_eq!(run(&disk("k"), &env(&[("HOME", "/home/me"), ("AGENT_KIT_LAUNCHER_BIN", "")])), NO_LAUNCHER);
     assert!(run(&disk("!echo a | cat"), &home()).contains("is a shell command the gateway does not run"));
     let denied = Disk { write_fails: true, ..disk("k") };
     assert!(run(&denied, &home()).contains("cannot write the launch's agent directory"));
@@ -258,8 +256,8 @@ fn the_launch_removes_its_agent_directory_whether_or_not_pi_started() {
     let outcome = (ClientRun { process: &programs, files: &files, clock: &crate::adapters::clock::SystemClock, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect("launched");
     assert!(outcome.output.failure.is_some(), "an empty stream is a failed run");
     let command = programs.ran.lock().expect("ran")[0].clone();
-    assert_eq!(command.command, "agent-launcher");
-    assert_eq!(&command.args[..6], ["confine", "--write", "/run/work", "--write", "/repo/.git", "--run-from"]);
+    assert_eq!(command.command, "sbx-plan");
+    assert_eq!(&command.args[..6], ["grants", "--write", "/run/work", "--write", "/repo/.git", "--run-from"]);
     assert_eq!(files.removed.lock().expect("removed").as_slice(), ["/run/export/pi-agent"]);
 
     let mut broken = Programs::new(Err("never asked".into()));
@@ -290,7 +288,7 @@ fn a_bare_pi_command_is_what_the_builder_gives_when_nothing_confines_it_and_the_
     let extras = LaunchExtras { env: BTreeMap::from([("KEEP".to_string(), "1".to_string())]), ..LaunchExtras::default() };
     assert_eq!((launcher(RunClient::Pi).command)("pi", &input, &paths, "ask", Some(&extras)).env, extras.env);
 
-    let confine = PiConfinement { launcher: "l".into(), agent_dir: "/a".into(), bin: Some("/b".into()), port: 8, path: Some(String::new()), skills: vec![], extensions: vec![] };
+    let confine = PiConfinement { agent_dir: "/a".into(), bin: Some("/b".into()), port: 8, path: Some(String::new()), skills: vec![], extensions: vec![] };
     assert_eq!(pi_grants(&input, &paths, "pi", &confine), ["--read", "/w", "--run-from", "pi", "--run", "/b", "--write", "/a", "--net-connect", "8"]);
     let write = LaunchRequest { mode: Some(RunMode::Write), ..input };
     let git = LaunchPaths { git_writable: Some(vec!["/g".into()]), ..paths };

@@ -1,8 +1,8 @@
 # Gateway workers run only in Docker Sandboxes
 
-Decided 2026-11-26. This supersedes ADR-0016 for every client the model gateway launches, once the sbx
-backend lands; until then `agent-launcher confine` holds them as ADR-0016 describes. ADR-0013 (the write
-layer of interactive agents) is unchanged.
+Decided 2026-11-26. Accepted and in force (#961): this supersedes ADR-0016 for every client the model gateway
+launches, and the gateway no longer starts `agent-launcher confine` for any of them. ADR-0013 (the write layer
+of interactive agents) is unchanged.
 
 ## Why
 
@@ -128,11 +128,15 @@ secret are not service secrets; a listing that cannot be read refuses too.
 
 ## Migration
 
-`AGENT_KIT_SANDBOX=sbx-dry-run` (first slice) prepares a launch, translates its grants into the sandbox plan,
-removes what it made and refuses with the plan, so the translation can be checked on any machine. The sbx
-backend then lands per client (Pi and OpenCode first, then Vibe, then Claude Code, Codex and Hermes; Antigravity stays on confine), the default switches to sbx with the refusal above,
-and the gateway's `confine` path (client recipes, `PiConfinement`, the dry run) is removed. ADR-0016 is then
-marked superseded.
+Done (#961). `sbx` is the default backend: `AGENT_KIT_SANDBOX` unset or empty is `sbx`, and a machine without a
+working sbx refuses each launch with `sandbox-unavailable` and the install command (`brew trust docker/tap && brew
+install docker/tap/sbx`, then `sbx login`), before anything is made. `AGENT_KIT_SANDBOX=confine` is refused
+(`sandbox-unknown`) because the backend was retired; `sbx-dry-run` stays as a diagnostic that prints the plan.
+Pi, OpenCode, Vibe, Claude Code, Codex and Hermes run in sandboxes; Antigravity is refused
+(`sandbox-unsupported`) until it has a sign-in a sandbox can hold, and is no longer started at all. The
+gateway starts no `agent-launcher confine`: the grants are still computed per client recipe, but they are the
+plan's input, carried by a plan command that is read and never run. ADR-0016 is marked superseded for gateway
+workers; `agent-launcher confine` stays as a tool of its own (ADR-0013).
 
 ## Open
 

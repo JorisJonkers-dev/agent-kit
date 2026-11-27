@@ -67,7 +67,7 @@ fn every_call_that_left_the_packet_is_named_once() {
     assert_eq!(outside_calls(&calls, "/p"), vec!["read ~/.ssh/id".to_string()]);
 }
 
-// The confinement: the home's route, the key, the launcher and its check, as the node runner's `adapters/pi` reads them.
+// The sandbox: the home's route, the key and the readiness check, as the node runner's `adapters/pi` reads them.
 
 use super::vibe_client::{runtime_with, FakeFiles};
 use crate::critic_tools::{CriticToolset, SearchServerLaunch, READ_ONLY_TOOLSET};
@@ -75,7 +75,7 @@ use crate::packet_search::{default_search_limits, SearchToolName};
 use crate::pi_client::{allowed_tools, mcp_servers};
 use crate::clients::{CriticLaunch, CriticReport};
 use crate::pi_client::{
-    confine_readiness, confined_command, grants, home_agent_dir, key, launcher, pi_command, pi_readiness, pi_review, prepare, route, route_of, url_port, PiRoute,
+    confined_command, grants, home_agent_dir, key, pi_command, pi_readiness, pi_review, prepare, route, route_of, sandbox_readiness, url_port, PiRoute,
 };
 use crate::roster::RosterCritic;
 use crate::routing::CriticClient;
@@ -141,15 +141,14 @@ fn home_models(api_key: &str) -> String {
 
 const SECRET: &str = "!/bin/agent-kit-secret get LITELLM_VIBE_STUDY_KEY";
 
-/// A machine with pi and agent-launcher on PATH, ready, and the home's providers as given.
+/// A machine with pi on PATH, ready, its launches handed to the process as plan commands, and the home's providers as given.
 fn machine(models: Option<&str>, process: Scripted, env: &[(&str, &str)]) -> (FakeFiles, crate::runtime::Runtime) {
     let files = FakeFiles::default();
     files.put("/bin/pi", "");
-    files.put("/bin/agent-launcher", "");
     if let Some(models) = models {
         files.put(MODELS, models);
     }
-    let mut all = vec![("HOME", HOME), ("PATH", "/bin")];
+    let mut all = vec![("HOME", HOME), ("PATH", "/bin"), ("AGENT_KIT_SANDBOX", "host")];
     all.extend_from_slice(env);
     let process = process
         .on("pi auth", Ok(ok(r#"{"status":"ready"}"#)))
@@ -184,31 +183,27 @@ fn the_route_is_read_from_the_homes_provider_or_says_why_not() {
 }
 
 #[test]
-fn the_launcher_check_is_read_and_the_confined_command_line_built_with_or_without_a_path() {
-    assert_eq!(confine_readiness(&Ok(ok("confine: ok"))).ready, true);
-    let slow = ProcessResult { timed_out: true, ..ok("") };
-    assert!(confine_readiness(&Ok(slow)).detail.unwrap().contains("no answer within 20s"));
-    assert!(confine_readiness(&Err("spawn agent-launcher EACCES".to_string())).detail.unwrap().ends_with("so it does not run: spawn agent-launcher EACCES"));
+fn the_sandbox_check_is_read_and_the_plan_command_line_built_with_or_without_a_path() {
+    assert!(sandbox_readiness(&Ok(())).ready);
+    let refused = sandbox_readiness(&Err(model_gateway::error::GatewayError::new("sandbox-unavailable", "sbx is not usable (spawn sbx ENOENT)")));
+    assert!(!refused.ready && refused.detail.unwrap().ends_with("none can start here: sbx is not usable (spawn sbx ENOENT)"));
     let roster = RosterCritic { client: "c".to_string(), role: "r".to_string(), lenses: vec![], max_price_usd: 1.0, time_limit_s: 1.0, critic_id: "c1".to_string(), client_config: CriticClient::Pi(config()), fallbacks: vec![] };
     let launch = CriticLaunch { critic: &roster, packet_dir: "/p".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
     let pi = || pi_command(&config(), &launch, "prompt".to_string());
     let env = |command: ProcessCommand| command.env.get("PATH").cloned().unwrap_or_default();
-    assert_eq!(env(confined_command("L", vec![], pi(), None, "/a", None)), "");
-    assert_eq!(env(confined_command("L", vec![], pi(), Some(""), "/a", Some("/b"))), "/b");
-    let full = confined_command("L", vec!["--read".to_string(), "/p".to_string()], pi(), Some("/usr/bin"), "/a", Some("/b"));
-    assert_eq!((full.command.as_str(), &full.args[..4], full.cwd.as_deref(), full.stdin.as_deref()), ("L", &["confine", "--read", "/p", "--"].map(String::from)[..], Some("/p"), Some("prompt")));
+    assert_eq!(env(confined_command(vec![], pi(), None, "/a", None)), "");
+    assert_eq!(env(confined_command(vec![], pi(), Some(""), "/a", Some("/b"))), "/b");
+    let full = confined_command(vec!["--read".to_string(), "/p".to_string()], pi(), Some("/usr/bin"), "/a", Some("/b"));
+    assert_eq!((full.command.as_str(), &full.args[..4], full.cwd.as_deref(), full.stdin.as_deref()), ("sbx-plan", &["grants", "--read", "/p", "--"].map(String::from)[..], Some("/p"), Some("prompt")));
     assert_eq!((env(full.clone()), full.env.get("PI_CODING_AGENT_DIR").cloned(), full.env.get("TMPDIR").cloned()), ("/b:/usr/bin".to_string(), Some("/a".to_string()), Some("/a".to_string())));
 }
 
 #[test]
-fn the_home_pi_directory_and_the_launcher_follow_their_variables() {
+fn the_home_pi_directory_follows_its_variable() {
     let (_, plain) = machine(None, Scripted::default(), &[]);
-    assert_eq!((home_agent_dir(&plain), launcher(&plain)), ("/h/.pi/agent".to_string(), Some("agent-launcher".to_string())));
-    let (_, named) = machine(None, Scripted::default(), &[("PI_CODING_AGENT_DIR", "/own"), ("AGENT_KIT_LAUNCHER_BIN", "/opt/agent-launcher")]);
-    assert_eq!((home_agent_dir(&named), launcher(&named)), ("/own".to_string(), Some("/opt/agent-launcher".to_string())));
-    let (files, gone) = machine(None, Scripted::default(), &[]);
-    let _ = files.remove_file("/bin/agent-launcher");
-    assert_eq!(launcher(&gone), None);
+    assert_eq!(home_agent_dir(&plain), "/h/.pi/agent".to_string());
+    let (_, named) = machine(None, Scripted::default(), &[("PI_CODING_AGENT_DIR", "/own")]);
+    assert_eq!(home_agent_dir(&named), "/own".to_string());
 }
 
 #[test]
@@ -241,47 +236,44 @@ fn the_key_is_a_literal_or_read_from_the_secret_store_by_name_and_a_failed_read_
 }
 
 #[test]
-fn readiness_needs_the_route_the_launcher_and_a_check_that_passes() {
-    let ready = |models: Option<&str>, process: Scripted, remove_launcher: bool| {
-        let (files, runtime) = machine(models, process, &[]);
-        if remove_launcher {
-            let _ = files.remove_file("/bin/agent-launcher");
-        }
+fn readiness_needs_the_route_and_a_sandbox_that_can_start() {
+    let ready = |models: Option<&str>, process: Scripted, env: &[(&str, &str)]| {
+        let (_, runtime) = machine(models, process, env);
         pi_readiness(&runtime, &config()).unwrap()
     };
     let models = home_models(SECRET);
-    let checked = Scripted::default();
-    assert!(ready(Some(&models), checked.clone(), false).ready);
-    assert!(checked.seen().contains(&"agent-launcher confine --check --run-from pi --net-connect 443 --env PI_CODING_AGENT_DIR".to_string()), "{:?}", checked.seen());
-    assert!(ready(None, Scripted::default(), false).detail.unwrap().contains("has no litellm-vibe-study provider"));
-    assert!(ready(Some("not json"), Scripted::default(), false).detail.unwrap().contains("has no litellm-vibe-study provider"));
-    assert!(ready(Some(&models), Scripted::default(), true).detail.unwrap().starts_with("pi: agent-launcher is not on PATH"));
-    let refusing = Scripted::default().on("agent-launcher confine --check", Ok(failing(125, "agent-launcher: confine: no Landlock\n", "")));
-    assert!(ready(Some(&models), refusing, false).detail.unwrap().ends_with("so it does not run: agent-launcher: confine: no Landlock"));
+    assert!(ready(Some(&models), Scripted::default(), &[]).ready);
+    assert!(ready(None, Scripted::default(), &[]).detail.unwrap().contains("has no litellm-vibe-study provider"));
+    assert!(ready(Some("not json"), Scripted::default(), &[]).detail.unwrap().contains("has no litellm-vibe-study provider"));
+    // With sbx selected, readiness is `sbx version`, and a machine without it says how to get it.
+    let sbx = [("AGENT_KIT_SANDBOX", "sbx")];
+    let checked = Scripted::default().on("sbx secret ls", Ok(ok(r#"{"secrets":[],"custom_secrets":[],"shadowed_services":[],"env_only_count":0}"#)));
+    assert!(ready(Some(&models), checked.clone(), &sbx).ready);
+    assert!(checked.seen().contains(&"sbx version".to_string()), "{:?}", checked.seen());
+    let missing = Scripted::default().on("sbx version", Err("spawn sbx ENOENT".to_string()));
+    let refused = ready(Some(&models), missing, &sbx);
+    assert!(!refused.ready && refused.detail.unwrap().contains("brew trust docker/tap && brew install docker/tap/sbx"));
     let unoffered = Scripted::default().on("pi --offline", Ok(ok("litellm-vibe-study other 128K")));
-    assert!(ready(Some(&models), unoffered, false).detail.unwrap().contains("does not offer glm-5-3"));
+    assert!(ready(Some(&models), unoffered, &[]).detail.unwrap().contains("does not offer glm-5-3"));
 }
 
 #[test]
 fn prepare_writes_only_the_routes_provider_with_its_key_and_says_why_it_cannot() {
     let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
-    let (launcher, prepared) = prepare(&runtime, &config(), "/c/pi-agent", None).unwrap().unwrap();
-    assert_eq!((launcher.as_str(), prepared.port), ("agent-launcher", 443));
+    let prepared = prepare(&runtime, &config(), "/c/pi-agent", None).unwrap().unwrap();
+    assert_eq!(prepared.port, 443);
     let written = parse(&files.read_text("/c/pi-agent/models.json").unwrap()).unwrap();
     let expected = parse(r#"{"providers":{"litellm-vibe-study":{"api":"openai-completions","apiKey":"sk-route","baseUrl":"https://litellm.example.test/v1","models":[{"cost":{"input":0.5},"id":"glm-5-3"}]}}}"#).unwrap();
     assert_eq!((written, files.read_text("/c/pi-agent/settings.json").unwrap()), (expected, "{}\n".to_string()));
     let (_, no_route) = machine(None, Scripted::default(), &[]);
     assert!(prepare(&no_route, &config(), "/c/pi-agent", None).unwrap().unwrap_err().contains("has no litellm-vibe-study provider"));
-    let (files, no_launcher) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
-    let _ = files.remove_file("/bin/agent-launcher");
-    assert!(prepare(&no_launcher, &config(), "/c/pi-agent", None).unwrap().unwrap_err().starts_with("pi: agent-launcher is not on PATH"));
     let (_, bad_key) = machine(Some(&home_models("!sh -c x")), Scripted::default(), &[]);
     assert!(prepare(&bad_key, &config(), "/c/pi-agent", None).unwrap().unwrap_err().contains("a shell command"));
     assert!(route(&bad_key, &config()).is_ok());
 }
 
 #[test]
-fn a_critic_that_cannot_be_confined_never_starts_and_its_report_says_why() {
+fn a_critic_that_cannot_be_sandboxed_never_starts_and_its_report_says_why() {
     let process = Scripted::default();
     let (files, runtime) = machine(None, process.clone(), &[]);
     files.put("/c/prompt.md", "prompt");
@@ -290,13 +282,13 @@ fn a_critic_that_cannot_be_confined_never_starts_and_its_report_says_why() {
     let report: CriticReport = pi_review(&runtime, &launch, &config()).unwrap();
     assert_eq!((report.exit_code, report.charged_usd, report.export_path.as_str()), (125, 0.0, "/c/result.json"));
     assert_eq!(failure(report.outcome).0, "unconfined");
-    assert!(!process.seen().iter().any(|line| line.contains("confine")));
+    assert!(!process.seen().iter().any(|line| line.contains("sbx-plan")));
 }
 
 #[test]
-fn a_launch_the_launcher_refused_reads_as_unconfined() {
+fn a_launch_sbx_could_not_start_reads_as_unconfined() {
     let refused = |stderr: &str| failure(classify_pi_run(&failing(125, stderr, ""), &read_pi_stream(""), "/p", 1.0, &allowed_tools(&READ_ONLY_TOOLSET)));
-    assert_eq!(refused("agent-launcher: confine: no Landlock; nothing started\n"), ("unconfined".to_string(), "the operating system could not confine pi to its packet, so it did not start: agent-launcher: confine: no Landlock; nothing started".to_string()));
+    assert_eq!(refused("sbx: no microVM; nothing started\n"), ("unconfined".to_string(), "sbx could not start pi in a sandbox, so it did not start: sbx: no microVM; nothing started".to_string()));
     assert!(refused("").1.ends_with("did not start: exit 125"));
 }
 
@@ -366,8 +358,8 @@ fn a_searching_critic_may_call_the_servers_tools_and_nothing_else_beyond_the_rea
 }
 
 #[test]
-fn a_searching_critic_is_launched_with_the_server_granted_to_the_confinement() {
-    let process = Scripted::default().on("agent-launcher confine", Ok(ok(r#"{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}"#)));
+fn a_searching_critic_is_launched_with_the_server_granted_to_the_plan() {
+    let process = Scripted::default().on("sbx-plan grants", Ok(ok(r#"{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}"#)));
     let (files, runtime) = machine(Some(&home_models(SECRET)), process.clone(), &[]);
     files.put("/c/prompt.md", "prompt");
     let roster = roster_critic();
@@ -375,7 +367,7 @@ fn a_searching_critic_is_launched_with_the_server_granted_to_the_confinement() {
     let report = pi_review(&runtime, &searching_launch(&roster, &server), &config()).unwrap();
     assert_eq!(report.exit_code, 0);
     let seen = process.seen();
-    let launched = seen.iter().find(|line| line.starts_with("agent-launcher confine")).expect("a confined launch");
+    let launched = seen.iter().find(|line| line.starts_with("sbx-plan grants")).expect("a plan launch");
     assert!(launched.contains("--run-from pi --run-from /opt/critique --write /c/pi-agent --net-connect 443 --env PI_CODING_AGENT_DIR -- pi -p"), "{launched}");
     assert!(launched.contains("--tools read,grep,find,ls,mcp__packet__* --no-extensions -e builtin:mcp"), "{launched}");
 }
@@ -390,4 +382,38 @@ fn a_provider_error_that_names_a_rate_limit_or_a_quota_is_a_rate_limit_and_any_o
     assert_eq!(stopped("Rate-Limit reached").0, "rate-limited");
     assert_eq!(stopped("monthly quota used").1, "pi stopped on a rate limit: monthly quota used");
     assert_eq!(stopped("upstream exploded").0, "infrastructure-failure");
+}
+
+#[test]
+fn under_sbx_a_searching_critic_does_not_start_and_a_machine_without_sbx_refuses_every_pi_critic() {
+    let sbx = [("AGENT_KIT_SANDBOX", "sbx")];
+    let roster = roster_critic();
+    let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec![] };
+    // The server is a host program no sandbox image holds, so the critic that needs it is refused before anything is made.
+    let process = Scripted::default();
+    let (files, runtime) = machine(Some(&home_models(SECRET)), process.clone(), &sbx);
+    files.put("/c/prompt.md", "prompt");
+    let report = pi_review(&runtime, &searching_launch(&roster, &server), &config()).unwrap();
+    assert_eq!(failure(report.outcome).0, "unconfined");
+    assert!(process.seen().is_empty(), "{:?}", process.seen());
+    // Any other Pi critic goes through the gateway's sbx path, and a machine without sbx refuses it with the install command.
+    let missing = Scripted::default().on("sbx version", Err("spawn sbx ENOENT".to_string()));
+    let (files, runtime) = machine(Some(&home_models(SECRET)), missing.clone(), &sbx);
+    files.put("/c/prompt.md", "prompt");
+    let launch = CriticLaunch { critic: &roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
+    let report = pi_review(&runtime, &launch, &config());
+    let message = format!("{report:?}");
+    assert!(message.contains("brew trust docker/tap && brew install docker/tap/sbx"), "{message}");
+    assert!(missing.seen().iter().all(|line| line.starts_with("sbx version") || line.starts_with("/bin/agent-kit-secret")), "{:?}", missing.seen());
+}
+
+#[test]
+fn a_plan_command_the_process_could_not_start_is_the_critics_unexpected_error() {
+    let process = Scripted::default().on("sbx-plan grants", Err("spawn sbx-plan ENOENT".to_string()));
+    let (files, runtime) = machine(Some(&home_models(SECRET)), process, &[]);
+    files.put("/c/prompt.md", "prompt");
+    let roster = roster_critic();
+    let launch = CriticLaunch { critic: &roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
+    let error = pi_review(&runtime, &launch, &config()).expect_err("not started");
+    assert!(format!("{error:?}").contains("spawn sbx-plan ENOENT"), "{error:?}");
 }

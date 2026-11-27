@@ -1,17 +1,17 @@
-//! Helpers for tests of launches that go through `agent-launcher confine` (#903): what a fake process records is
-//! the client's own command, and the grants the launcher was given are read apart from it.
+//! Helpers for tests of launches under the host backend (#903): what a fake process records is the plan command,
+//! and the client's own command and the grants it carries are read apart.
 
 use crate::ports::ProcessCommand;
 
-/// The launcher a test names with `AGENT_KIT_LAUNCHER_BIN`.
-pub const LAUNCHER: &str = "/bin/launcher";
+/// The program of the plan command a launch under the host backend hands the fake process.
+pub const LAUNCHER: &str = crate::sandbox::PLAN_PROGRAM;
 
 /// Where the client's own words start in a confined command, and where the launcher's start: `(launcher, after
 /// the "--")`. `None` for a command that is not behind the launcher.
 fn split(words: &[String]) -> Option<(usize, usize)> {
     let at = words.iter().position(|word| word == LAUNCHER)?;
     let end = words.iter().skip(at).position(|word| word == "--")? + at;
-    (words.get(at + 1).map(String::as_str) == Some("confine")).then_some((at, end + 1))
+    (words.get(at + 1).map(String::as_str) == Some(crate::sandbox::PLAN_VERB)).then_some((at, end + 1))
 }
 
 /// The command as the client sees it, without the launcher and its grants, and the grants (the words between
