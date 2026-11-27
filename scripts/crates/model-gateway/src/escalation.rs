@@ -260,7 +260,7 @@ pub fn candidate_pool(config: &GatewayConfig, input: &RunInput, permissions: &[M
         if named && (entry.client != input.client || input.provider.is_none()) {
             continue;
         }
-        if entry.client == "opencode" && !is_provider_allowed(open_code_provider(&entry.model).as_deref(), client.providers.as_deref()) {
+        if entry.client == "opencode" && !crate::run::is_zen_free(&entry.model) && !is_provider_allowed(open_code_provider(&entry.model).as_deref(), client.providers.as_deref()) {
             continue;
         }
         let provider = if named {

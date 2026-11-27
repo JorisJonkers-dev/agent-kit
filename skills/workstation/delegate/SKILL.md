@@ -129,8 +129,10 @@ falling back.
   the gateway refuses a billed model on it.
 - Within one class, choose by the models' capability notes, excluding any
   `opencode/...` model (only `opencode-go/...`) and any free model that is not
-  `pi-free`'s `free/<model>`, and never a model with
-  `tier: null`.
+  `pi-free`'s `free/<model>`, except OpenCode's own `opencode/<id>-free` models
+  (public data only; prefer the two that keep nothing and train on nothing,
+  `opencode/deepseek-v4.1-flash-free` and `opencode/hy4-flash-free`), and never
+  a model with `tier: null`.
 - metered-employer (Codex) is not a routine last rung. It is eligible only when
   a live grant already covers the workflow, obtained by asking the owner first.
   Otherwise skip that rung and follow "When nothing covers a tier".
@@ -218,7 +220,11 @@ the Workflow tool for those tasks.
 - Free models only as `pi-free`'s `free/<model>`, public data only, never
   through any other client, name or provider (OpenRouter is refused on every
   client) and never a billed model.
-- OpenCode only through its `opencode-go/...` models, never `opencode/...`.
+- OpenCode only through its `opencode-go/...` models, never `opencode/...` (its
+  pay-per-token Zen), except OpenCode's own free models `opencode/<id>-free`,
+  for public data only. Only `opencode/deepseek-v4.1-flash-free` and
+  `opencode/hy4-flash-free` are zero-retention; the other `-free` models may
+  keep or train on prompts.
 - The family you name is binding: a delegation to a model of one family is never
   answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with
   the cause; keep the task or pick another model of the family. Pass

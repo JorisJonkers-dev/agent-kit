@@ -121,9 +121,17 @@ const OPENCODE_READ_ACTIONS: [&str; 5] = ["read", "grep", "glob", "webfetch", "w
 /// covers `write`, `edit` and `patch`. The v1 `permission` and `tools` keys say the same, for an OpenCode that
 /// reads them in place of `permissions`. No `mcp` key is written: the run's home declares no server.
 pub fn opencode_config(mode: Option<RunMode>, provider: Option<(&str, Value)>) -> Value {
+    opencode_config_with(mode, provider, true)
+}
+
+/// `opencode_config`, with the web search tool left out when `web_search` is false: OpenCode answers that tool with
+/// a request for input a non-interactive run cannot answer, which fails the whole run ("Cancelled a request for
+/// input this run cannot answer: Web Search"), so a run that cannot reach it anyway does not offer it.
+pub fn opencode_config_with(mode: Option<RunMode>, provider: Option<(&str, Value)>, web_search: bool) -> Value {
     let write = mode == Some(RunMode::Write);
+    let granted: Vec<&str> = OPENCODE_READ_ACTIONS.iter().copied().filter(|action| web_search || *action != "websearch").collect();
     let mut rules = vec![rule("*", "deny")];
-    rules.extend(OPENCODE_READ_ACTIONS.iter().map(|action| rule(action, "allow")));
+    rules.extend(granted.iter().map(|action| rule(action, "allow")));
     if write {
         rules.push(rule("edit", "allow"));
     }
@@ -133,7 +141,7 @@ pub fn opencode_config(mode: Option<RunMode>, provider: Option<(&str, Value)>) -
     }
     rules.extend(denied.into_iter().map(|action| rule(action, "deny")));
     let mut permission = vec![("*", Value::str("deny"))];
-    permission.extend(OPENCODE_READ_ACTIONS.iter().map(|action| (*action, Value::str("allow"))));
+    permission.extend(granted.iter().map(|action| (*action, Value::str("allow"))));
     permission.extend([("edit", Value::str(if write { "allow" } else { "deny" })), ("bash", Value::str("deny")), ("external_directory", Value::str("deny")), ("task", Value::str("deny"))]);
     // The v1 `tools` map agrees with `permission`: the edit tools are on for a writing run and off otherwise.
     let mut tools = vec![("bash", Value::Bool(false)), ("task", Value::Bool(false))];
@@ -217,11 +225,13 @@ pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model:
         None => None,
     };
     let config = join(&[dir, "opencode.json"]);
-    files.write_private(&config, &format!("{}\n", json::pretty(&opencode_config(mode, entry)))).map_err(|error| format!("opencode: cannot write the launch's home {dir}: {}", error.message))?;
+    files.write_private(&config, &format!("{}\n", json::pretty(&opencode_config_with(mode, entry, !crate::run::is_zen_free(model))))).map_err(|error| format!("opencode: cannot write the launch's home {dir}: {}", error.message))?;
     made_tmp(files, dir, "opencode")?;
     let mut vars = home_vars(dir);
     let mut writes = Vec::new();
-    if litellm.is_none() {
+    // OpenCode's own free models need no sign-in (measured: a fresh data directory runs them), so the owner's
+    // database, which holds the sign-in of every other provider, is never granted to them.
+    if litellm.is_none() && !crate::run::is_zen_free(model) {
         // The sign-in is in `opencode.db` of the owner's data directory, which a fresh one cannot hold: the run's
         // own data directory stays its own, and the database is the owner's, so the confinement grants that one
         // directory (OpenCode writes the database's journal beside it). Everything else it writes is the run's.

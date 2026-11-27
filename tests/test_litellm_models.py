@@ -60,7 +60,10 @@ def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
             ok = bool(candidates & routes["vibe"])
         elif client == "opencode":
             route, _, bare = model.partition("/")
-            ok = route == "opencode-go" and bare in routes["opencode-go"]
+            # OpenCode's own free models are served by OpenCode itself, never through LiteLLM.
+            ok = (route == "opencode-go" and bare in routes["opencode-go"]) or (
+                route == "opencode" and bare.endswith("-free")
+            )
         elif model.startswith("tier-"):
             # A tier is a model name the proxy serves, stated by litellm's tier policy.
             ok = model in delegation_profiles.tier_groups()
@@ -147,9 +150,16 @@ def test_a_free_model_is_named_only_as_free_model() -> None:
     clients = json.loads(DEFAULTS.read_text())["clients"]
     free = [m for m in models if m["client"] == "pi-free"]
     assert free and all(m["model"].startswith("free/") or m["model"] == "tier-free" for m in free)
-    assert not [m for m in models if m["model"].endswith(("-free", ":free")) and not m["model"].startswith("tier-")]
+    # OpenCode's own `-free` models (`opencode/<id>-free`, client `opencode`) are the one other free path.
+    zen = [
+        m
+        for m in models
+        if m["client"] == "opencode" and m["model"].startswith("opencode/") and m["model"].endswith("-free")
+    ]
+    others = [m for m in models if m not in zen]
+    assert not [m for m in others if m["model"].endswith(("-free", ":free")) and not m["model"].startswith("tier-")]
     old = ("openrouter/", "public/", "google-free/", "opencode-go-free/", "opencode/")
-    assert not [m for m in models if m["model"].startswith(old)]
+    assert not [m for m in others if m["model"].startswith(old)]
     assert not [m for m in models if m["model"].startswith("free/") and m["client"] != "pi-free"]
     assert {"pi-public", "pi-openrouter", "opencode-free"}.isdisjoint(clients)
     assert clients["pi-free"]["data_scope"] == "public"

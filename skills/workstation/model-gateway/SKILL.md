@@ -179,7 +179,7 @@ limits before the call, skips a provider that is limited and returns it at its
 reset, and never falls back to a paid deployment, so a request every free copy
 refuses fails instead of billing. No other client, provider or name reaches a
 free model: the old per-provider names (`openrouter/<x>`, `public/<x>`,
-`google-free/<x>`, `opencode-go-free/<x>`, OpenCode's own `-free` ids) and the
+`google-free/<x>`, `opencode-go-free/<x>`) and the
 `pi-public`, `pi-openrouter` and `opencode-free` clients are gone. `pi-free` holds
 its models to the one definition of free: `models` lists a free model and names
 a billed or unpriced one in `skipped` with the reason, and `run` refuses a billed
@@ -415,7 +415,21 @@ Everything that can refuse the run happens before anything is launched:
   provider setup writes for the LiteLLM OpenCode Go route) are allowed; every
   other provider is refused, and so is `opencode/<model>`, OpenCode's
   pay-per-token Zen, even when the machine lists it: a run never reaches a
-  pay-per-token model, nor one of Zen's own free models. When
+  pay-per-token model. The one exception is OpenCode's own free models, named
+  `opencode/<id>-free` (an id ending in `-free`; a zero-cost one without the
+  suffix, such as `opencode/big-pickle`, stays refused). They are cost class
+  `free`, so they carry **public data only**: a public repository or inline
+  public content, never a private repository. Only `opencode/deepseek-v4.1-flash-free`
+  and `opencode/hy4-flash-free` keep nothing and train on nothing (tier
+  `routine`); the others (`mimo-v2.6-flash-free`, `nemotron-3.5-lightning-free`,
+  `nemotron-3.5-super-vl-free`, `beam-free`, `flint-40b-free`, `iceman-free`,
+  `seaglass-alpha-free`, `tidepool-alpha-free`) may keep or train on prompts,
+  are tier `trivial`, and no profile picks them, though a run may name them for
+  public data. They work only through the OpenCode CLI, and OpenCode's quota
+  is per IP address. Their sandbox reaches `opencode.ai:443` and nothing else,
+  needs no sign-in (the run's home is bare, and the owner's `opencode.db` is not
+  given to it) and has no web search tool, which OpenCode answers with a request
+  for input a non-interactive run cannot answer. When
   every model OpenCode lists is on a provider the list does not name, `models`
   names `opencode` in `missing` with the reason instead of offering nothing.
 - `workflow-ended` — the run names a workflow that ended, so its caps and
@@ -1308,10 +1322,9 @@ when it ends: `HOME` and the four `XDG_*` directories point into it, and so do
 OpenCode's `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` and Hermes' `HERMES_HOME`.
 It holds the one provider the model names (copied from the owner's
 `opencode.json` or Hermes `config.yaml`, with the key still read from the secret
-store by the wrapper). OpenCode's own providers (`opencode`, `opencode-go` and
-the free models) sign in through `opencode.db` in the owner's data directory,
+store by the wrapper). OpenCode's own provider `opencode-go` signs in through `opencode.db` in the owner's data directory,
 which cannot be copied one credential at a time, and a fresh data directory
-signs in as nobody (the free models answer 429 or no route): those launches set
+signs in as nobody (the the free models are the exception: they need no sign-in and get a bare data directory): those launches set
 `OPENCODE_DB` at the owner's database and the confinement lets the run write that
 one directory (the journal is beside the database); the run's own `XDG_DATA_HOME`
 holds everything else. The owner's MCP servers, skills, `AGENTS.md` and plugins are not in

@@ -224,7 +224,10 @@ pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_
     let allow = match client {
         RunClient::Vibe => crate::sbx_vibe::allowed(route_text, &args)?,
         RunClient::Hermes => crate::sbx_clients::hermes_allowed(route_text)?,
-        _ => crate::sbx_clients::fixed_hosts(client).map_or_else(|| allowed_hosts(route_text), Ok)?,
+        _ => match crate::sbx_clients::zen_hosts(client, &args) {
+            Some(hosts) => hosts,
+            None => crate::sbx_clients::fixed_hosts(client).map_or_else(|| allowed_hosts(route_text), Ok)?,
+        },
     };
     Ok(SbxLaunch { name: name.to_string(), program, image: String::new(), env_file: String::new(), plan, args, env, allow, deny: Vec::new(), credential: None, reach: String::new() })
 }

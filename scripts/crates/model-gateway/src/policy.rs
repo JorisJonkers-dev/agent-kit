@@ -124,7 +124,10 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
                 Some(entry) => SendPermission { code: entry.code, history: entry.history },
             };
             // A client on a public-only route never reaches a repository that is not public, whatever its entry lists.
-            let public_only = config.clients.get(&subject.client).is_some_and(|client| client.public_only);
+            // OpenCode's own free models run on the Zen service, whose terms let it keep or train on prompts, so
+            // they are public-only like any other free model, whatever the rest of the OpenCode client reaches.
+            let zen_free = subject.client == "opencode" && crate::run::is_zen_free(&subject.model);
+            let public_only = zen_free || config.clients.get(&subject.client).is_some_and(|client| client.public_only);
             let allows_family = entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
             base(false, may_send, allows_family && !public_only)
         }

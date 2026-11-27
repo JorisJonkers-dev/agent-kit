@@ -597,3 +597,20 @@ fn vibe_turns_mcp_on_only_for_a_server_the_caller_attaches() {
     let attached = RunExtras { mcp_servers: Some(vec![AttachedServer { name: "packet".into(), command: "node".into(), args: vec![] }]), ..RunExtras::default() };
     assert_eq!(launch(attached).get("VIBE_ENABLE_MCP").map(String::as_str), Some("true"));
 }
+
+#[test]
+fn an_opencode_free_model_runs_in_a_bare_home_with_no_login_database_and_no_web_search() {
+    // The owner's data directory exists, with the sign-in of its other providers; a free model is never given it.
+    let disk = owner().with("/home/me/.local/share/opencode", "");
+    let home = prepare_opencode(&disk, &env(), "opencode/hy4-flash-free", Some(RunMode::ReadOnly), "/run/h").expect("a home");
+    assert!(!home.env.contains_key("OPENCODE_DB") && home.writes.is_empty() && home.login.is_none());
+    assert_eq!(home.env["XDG_DATA_HOME"], "/run/h/.local/share");
+    assert_eq!(disk.files.lock().unwrap().keys().filter(|path| path.starts_with("/run/h")).collect::<Vec<_>>(), ["/run/h/opencode.json"]);
+    let text = disk.text("/run/h/opencode.json").unwrap();
+    assert!(!text.contains("websearch\": \"allow") && text.contains("webfetch"), "{text}");
+    assert!(!text.contains("\"websearch\"") || text.contains("\"websearch\": \"deny\""), "{text}");
+    // Any other launch still offers the tool.
+    let routed = prepare_opencode(&disk, &env(), "litellm-vibe/glm-5.3", Some(RunMode::ReadOnly), "/run/h2").expect("a home");
+    assert!(disk.text("/run/h2/opencode.json").unwrap().contains("\"websearch\": \"allow\""));
+    assert!(routed.login.is_none());
+}

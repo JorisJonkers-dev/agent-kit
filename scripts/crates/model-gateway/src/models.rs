@@ -503,7 +503,7 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
         } else {
             client_model.provider.clone()
         };
-        if id == "opencode" && !is_provider_allowed(runs_on.as_deref(), client.providers.as_deref()) {
+        if id == "opencode" && !crate::run::is_zen_free(model) && !is_provider_allowed(runs_on.as_deref(), client.providers.as_deref()) {
             continue;
         }
         let known: Vec<&str> = std::iter::once(model).chain(client_model.names.iter().map(String::as_str)).collect();
@@ -590,6 +590,10 @@ pub fn cost_class_for(client: &ClientConfig, provider: Option<&str>) -> CostClas
     let Some(provider) = provider else {
         return client.cost_class;
     };
+    // OpenCode's own `opencode` provider is reached only through its `-free` models, which cost nothing.
+    if provider == ZEN_PROVIDER {
+        return CostClass::Free;
+    }
     client.provider_cost_classes.as_ref().and_then(|classes| classes.get(provider)).copied().unwrap_or(client.cost_class)
 }
 
@@ -607,8 +611,12 @@ fn compare(left: &str, right: &str) -> Ordering {
 /// (`opencode-go`, `vibe`, `vibe-study`, `local`). The public-only routes stay on Pi, which holds runs to them.
 pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = crate::run::DEFAULT_OPENCODE_PROVIDERS;
 
+/// OpenCode's own provider (its Zen): pay-per-token except for the `-free` models.
+const ZEN_PROVIDER: &str = "opencode";
+
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
-/// owner's rule is that a run never reaches one, so no allowlist can open it.
+/// owner's rule is that a run never reaches one, so no allowlist can open it; only
+/// its `-free` models are let through, by id (`crate::run::is_zen_free`).
 const PAY_PER_TOKEN_PROVIDERS: [&str; 1] = ["opencode"];
 
 /// The provider of an OpenCode model named `<provider>/<model>`; `None` when it names none.
