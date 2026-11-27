@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.11.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.10.1...v6.11.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** require Docker Sandboxes for every gateway worker and retire confine ([#975](https://github.com/JorisJonkers-dev/agent-kit/issues/975)) ([1a2ee09](https://github.com/JorisJonkers-dev/agent-kit/commit/1a2ee09494e1fbce3212cd22a96a2de7ca0265a6))
+
 ## [6.10.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.10.0...v6.10.1) (2026-11-27)
 
 
