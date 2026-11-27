@@ -675,6 +675,39 @@ fn a_foreign_change_is_reported_before_the_delegates_own_failure_and_leaves_noth
 }
 
 #[test]
+fn another_runs_throwaway_worktree_is_not_a_change_beside_the_run() {
+    let write = machine();
+    write.process.answer("claude", answer(CLAUDE_ANSWER));
+    write.process.answer("sh", exited(0, "", ""));
+    write.git.set(|state| {
+        // A read-only run's throwaway worktree comes and goes while this run works: its status is never read.
+        state.worktrees = Some(Ok(vec!["/tmp/model-gateway-worktree-Ab12Cd".to_string()]));
+        state.staged = Some(Ok(vec!["a.txt".to_string()]));
+    });
+
+    let result = write.run(&claude_write("")).expect("a result");
+
+    assert_eq!(text(&result, "status"), "ok");
+    assert!(!write.git.calls().iter().any(|call| call.starts_with("status /tmp/model-gateway-worktree-")));
+    assert_eq!(member(&result, "foreign_worktree"), None);
+}
+
+#[test]
+fn a_provider_refusal_is_reported_as_such_whatever_changed_beside_the_run() {
+    let write = machine();
+    write.process.answer("claude", exited(1, "", "429 Too Many Requests"));
+    write.git.set(|state| {
+        state.worktrees = Some(Ok(vec!["/other".to_string()]));
+        state.statuses.insert("/other".to_string(), vec![Ok(String::new()), Ok(" M file\n".to_string())]);
+    });
+
+    let result = write.run(&claude_write("")).expect("a result");
+
+    assert_eq!((text(&result, "status"), text(&result, "reason")), ("failed", "rate-limited"));
+    assert_eq!(member(&result, "foreign_worktree"), None);
+}
+
+#[test]
 fn a_checkout_that_cannot_be_read_at_the_end_counts_as_changed() {
     let write = machine();
     write.process.answer("claude", answer(CLAUDE_ANSWER));

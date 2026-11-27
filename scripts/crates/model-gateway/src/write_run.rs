@@ -41,6 +41,11 @@ pub fn writing(input: &RunInput) -> Option<Writing<'_>> {
     Some(Writing { input, repo: input.repo.as_deref()?, base: input.base.as_deref()?, check: input.check.as_deref()? })
 }
 
+/// The directory a read-only run's throwaway worktree is made in, by the name `workplace` gives it.
+fn is_throwaway(path: &str) -> bool {
+    path.rsplit('/').next().is_some_and(|name| name.starts_with("model-gateway-worktree-"))
+}
+
 /// One watched worktree: where it is, and what `git status --porcelain` said before the delegate ran.
 pub struct WatchedWorktree {
     pub path: String,
@@ -139,8 +144,9 @@ impl RunCommand<'_> {
     /// Every worktree of the repository but nothing of the run's own: where each stands before the delegate
     /// runs, so the run can hold every other checkout of the repository to the state the delegate found it in.
     /// Worktrees the gateway itself keeps for its runs — everything under the repository's common directory's
-    /// `model-gateway/worktrees` — are not watched: they are this gateway's own workplaces, whose changes are
-    /// its own work and never a change beside the run.
+    /// `model-gateway/worktrees` — and the throwaway worktrees of its read-only runs (`model-gateway-worktree-*`)
+    /// are not watched: they are this gateway's own workplaces, which come and go while other runs work, and
+    /// whose changes are its own work and never a change beside the run.
     pub(crate) fn watch_others(&self, repo: &str) -> Result<Vec<WatchedWorktree>, GatewayError> {
         let worktrees = self
             .runtime
@@ -151,7 +157,7 @@ impl RunCommand<'_> {
         let kept = join(&[&common, "model-gateway", "worktrees"]);
         let mut watched = Vec::new();
         for path in worktrees {
-            if path == kept || path.starts_with(&format!("{kept}/")) {
+            if path == kept || path.starts_with(&format!("{kept}/")) || is_throwaway(&path) {
                 continue;
             }
             let before = self
@@ -246,7 +252,9 @@ impl RunCommand<'_> {
     pub(crate) fn finish_write(&self, run: &Delegated, write: &Writing, delegate_reason: Option<&str>) -> FinishedWrite {
         let branch = run.branch.unwrap_or_default().to_string();
         let worktree = run.work_dir.to_string();
-        let foreign = self.foreign_change(&run.watched);
+        // A provider's refusal (a 429, a 5xx) is what the run failed of, whatever else changed beside it.
+        let provider_error = matches!(delegate_reason, Some("rate-limited" | "model-unavailable"));
+        let foreign = if provider_error { None } else { self.foreign_change(&run.watched) };
         let staged = if delegate_reason.is_none() { Some(self.stage(run.work_dir, write.base)) } else { None };
         if let Some(foreign) = foreign {
             return FinishedWrite {
