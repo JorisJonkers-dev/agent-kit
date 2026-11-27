@@ -60,6 +60,7 @@ pub mod run_events;
 pub mod run_failure;
 pub mod run_home;
 pub mod sandbox;
+pub mod sbx_clients;
 pub mod sbx_images;
 pub mod sbx_launch;
 pub mod sbx_vibe;

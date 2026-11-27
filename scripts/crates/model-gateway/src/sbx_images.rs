@@ -33,15 +33,15 @@ pub struct Image {
     pub enabled: bool,
 }
 
-/// Every client that has an image. Only Pi, OpenCode and Vibe run in sandboxes so far; the rest are listed so the
-/// slices that enable them change one flag.
+/// Every client that has an image. Every client but Antigravity runs in a sandbox; a client listed with its
+/// flag off is refused until a slice enables it.
 pub const IMAGES: [Image; 6] = [
     Image { client: "pi", repo: "pi-image", enabled: true },
     Image { client: "opencode", repo: "opencode-image", enabled: true },
-    Image { client: "claude", repo: "claude-image", enabled: false },
-    Image { client: "codex", repo: "codex-image", enabled: false },
+    Image { client: "claude", repo: "claude-image", enabled: true },
+    Image { client: "codex", repo: "codex-image", enabled: true },
     Image { client: "vibe", repo: "vibe-image", enabled: true },
-    Image { client: "hermes", repo: "hermes-agent-image", enabled: false },
+    Image { client: "hermes", repo: "hermes-agent-image", enabled: true },
 ];
 
 /// The image of a client the gateway knows, enabled or not.

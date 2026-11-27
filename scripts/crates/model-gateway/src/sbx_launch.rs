@@ -1,4 +1,4 @@
-//! The Docker Sandboxes (`sbx`) run of one read-only Pi, OpenCode or Vibe launch, behind `AGENT_KIT_SANDBOX=sbx`.
+//! The Docker Sandboxes (`sbx`) run of one read-only Pi, OpenCode, Vibe, Claude Code, Codex or Hermes launch, behind `AGENT_KIT_SANDBOX=sbx`.
 //!
 //! The confined command the launcher would have run is the source: its grants become one sandbox's mounts
 //! (`SbxPlan`), its variables pass by name with their values from the command, and its route's base URL decides the
@@ -10,7 +10,7 @@
 
 use crate::error::GatewayError;
 use crate::json::{self, Value};
-use crate::launchers::{OPENCODE_KEYED, SECRET_TOOL};
+use crate::launchers::{HERMES_KEYED, OPENCODE_KEYED, SECRET_TOOL};
 use crate::network::{self, Egress, NetworkScope, Reach};
 use crate::pi_launch::url_port;
 use crate::ports::{Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult};
@@ -32,13 +32,16 @@ pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/
 /// The host name a sandbox reaches the host's loopback by.
 pub(crate) const HOST_FROM_SANDBOX: &str = "host.docker.internal";
 
-/// The client's program in its image, which is also the client's name: Pi, OpenCode and Vibe are the only clients the
-/// sbx backend runs so far. Every other client is refused before anything is made.
+/// The client's program in its image, which is also the client's name: Pi, OpenCode, Vibe, Claude Code, Codex and Hermes
+/// are the clients the sbx backend runs. Every other client (Antigravity) is refused before anything is made.
 pub fn program_of(client: RunClient) -> Option<&'static str> {
     match client {
         RunClient::Pi => Some("pi"),
         RunClient::Opencode => Some("opencode"),
         RunClient::Vibe => Some("vibe"),
+        RunClient::Claude => Some("claude"),
+        RunClient::Codex => Some("codex"),
+        RunClient::Hermes => Some("hermes"),
         _ => None,
     }
 }
@@ -49,7 +52,7 @@ pub fn program_of(client: RunClient) -> Option<&'static str> {
 /// command that fixes it.
 pub fn preflight(process: &dyn Process, client: RunClient, scope: &NetworkScope) -> Result<(), GatewayError> {
     if program_of(client).is_none() {
-        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only pi, opencode and vibe so far; use confine or sbx-dry-run for this client", client.as_str())));
+        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend does not run this client: its sign-in is the macOS login keychain and its state is in the owner's ~/.gemini, which no sandbox holds; use confine or sbx-dry-run for it", client.as_str())));
     }
     match process.exec(SBX, &["version"], Some(SBX_TIMEOUT_MS)) {
         Ok(result) if result.exit_code == 0 && !result.timed_out => {}
@@ -176,8 +179,7 @@ impl SbxLaunch {
             args.extend(strings(&["--env-file", &self.env_file]));
         }
         args.push(self.name.clone());
-        args.push(self.program.to_string());
-        args.extend(self.args.iter().cloned());
+        args.extend(crate::sbx_clients::words_of(self.program, &self.args));
         args
     }
 }
@@ -198,7 +200,9 @@ pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_
     if plan.mounts.iter().all(|mount| mount.read_only) {
         return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx plan has no written mount, and sbx needs one as its primary workspace", client.as_str())));
     }
-    let gaps: Vec<&String> = plan.gaps.iter().filter(|gap| !gap.starts_with("network:")).collect();
+    // Codex's login is the copy of `auth.json` in its run home, which the sandbox mounts written; the keychain the
+    // confined recipe also grants it is not a way it signs in here.
+    let gaps: Vec<&String> = plan.gaps.iter().filter(|gap| !gap.starts_with("network:") && !(client == RunClient::Codex && gap.starts_with("keychain:"))).collect();
     if !gaps.is_empty() {
         let names: Vec<&str> = gaps.iter().map(|gap| gap.as_str()).collect();
         return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx plan holds no way to give {}", client.as_str(), names.join("; "))));
@@ -212,7 +216,11 @@ pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_
         values.insert(key.clone(), read_key(&key)?);
     }
     let env = plan.env.iter().filter_map(|name| values.get(name).map(|value| format!("{name}={value}"))).collect();
-    let allow = if client == RunClient::Vibe { crate::sbx_vibe::allowed(route_text, &args)? } else { allowed_hosts(route_text)? };
+    let allow = match client {
+        RunClient::Vibe => crate::sbx_vibe::allowed(route_text, &args)?,
+        RunClient::Hermes => crate::sbx_clients::hermes_allowed(route_text)?,
+        _ => crate::sbx_clients::fixed_hosts(client).map_or_else(|| allowed_hosts(route_text), Ok)?,
+    };
     Ok(SbxLaunch { name: name.to_string(), program, image: String::new(), env_file: String::new(), plan, args, env, allow, deny: Vec::new(), credential: None, reach: String::new() })
 }
 
@@ -247,7 +255,7 @@ pub fn apply_network(sbx: &mut SbxLaunch, process: &dyn Process, files: &dyn Fil
 /// wrapper sets before the launch, with the launch itself. A command with no wrapper is returned as it is.
 fn unwrapped(command: &ProcessCommand) -> (ProcessCommand, BTreeMap<String, String>, Option<String>) {
     let words = &command.args;
-    if command.command != "/bin/sh" || words.get(1).map(String::as_str) != Some(OPENCODE_KEYED) {
+    if command.command != "/bin/sh" || ![OPENCODE_KEYED, HERMES_KEYED].contains(&words.get(1).map_or("", String::as_str)) {
         return (command.clone(), BTreeMap::new(), None);
     }
     let key = words.get(4).cloned();
@@ -311,8 +319,10 @@ fn split_host(url: &str) -> Option<(String, u16)> {
 /// The route's config rewritten so a loopback proxy is reached through `host.docker.internal`, which the sandbox
 /// sees; `None` when no rewrite is needed. The text is the config's own, with only the base URL changed.
 pub fn rewritten_config(client: RunClient, route_text: &str) -> Option<String> {
-    if client == RunClient::Vibe {
-        return crate::sbx_vibe::rewritten(route_text);
+    match client {
+        RunClient::Vibe => return crate::sbx_vibe::rewritten(route_text),
+        RunClient::Hermes => return crate::sbx_clients::hermes_rewritten(route_text),
+        _ => {}
     }
     let url = json::parse(route_text).ok().and_then(|value| base_url_in(&value))?;
     let (host, _) = split_host(&url)?;
@@ -328,6 +338,7 @@ pub fn config_path(client: RunClient, dir: &str) -> String {
     match client {
         RunClient::Pi => join(&[dir, "models.json"]),
         RunClient::Vibe => join(&[dir, "vibe", "config.toml"]),
+        RunClient::Hermes => join(&[dir, ".hermes", "config.yaml"]),
         _ => join(&[dir, "opencode.json"]),
     }
 }
