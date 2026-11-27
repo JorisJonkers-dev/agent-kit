@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.8.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.7.0...v6.8.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** run read-only Vibe launches in Docker Sandboxes under AGENT_KIT_SANDBOX=sbx ([#968](https://github.com/JorisJonkers-dev/agent-kit/issues/968)) ([8366a99](https://github.com/JorisJonkers-dev/agent-kit/commit/8366a996f00ac318ca09caf8d3183706980694b3))
+* **model-gateway:** run writing Pi and OpenCode launches in an sbx sandbox and prune orphaned sandboxes ([#967](https://github.com/JorisJonkers-dev/agent-kit/issues/967)) ([d3976ae](https://github.com/JorisJonkers-dev/agent-kit/commit/d3976ae6928652674aad7da4d257b48b5017177b))
+
 ## [6.7.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.6.0...v6.7.0) (2026-11-27)
 
 
