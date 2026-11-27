@@ -1,0 +1,10 @@
+[package]
+name = "claim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Claim a device lease by recording it in a git commit message."
+
+# std only, by design. A dependency is pinned exactly (docs/RUST.md). A git or path dependency outside this workspace is never
+# allowed; a shared crate joins the workspace as a new member instead.
+[dependencies]
