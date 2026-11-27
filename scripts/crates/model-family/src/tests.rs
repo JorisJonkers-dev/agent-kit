@@ -114,11 +114,14 @@ fn a_step_is_placed_by_the_vendor_word_in_its_id() {
     assert_eq!(tier::Tiers::step_family("free/beam-1.0-501b-a23b"), None);
     assert_eq!(tier::Tiers::step_family("opencode-go-tier/kimi-k3.1-pro"), Some("moonshot"));
     assert_eq!(tier::Tiers::step_family("opencode-go-tier/gpt-6-luna"), Some("openai"));
-    // Every step of every shipped tier but the free tier's Beam and Hy4 has a family.
+    // Every step of every shipped tier but the free tier's Beam and Hy4 has a family. A free router step
+    // (`free-router/<route>`) serves whichever free model the router picks, so it has none either.
+    assert_eq!(tier::Tiers::step_family("free-router/openrouter"), None);
     let tiers = tier::Tiers::load();
     for name in tiers.names() {
         for step in tiers.chain(&name) {
-            assert!(tier::Tiers::step_family(&step).is_some() || step == "free/beam-1.0-501b-a23b" || step == "free/hy4-flash", "{step}");
+            let unplaced = step == "free/beam-1.0-501b-a23b" || step == "free/hy4-flash" || step.starts_with("free-router/");
+            assert!(tier::Tiers::step_family(&step).is_some() || unplaced, "{step}");
         }
     }
 }
