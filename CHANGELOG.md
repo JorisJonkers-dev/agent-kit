@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.12.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.12.0...v6.12.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **model-gateway:** concurrent write runs no longer fail on each other's worktrees, and batch returns the write fields ([#985](https://github.com/JorisJonkers-dev/agent-kit/issues/985)) ([b2750fe](https://github.com/JorisJonkers-dev/agent-kit/commit/b2750fe92a4116e47c89f888eed39f4b1d24bfd1))
+
 ## [6.12.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.11.0...v6.12.0) (2026-11-27)
 
 
