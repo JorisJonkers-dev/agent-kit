@@ -1207,7 +1207,7 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     # The free routes (free, local) reach nothing paid: no cap.
     assert caps == {
         "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "local": None,
-        "free": None, "tier-vibe": None, "tier-go-cheap": None, "tier-review": None,
+        "free": None, "tier-vibe": None, "tier-go-cheap": None, "tier-review": None, "paid": None,
     }
     # A key holds access groups of canonical models, not a provider wildcard each. The free local
     # route alone adds its own wildcard, so local/<id> answers before the catalogue deploys it.
@@ -1219,9 +1219,11 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         # Every free model, only as free/<model>, no paid fallback: never canonical.
         "free": ["free", "tier-free"],
         # The tier keys hold the tier's name beside the groups its chain needs (litellm key_models).
-        "tier-vibe": ["tier-vibe", "vibe-tier", "opencode-go-tier"],
-        "tier-go-cheap": ["tier-go-cheap", "opencode-go-tier"],
+        "tier-vibe": ["tier-vibe", "vibe-tier", "opencode-go-tier", "paid"],
+        "tier-go-cheap": ["tier-go-cheap", "opencode-go-tier", "paid"],
         "tier-review": ["free", "tier-review", "vibe-tier", "opencode-go-tier"],
+        # The dedicated paid key: the paid access group alone, for paid/<model> named by a caller.
+        "paid": ["paid"],
     }
     for route in table["routes"]:
         wildcards = [model for model in route["models"] if "*" in model or "/" in model]

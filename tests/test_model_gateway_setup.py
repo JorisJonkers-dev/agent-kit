@@ -310,8 +310,9 @@ def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_on
     clients = json.loads(DEFAULTS.read_text())["clients"]
     shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
     agents = {route["agent"] for route in routes}
-    # A tier no workstation key calls (tier-strong-open, an escalation key) has a client and no route.
-    assert set(shipped) - agents == {"tier-strong-open"} and agents <= set(shipped)
+    # A tier no workstation key calls (tier-strong-open, an escalation key) has a client and no route. The paid
+    # key has no client: the catalogue lists no paid/* group for Pi, so a paid/<model> caller names it directly.
+    assert set(shipped) - agents == {"tier-strong-open"} and agents - {"paid"} <= set(shipped)
     for route in routes:
         client = shipped.get(route["agent"])
         if client is not None:

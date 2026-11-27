@@ -156,6 +156,14 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
+  # The dedicated paid key: holds the access group `paid` alone, so a caller names `paid/<model>`
+  # (one budgeted group per paid chat model, on the paid routes) and reaches nothing else. Only
+  # callers that name paid/<model> explicitly use it; no tier holds `paid` through this key.
+  - env: LITELLM_PAID_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
   - env: LITELLM_LOCAL_KEY
     mint: litellm
     check: "https://litellm.jorisjonkers.dev/key/info"
@@ -263,13 +271,13 @@ litellm:
       budget_eur: null
       budget_duration: null
       data_scope: any
-      models: ["tier-vibe", "vibe-tier", "opencode-go-tier"]
+      models: ["tier-vibe", "vibe-tier", "opencode-go-tier", "paid"]
     - agent: tier-go-cheap
       key_env: LITELLM_TIER_GO_CHEAP_KEY
       budget_eur: null
       budget_duration: null
       data_scope: any
-      models: ["tier-go-cheap", "opencode-go-tier"]
+      models: ["tier-go-cheap", "opencode-go-tier", "paid"]
     # Its chain starts on free models of several labs, whose providers may train on the prompt,
     # so this key is public work only.
     - agent: tier-review
@@ -278,6 +286,14 @@ litellm:
       budget_duration: null
       data_scope: public
       models: ["free", "tier-review", "vibe-tier", "opencode-go-tier"]
+    # A dedicated key for paid/<model> only (the `paid` access group alone). A paid group is one
+    # budgeted deployment per paid route, so the key itself is not capped, as with the tier keys.
+    - agent: paid
+      key_env: LITELLM_PAID_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: any
+      models: ["paid"]
 
 # -------------------------------------------------------------------
 # The packages proxy.

@@ -63,7 +63,8 @@
       "models": [
         "tier-vibe",
         "vibe-tier",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ]
     },
     {
@@ -74,7 +75,8 @@
       "data_scope": "any",
       "models": [
         "tier-go-cheap",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ]
     },
     {
@@ -88,6 +90,16 @@
         "tier-review",
         "vibe-tier",
         "opencode-go-tier"
+      ]
+    },
+    {
+      "agent": "paid",
+      "key_env": "LITELLM_PAID_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "any",
+      "models": [
+        "paid"
       ]
     }
   ]
