@@ -168,7 +168,7 @@ fn launch(
         paths: crate::paths::launch_paths(runtime, &launch.critic_dir, &launch.prompt_path, &launch.packet_dir)?,
         extras,
     };
-    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };
+    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env, clock: runtime.clock.as_ref() };
     gateway.launch(&request).map_err(launch_error)
 }
 
