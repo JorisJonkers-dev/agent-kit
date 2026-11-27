@@ -53,7 +53,7 @@ fn decision(config: &GatewayConfig, scope: &DataScope) -> PolicyDecision {
 }
 
 fn repository(families: &[&str]) -> DataScope {
-    let entry = AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code: true, history: false, public: false };
+    let entry = AllowlistEntry { families: families.iter().map(|family| family.to_string()).collect(), code: true, history: false };
     DataScope::Repository { key: "github.com/owner/repo".to_string(), entry: Some(entry) }
 }
 
@@ -90,7 +90,7 @@ fn the_shipped_defaults_state_the_seed_profiles_and_the_roles() {
 }
 
 #[test]
-fn every_seed_profile_has_a_model_with_no_repository_or_a_public_one_and_none_for_a_private_or_nedap_one() {
+fn every_seed_profile_has_a_model_with_no_repository_or_a_public_one_and_none_for_a_narrow_private_or_nedap_one() {
     let config = shipped();
     let writer = Narrowing { writer_family: Some("mistral".to_string()), ..Narrowing::default() };
     for name in ["cheap-research", "cross-critic", "implement-cheap", "public-gemini"] {
@@ -101,13 +101,16 @@ fn every_seed_profile_has_a_model_with_no_repository_or_a_public_one_and_none_fo
         let private = pi_models(&config, name, &repository(&["anthropic"]), narrow);
         assert!(private.models.is_empty(), "{name} private");
         assert!(private.error.expect("an error").contains(&format!("profile {name} has no allowed model")));
-        // A nedap repository reaches Claude Code and Codex alone, and no seed lists either.
+        // A nedap repository reaches no client at all.
         let nedap = pi_models(&config, name, &DataScope::Nedap, narrow);
         assert!(nedap.models.is_empty(), "{name} nedap");
         assert!(nedap.error.expect("an error").contains("a nedap repository"));
-        // A public repository allowed every family: the profiles on a private route get it, the public route never does.
-        let public = pi_models(&config, name, &repository(&EVERY_FAMILY), narrow);
-        assert_eq!(public.models.is_empty(), name == "public-gemini", "{name} public");
+        // A private repository allowed every family: the profiles on a private route get it, the public route never does.
+        let private_every = pi_models(&config, name, &repository(&EVERY_FAMILY), narrow);
+        assert_eq!(private_every.models.is_empty(), name == "public-gemini", "{name} private, every family");
+        // A repository GitHub says is public: every profile gets a model, the public route's among them.
+        let public = pi_models(&config, name, &DataScope::Public { key: "github.com/owner/repo".to_string() }, narrow);
+        assert!(!public.models.is_empty() && public.error.is_none(), "{name} public");
     }
 }
 
@@ -416,9 +419,8 @@ fn the_opencode_harness_takes_the_first_model_opencode_can_run() {
     let config = shipped();
     let pick = |models: Vec<ProfileModel>| crate::harness::opencode_pick(&config, models).map(|model| format!("{}:{}", model.client, model.model));
     assert_eq!(pick(vec![profile_model("pi-free", "small"), profile_model("pi-vibe", "glm-5.3")]).as_deref(), Some("opencode:litellm-vibe/glm-5.3"));
-    assert_eq!(pick(vec![profile_model("opencode-free", "opencode/glm-5.3-flash-free")]).as_deref(), Some("opencode-free:opencode/glm-5.3-flash-free"));
     assert_eq!(pick(vec![profile_model("opencode", "litellm-opencode-go/kimi")]).as_deref(), Some("opencode:litellm-opencode-go/kimi"));
-    assert_eq!(pick(vec![profile_model("claude", "haiku"), profile_model("pi-openrouter", "small")]), None);
+    assert_eq!(pick(vec![profile_model("claude", "haiku"), profile_model("pi-free", "free/small")]), None);
 }
 
 #[test]

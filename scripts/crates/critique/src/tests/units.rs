@@ -64,7 +64,7 @@ fn an_error_is_worded_with_its_place_and_a_file_failure_is_unexpected() {
 }
 
 fn entry(families: &[&str], code: bool, history: bool, at: &str) -> Entry {
-    Entry { families: families.iter().map(|family| (*family).to_string()).collect(), code, history, public: false, updated_at: at.to_string() }
+    Entry { families: families.iter().map(|family| (*family).to_string()).collect(), code, history, updated_at: at.to_string() }
 }
 
 #[test]
@@ -80,13 +80,10 @@ fn the_allowlist_reads_and_writes_the_file_the_node_runner_does() {
     assert_eq!(parse_allowlist(&text), Ok(list));
     let older = parse_allowlist("{\"version\":1,\"repositories\":{\"a\":{\"families\":[\"openai\"],\"updated_at\":\"x\"}}}").expect("parses");
     assert_eq!(older.get("a"), Some(&entry(&["openai"], false, false, "x")));
-    let public = Entry { public: true, ..entry(&["mistral"], false, false, "t4") };
-    let kept = Allowlist::default().with_entry("a", public.clone()).with_entry("b", entry(&["mistral"], false, false, "t4"));
-    let kept_text = kept.to_text();
-    assert!(kept_text.contains("\"history\": false,\n      \"public\": true,\n      \"updated_at\": \"t4\""), "{kept_text}");
-    assert_eq!(kept_text.matches("public").count(), 1, "a private entry records no flag: {kept_text}");
-    assert_eq!(parse_allowlist(&kept_text), Ok(kept));
-    assert_eq!(parse_allowlist("{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"x\",\"public\":false}}}").expect("parses").get("a").map(|found| found.public), Some(false));
+    // A `public` flag an older `allow` recorded is read past, whatever it holds, and is not written back.
+    let flagged = parse_allowlist("{\"version\":1,\"repositories\":{\"a\":{\"families\":[\"mistral\"],\"updated_at\":\"t4\",\"public\":true},\"b\":{\"families\":[],\"updated_at\":\"x\",\"public\":null}}}").expect("parses");
+    assert_eq!(flagged.get("a"), Some(&entry(&["mistral"], false, false, "t4")));
+    assert!(!flagged.to_text().contains("public"), "{}", flagged.to_text());
     for (text, message) in [
         ("{", "Expected property name or '}' in JSON at position 1 (line 1 column 2)"),
         ("[]", "the value must be a JSON object"),
@@ -94,7 +91,6 @@ fn the_allowlist_reads_and_writes_the_file_the_node_runner_does() {
         ("{\"version\":2,\"repositories\":{}}", "version must be 1"),
         ("{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"x\",\"code\":null}}}", "repositories.a.code must be true or false"),
         ("{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"x\",\"history\":null}}}", "repositories.a.history must be true or false"),
-        ("{\"version\":1,\"repositories\":{\"a\":{\"families\":[],\"updated_at\":\"x\",\"public\":null}}}", "repositories.a.public must be true or false"),
     ] {
         assert_eq!(parse_allowlist(text), Err(ShapeError(message.to_string())), "{text}");
     }

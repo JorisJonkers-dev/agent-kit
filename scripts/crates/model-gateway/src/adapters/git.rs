@@ -132,6 +132,15 @@ impl Git for SystemGit {
         }
     }
 
+    fn exec_path(&self) -> Result<String, String> {
+        let answer = self.run("/", &["--exec-path"])?;
+        let path = answer.stdout.trim();
+        if answer.exit_code != 0 || path.is_empty() {
+            return Err(words(&answer));
+        }
+        Ok(path.to_string())
+    }
+
     fn common_dir(&self, path: &str) -> Result<String, String> {
         let answer = self.run(path, &["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
         let common = answer.stdout.trim();

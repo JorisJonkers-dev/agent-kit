@@ -498,7 +498,18 @@ fn interpreter(script: &Path, env: &Env) -> Option<PathBuf> {
         return which(OsStr::new(first), env);
     }
     let name = words.find(|w| !w.starts_with('-'))?;
-    which(OsStr::new(name), env)
+    interpreter_on_path(name, env)
+}
+
+/// The program `env NAME` runs, as granted: the first one on `PATH` whose real file is named after `NAME`
+/// (`node`, `python3.12` for `python3`). A version manager's shim (`~/.local/share/mise/shims/node`, a link to
+/// the `mise` binary, or Volta's `volta-shim`) is passed over: it runs another program from a store of its own,
+/// which the grant would not hold, and under the confinement `env` cannot run the shim and goes on down `PATH` to
+/// the program granted here. With no such file the first executable of that name counts, as `which` finds it.
+fn interpreter_on_path(name: &str, env: &Env) -> Option<PathBuf> {
+    let path = env.path.clone().unwrap_or_default();
+    let named = |p: &PathBuf| fs::canonicalize(p).ok().and_then(|real| real.file_name().map(|n| n.to_string_lossy().starts_with(name))).unwrap_or(false);
+    std::env::split_paths(&path).map(|dir| dir.join(name)).filter(|p| executable(p)).find(named).or_else(|| which(OsStr::new(name), env))
 }
 
 /// Runs one `confine` command line: exit 2 for bad usage, [`REFUSED`] when

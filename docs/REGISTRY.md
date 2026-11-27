@@ -344,7 +344,7 @@ critic client of the critique pipeline. An entry names its model and its
 price per million input and output tokens, nothing else:
 
 ```yaml
-- name: critic-glm
+- name: critic-glm-flash
   model: zai-glm-5-3
   input_price: 1.4
   output_price: 4.4

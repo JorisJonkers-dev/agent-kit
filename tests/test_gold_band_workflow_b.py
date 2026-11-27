@@ -202,7 +202,7 @@ def test_the_test_critic_is_a_third_family_reading_for_coupled_and_tautological_
     for n in SLICES:
         critic = _node(nodes, f"test-critic-{n}")
         assert critic["profile"] == "pf-diff-reviewer"
-        assert (critic["provider"], critic["model"]) == ("pi", "litellm-vibe/glm-5.3")
+        assert (critic["provider"], critic["model"]) == ("pi", "litellm-vibe/glm-5.3-flash")
         assert len({_family(m["model"]) for m in (author, writer, critic)}) == 3
         goal = critic["goal"]
         assert "implementation" in goal and "tautological" in goal and "quote" in goal

@@ -1808,6 +1808,28 @@ fn missing_keys_get_a_team_each_and_a_key_named_for_this_host() {
 }
 
 #[test]
+fn the_paid_key_is_a_team_holding_paid_alone_and_is_minted_like_the_tiers() {
+    let state: SharedProxy = Arc::new(Mutex::new(ProxyState::default()));
+    let url = proxy_server(&state);
+    let mut entry = litellm_entry(&url, "LITELLM_PAID_KEY", "paid", None);
+    entry["litellm"]["team"]["models"] = json!(["paid"]);
+    let w = World::new(&url, &json!([entry]));
+    mint(&w, &["LITELLM_PAID_KEY"], ADMIN, false);
+    let s = state.lock().unwrap();
+    let team = s
+        .teams
+        .iter()
+        .find(|t| t["team_alias"] == "paid")
+        .expect("a team named paid");
+    assert_eq!(team["models"], json!(["paid"]));
+    assert!(team.get("max_budget").is_none());
+    let stored = w.stored();
+    let key = &s.keys[&stored["LITELLM_PAID_KEY"]];
+    assert_eq!(key["key_alias"], "paid@box");
+    assert_eq!(key["team_id"], team["team_id"]);
+}
+
+#[test]
 fn the_old_shared_key_is_deleted_and_a_drifted_budget_is_put_back() {
     let (w, proxy) = litellm_world();
     {
@@ -2330,4 +2352,26 @@ fn a_stored_key_the_proxy_does_not_describe_or_that_is_unsafe_is_left_alone() {
     assert!(got.is_ok());
     assert!(said.is_empty(), "{said}");
     assert_eq!(proxy.lock().unwrap().calls, ["GET /key/info"]);
+}
+
+#[test]
+fn a_non_utf8_environment_entry_is_skipped_not_a_panic() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let bad_value = OsStr::from_bytes(b"\x9E\xE9e").to_os_string();
+    let bad_name = OsStr::from_bytes(b"BAD\xFF").to_os_string();
+    let vars = vec![
+        (OsString::from("PACKAGES_PROXY_TOKEN"), bad_value),
+        (bad_name, OsString::from("unused")),
+        (OsString::from("KEEP_ME"), OsString::from("yes")),
+    ];
+    let env = utf8_env(vars.into_iter());
+    assert_eq!(env.get("KEEP_ME").map(String::as_str), Some("yes"));
+    assert!(!env.contains_key("PACKAGES_PROXY_TOKEN"));
+    assert_eq!(env.len(), 1);
+}
+
+#[test]
+fn the_process_environment_is_read_without_panicking() {
+    assert!(process_env().contains_key("PATH"));
 }

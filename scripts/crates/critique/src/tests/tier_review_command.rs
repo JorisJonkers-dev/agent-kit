@@ -127,11 +127,12 @@ impl Machine {
         git(&["-C", "repos/k1", "add", "-A"]);
         git(&["-C", "repos/k1", "commit", "-q", "-m", "base #12"]);
         let families: Vec<String> = setup.families.iter().map(|family| format!("\"{family}\"")).collect();
-        let public = if setup.public { ",\"public\":true" } else { "" };
         write(
             "home/.config/agent-kit/critique-allowlist.json",
-            &format!("{{\"repositories\":{{\"github.com/jorisjonkers-dev/example\":{{\"code\":false,\"families\":[{}],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"{public}}}}},\"version\":1}}\n", families.join(",")),
+            &format!("{{\"repositories\":{{\"github.com/jorisjonkers-dev/example\":{{\"code\":false,\"families\":[{}],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}}}},\"version\":1}}\n", families.join(",")),
         );
+        // What GitHub says about the repository's visibility, through the gh the runner asks.
+        write("bin/gh", &format!("#!/bin/sh\necho {}\n", if setup.public { "public" } else { "private" }));
         let port = litellm(setup.falling);
         write(
             "home/.pi/agent/models.json",
@@ -139,7 +140,7 @@ impl Machine {
         );
         write("bin/pi", &setup.pi.replace("@SANDBOX@", &sandbox.text()));
         write("bin/agent-launcher", LAUNCHER);
-        for program in ["pi", "agent-launcher"] {
+        for program in ["pi", "agent-launcher", "gh"] {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(root.join("bin").join(program), std::fs::Permissions::from_mode(0o755)).expect("chmod");
         }
@@ -231,7 +232,7 @@ fn one_command_resolves_three_families_without_the_writers_and_writes_the_synthe
     assert_eq!(families(&value), ["nvidia", "google", "zhipu"]);
     let reviewers = list(&value, "reviewers");
     let asked: Vec<&str> = reviewers.iter().map(|reviewer| text(field(reviewer, "routing"), "requested_model")).collect();
-    assert_eq!(asked, ["free/nemotron-3-ultra-550b-a55b", "free/gemma-4-31b", "free/glm-4.7-flash"]);
+    assert_eq!(asked, ["free/nemotron-3-ultra-550b-a55b", "free/gemma-4-31b-it", "free/glm-4.7-flash"]);
     for reviewer in reviewers {
         let routing = field(reviewer, "routing");
         assert_eq!((text(routing, "tier"), text(routing, "routing_capture"), text(routing, "served_model")), ("tier-review", "recorded", text(routing, "requested_model")));
@@ -249,31 +250,32 @@ fn one_command_resolves_three_families_without_the_writers_and_writes_the_synthe
     let synthesis = std::fs::read_to_string(text(&value, "synthesis_path")).expect("the synthesis");
     assert!(synthesis.contains("| c1-free-nemotron-3-ultra-550b-a55b | nvidia |") && synthesis.contains("finding from free/nemotron-3-ultra-550b-a55b"), "{synthesis}");
     // The three reviewers raised the one finding, and the synthesis says who from which family.
-    assert!(synthesis.contains("Raised by c1-free-nemotron-3-ultra-550b-a55b (nvidia), c2-free-gemma-4-31b (google), c3-free-glm-4.7-flash (zhipu).") && synthesis.contains("## For the coordinator"), "{synthesis}");
+    assert!(synthesis.contains("Raised by c1-free-nemotron-3-ultra-550b-a55b (nvidia), c2-free-gemma-4-31b-it (google), c3-free-glm-4.7-flash (zhipu).") && synthesis.contains("## For the coordinator"), "{synthesis}");
 }
 
 #[test]
 fn a_reviewer_litellm_served_from_another_model_is_retried_through_a_family_not_yet_in_the_review() {
-    let machine = Machine::new(&Setup { falling: &["free/gemma-4-31b"], ..setup() });
+    let machine = Machine::new(&Setup { falling: &["free/gemma-4-31b-it"], ..setup() });
     let (result, value) = machine.tier_review("");
     assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
     // Gemma fell back inside LiteLLM, so it is no review; the retry is the next family of the ladder, GPT-OSS, not a second zhipu.
     assert_eq!(families(&value), ["nvidia", "zhipu", "openai"]);
     let reviewers = list(&value, "reviewers");
-    let collapsed = reviewers.iter().find(|reviewer| text(reviewer, "critic_id") == "c2-free-gemma-4-31b").expect("gemma's reviewer");
+    let collapsed = reviewers.iter().find(|reviewer| text(reviewer, "critic_id") == "c2-free-gemma-4-31b-it").expect("gemma's reviewer");
     assert_eq!((text(collapsed, "status"), text(collapsed, "failure")), ("failed", "routing-collapsed"));
     assert_eq!(field(field(collapsed, "routing"), "fallback_fired"), &Value::Bool(true));
-    let retry = reviewers.iter().find(|reviewer| reviewer.as_object().and_then(|object| object.get("retry_of")).and_then(Value::as_str) == Some("c2-free-gemma-4-31b")).expect("the retry");
+    let retry = reviewers.iter().find(|reviewer| reviewer.as_object().and_then(|object| object.get("retry_of")).and_then(Value::as_str) == Some("c2-free-gemma-4-31b-it")).expect("the retry");
     assert_eq!(text(retry, "family"), "openai");
 }
 
 #[test]
 fn a_review_whose_reviewers_span_fewer_than_three_families_fails_and_says_so() {
-    // Three families are allowed and nothing is left to retry through, so a collapsed reviewer leaves two.
-    let machine = Machine::new(&Setup { families: &["nvidia", "google", "zhipu"], falling: &["free/gemma-4-31b"], ..setup() });
+    // A private repository allows three families and nothing is left to retry through, so a collapsed reviewer
+    // leaves two. A public one is not held to its entry, so only a private one can be short of families.
+    let machine = Machine::new(&Setup { families: &["deepseek", "zhipu", "alibaba"], public: false, falling: &["vibe-tier/zai-glm-5-3-flash"], ..setup() });
     let (result, value) = machine.tier_review("");
     assert_eq!((result.exit_code, text(&value, "status")), (3, "failed"), "{}", result.stdout);
-    assert_eq!(families(&value), ["nvidia", "zhipu"]);
+    assert_eq!(families(&value), ["deepseek", "alibaba"]);
     assert!(text(&value, "message").contains("only 2 of 3 families reviewed"), "{value:?}");
     assert!(std::path::Path::new(text(&value, "synthesis_path")).exists());
 }
@@ -299,12 +301,13 @@ fn a_step_the_ledger_holds_as_rate_limited_is_left_for_the_next_family() {
 
 #[test]
 fn a_run_that_cannot_have_three_families_is_refused_with_what_was_passed_over() {
-    let machine = Machine::new(&Setup { families: &["nvidia", "google"], ..setup() });
+    let machine = Machine::new(&Setup { families: &["deepseek", "zhipu"], public: false, ..setup() });
     let (result, value) = machine.tier_review("");
-    assert_eq!((result.exit_code, text(&value, "status")), (0, "refused"));
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "refused"), "{}", result.stdout);
     let message = text(&value, "message");
     assert!(message.starts_with("tier-review resolved 2 of 3 families that are neither anthropic nor barred; passed over: "), "{message}");
-    assert!(message.contains("free-glm-4.7-flash (family-not-allowed)") && message.contains("free-gpt-oss-120b (family-not-allowed)"), "{message}");
+    // A free step is barred because the repository is not public, and a paid one because its family is not allowed.
+    assert!(message.contains("free-glm-4.7-flash (data-scope)") && message.contains("opencode-go-tier-qwen3.8-flash (family-not-allowed)"), "{message}");
 }
 
 #[test]
@@ -316,16 +319,41 @@ fn a_tier_whose_key_is_not_ready_is_refused_before_anything_is_frozen() {
 }
 
 #[test]
-fn the_roster_is_the_tiers_to_pick_and_a_work_repository_has_its_own() {
+fn the_roster_is_the_tiers_to_pick_and_a_nedap_repository_is_refused() {
     let machine = Machine::new(&setup());
     let (result, value) = machine.tier_review(",\"roster\":\"free\"");
     assert_eq!((result.exit_code, text(&value, "code")), (1, "invalid-input"));
     let (_, value) = machine.tier_review(",\"stage\":\"tickets\"");
     assert_eq!(text(&value, "code"), "invalid-input");
+    // GitHub says it is public, and it is still refused: a nedap repository sends nothing, whatever its visibility.
     let work = Machine::new(&Setup { remote: "git@github.com:nedap/example.git", ..setup() });
     let (_, value) = work.tier_review("");
     assert_eq!(text(&value, "status"), "refused");
-    assert!(text(&value, "message").contains("a nedap repository's critics are its work roster"), "{value:?}");
+    assert_eq!(text(&value, "reason"), "nedap", "{value:?}");
+    assert!(text(&value, "message").contains("nothing is sent to any critic"), "{value:?}");
+}
+
+#[test]
+fn a_public_repository_is_reviewed_without_an_allowlist_entry() {
+    let machine = Machine::new(&setup());
+    std::fs::remove_file(machine.sandbox.path.join("home/.config/agent-kit/critique-allowlist.json")).expect("no allowlist");
+    let (result, value) = machine.tier_review("");
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
+}
+
+#[test]
+fn a_repository_whose_visibility_cannot_be_read_is_private_and_needs_its_entry() {
+    let machine = Machine::new(&setup());
+    machine.put("bin/gh", "#!/bin/sh\necho 'gh: Not Found (HTTP 404)' >&2\nexit 1\n");
+    // With its entry it is held to it like a private repository: no free step reviews it.
+    let (result, value) = machine.tier_review("");
+    assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
+    let asked: Vec<&str> = list(&value, "reviewers").iter().map(|reviewer| text(field(reviewer, "routing"), "requested_model")).collect();
+    assert!(asked.iter().all(|model| !model.starts_with("free/")), "{asked:?}");
+    // Without one it is refused.
+    std::fs::remove_file(machine.sandbox.path.join("home/.config/agent-kit/critique-allowlist.json")).expect("no allowlist");
+    let (_, value) = machine.tier_review("");
+    assert_eq!((text(&value, "status"), text(&value, "reason")), ("refused", "not-opted-in"), "{value:?}");
 }
 
 #[test]
@@ -340,21 +368,21 @@ fn a_stage_that_routes_no_critics_gives_the_reviewers_no_roles() {
 #[test]
 fn a_rate_limited_reviewer_is_retried_through_another_family_and_its_step_is_cooled_for_the_next_run() {
     let machine = Machine::new(&setup());
-    machine.put("limited", "free/gemma-4-31b\n");
+    machine.put("limited", "free/gemma-4-31b-it\n");
     let (result, value) = machine.tier_review("");
     assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
     assert_eq!(families(&value), ["nvidia", "zhipu", "openai"]);
-    let limited = list(&value, "reviewers").iter().find(|reviewer| text(reviewer, "critic_id") == "c2-free-gemma-4-31b").expect("gemma's reviewer");
+    let limited = list(&value, "reviewers").iter().find(|reviewer| text(reviewer, "critic_id") == "c2-free-gemma-4-31b-it").expect("gemma's reviewer");
     assert_eq!(text(limited, "failure"), "rate-limited");
     let line = machine.ledger().into_iter().find(|line| line.as_object().and_then(|line| line.get("reason")).and_then(Value::as_str) == Some("rate-limited")).expect("the refusal is in the ledger");
-    assert_eq!((text(&line, "client"), text(&line, "model")), ("pi-tier-review", "free/gemma-4-31b"));
+    assert_eq!((text(&line, "client"), text(&line, "model")), ("pi-tier-review", "free/gemma-4-31b-it"));
     // The next run does not ask gemma at all: its refusal stands, and the roster says so.
     let asked_before = machine.asked().len();
     let (_, again) = machine.tier_review("");
     assert_eq!(text(&again, "status"), "reviewed");
-    assert!(!machine.asked()[asked_before..].contains(&"free/gemma-4-31b".to_string()));
+    assert!(!machine.asked()[asked_before..].contains(&"free/gemma-4-31b-it".to_string()));
     let dropped: Vec<(&str, &str)> = list(&again, "dropped").iter().map(|dropped| (text(dropped, "client"), text(dropped, "reason"))).collect();
-    assert_eq!(dropped, [("free-gemma-4-31b", "unavailable"), ("vibe-tier-zai-glm-5-3-flash", "same-family")]);
+    assert_eq!(dropped, [("free-gemma-4-31b-it", "unavailable"), ("vibe-tier-zai-glm-5-3-flash", "same-family")]);
 }
 
 #[test]
@@ -378,7 +406,7 @@ fn a_reviewer_that_cannot_be_confined_is_no_review_and_its_routing_says_nothing_
     use crate::routing::{CriticClient, PiCriticClient};
     let machine = Machine::new(&setup());
     std::fs::remove_file(machine.sandbox.path.join("bin/agent-launcher")).expect("remove the launcher");
-    let config = PiCriticClient { binary: "pi".into(), provider: "litellm-tier-review".into(), model: "free/gemma-4-31b".into(), family: "google".into(), data_scope: "public".into(), free: true, tier: Some("tier-review".into()) };
+    let config = PiCriticClient { binary: "pi".into(), provider: "litellm-tier-review".into(), model: "free/gemma-4-31b-it".into(), family: "google".into(), data_scope: "public".into(), free: true, tier: Some("tier-review".into()) };
     let critic = RosterCritic { client: "c".into(), role: "spec-redteam".into(), lenses: Vec::new(), max_price_usd: 1.0, time_limit_s: 30.0, critic_id: "c1".into(), client_config: CriticClient::Pi(config), fallbacks: Vec::new() };
     machine.put("critic/prompt.md", "review");
     let root = machine.sandbox.text();
@@ -431,11 +459,11 @@ fn a_family_that_reviewed_twice_is_named_once_and_a_failed_reviewer_is_not_a_fam
 #[test]
 fn a_ledger_refusal_of_another_client_does_not_cool_a_step_for_the_tier() {
     let machine = Machine::new(&setup());
-    let other = "{\"at\":\"2026-11-03T11:00:00.000Z\",\"client\":\"pi-other\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"model\":\"free/gemma-4-31b\",\"outcome\":\"failed\",\"reason\":\"rate-limited\",\"run_id\":\"earlier\",\"workflow\":\"w\"}\n";
+    let other = "{\"at\":\"2026-11-03T11:00:00.000Z\",\"client\":\"pi-other\",\"cost_class\":\"subsidised\",\"cost_usd\":0,\"model\":\"free/gemma-4-31b-it\",\"outcome\":\"failed\",\"reason\":\"rate-limited\",\"run_id\":\"earlier\",\"workflow\":\"w\"}\n";
     machine.put("state/agent-kit/model-gateway/ledger.jsonl", other);
     let (result, value) = machine.tier_review("");
     assert_eq!((result.exit_code, text(&value, "status")), (0, "reviewed"), "{}", result.stdout);
-    assert!(machine.asked().contains(&"free/gemma-4-31b".to_string()), "gemma was asked although another client refused it");
+    assert!(machine.asked().contains(&"free/gemma-4-31b-it".to_string()), "gemma was asked although another client refused it");
 }
 
 #[test]
@@ -458,7 +486,7 @@ fn a_ledger_that_cannot_be_read_stops_the_review_before_any_run_is_frozen() {
 #[test]
 fn a_string_field_given_as_a_number_is_an_invalid_input_whichever_field_it_is() {
     let machine = Machine::new(&setup());
-    for field in ["head", "base", "decision_summary", "feature", "flow", "spec", "plan", "ticket", "workflow"] {
+    for field in ["head", "base", "decision_summary", "feature", "flow", "spec", "plan", "ticket"] {
         let (result, value) = machine.tier_review(&format!(",\"{field}\":5"));
         assert_eq!((result.exit_code, text(&value, "code")), (1, "invalid-input"), "{field}: {}", result.stdout);
     }

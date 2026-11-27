@@ -126,17 +126,15 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
-  # The free-tier key: OpenRouter's free models (`openrouter-free-public`). A free-tier provider
-  # may train on the prompts, so this key is for public, non-sensitive work only, like
-  # LITELLM_PUBLIC_KEY. It reaches nothing paid: no cap.
+  # The old OpenRouter free-tier key (`openrouter-free-public`, `opencode-go-free-public`). Every
+  # free model is reached as `free/<model>` with LITELLM_FREE_KEY now, and the proxy no longer
+  # serves those groups. Removed from the secret store.
   - env: LITELLM_OPENROUTER_KEY
-    mint: litellm
-    check: "https://litellm.jorisjonkers.dev/key/info"
-    check_method: GET
-    export: false
-  # The one key for "all free models" (access group `free`): every free model of every provider,
-  # each alone, with no paid fallback, so a request the free tier refuses fails instead of billing.
-  # Public, non-sensitive work only, like LITELLM_PUBLIC_KEY. No cap: it reaches nothing paid.
+    retired: true
+  # The one key for free models (access group `free`): the proxy's `free/<model>` groups, each
+  # every free copy of one model across the free providers, tried in turn, with no paid
+  # fallback, so a request every free copy refuses fails instead of billing. A free provider may
+  # train on the prompt: public, non-sensitive work only. No cap: it reaches nothing paid.
   - env: LITELLM_FREE_KEY
     mint: litellm
     check: "https://litellm.jorisjonkers.dev/key/info"
@@ -158,21 +156,26 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
+  # The dedicated paid key: holds the access group `paid` alone, so a caller names `paid/<model>`
+  # (one budgeted group per paid chat model, on the paid routes) and reaches nothing else. Only
+  # callers that name paid/<model> explicitly use it; no tier holds `paid` through this key.
+  - env: LITELLM_PAID_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
   - env: LITELLM_LOCAL_KEY
     mint: litellm
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
-  # The one key that reaches the free-tier Google deployments (access group
-  # `google-free-public`). Google may train on free-tier prompts, so this key is for public,
-  # non-sensitive work only: never private repositories, never employer code, never secrets.
+  # The old Google free-tier key (`google-free-public`, with paid fallbacks). The Google free tier
+  # is reached as `free/<model>` with LITELLM_FREE_KEY now, never with a paid fallback, and the
+  # proxy no longer serves that group. Removed from the secret store.
   - env: LITELLM_PUBLIC_KEY
-    mint: litellm
-    check: "https://litellm.jorisjonkers.dev/key/info"
-    check_method: GET
-    export: false
-  # A host's own OpenRouter key, once pasted here. Nothing on a workstation reads it: OpenRouter
-  # is reached through LiteLLM (the `openrouter` route), whose own credential the proxy holds.
+    retired: true
+  # A host's own OpenRouter key, once pasted here. Nothing on a workstation reads it: OpenRouter's
+  # free models are reached through LiteLLM as `free/<model>`, whose own credential the proxy holds.
   # Removed from the secret store. Cloud sessions still get one with the session (cloud-session.sh).
   - env: OPENROUTER_API_KEY
     retired: true
@@ -212,11 +215,10 @@ litellm:
   # only, that route's own `<agent>/*` wildcard), not provider wildcards: a key reaches
   # the canonical models (one name per model, routed across the provider accounts by priority,
   # litellm#20) that carry one of its groups. Every paid (and local) deployment is in
-  # `canonical`. The free-tier deployments are not: a free-tier provider may train on the
-  # prompts, so each free provider has its own public-only group (litellm#33):
-  # `google-free-public` (the Google free tier, with paid fallbacks behind it) and
-  # `openrouter-free-public` (OpenRouter's free models alone). Only a `data_scope: public` route
-  # may hold a public-only group, and a public route holds at least one. `budget_duration` is
+  # `canonical`. The free deployments are not: a free provider may train on the prompts, so
+  # they are reached only as `free/<model>` groups (litellm#106), in the public-only access
+  # group `free`, each one every free copy of one model with no paid fallback. Only a
+  # `data_scope: public` route may hold `free`, and a public route holds it. `budget_duration` is
   # `30d` on every capped route, so a cap is a monthly allowance, not a lifetime one.
   # `budget_eur: null` is no cap, for a free route.
   routes:
@@ -238,15 +240,6 @@ litellm:
       budget_duration: 30d
       data_scope: any
       models: ["canonical"]
-    # The free models only, public work only: OpenRouter's `:free` models and OpenCode Go's
-    # `-free` ids, whose providers may train on the prompt. The key holds the two free groups and
-    # not `canonical`, so it reaches nothing paid and needs no cap.
-    - agent: openrouter
-      key_env: LITELLM_OPENROUTER_KEY
-      budget_eur: null
-      budget_duration: null
-      data_scope: public
-      models: ["openrouter-free-public", "opencode-go-free-public"]
     # The OpenAI-compatible model server on the GPU workstation: free, so no cap. It also holds
     # its own wildcard, so local/<id> reaches whatever the server serves (qwen3:32b) before the
     # catalogue deploys it under its canonical name (agent-kit#569).
@@ -256,18 +249,10 @@ litellm:
       budget_duration: null
       data_scope: any
       models: ["canonical", "local/*"]
-    # Public, non-sensitive work only: the one key with the Google free-tier group. It also
-    # holds `canonical`, so a Gemini model falls over to the paid deployments when the free tier
-    # refuses; the small cap bounds that.
-    - agent: public
-      key_env: LITELLM_PUBLIC_KEY
-      budget_eur: 5
-      budget_duration: 30d
-      data_scope: public
-      models: ["google-free-public", "canonical"]
-    # Every free model of every provider (OpenRouter's `:free` models, the Google free tier, ...):
-    # the `free` access group alone, never `canonical`, so no paid deployment is reachable and a
-    # refusal stays a failure. Public work only; no cap because nothing here bills.
+    # Every free model, only as `free/<model>`: the `free` access group alone, never
+    # `canonical`, so no paid deployment is reachable and a refusal stays a failure. The proxy
+    # skips a free provider that is limited and returns it when its limit resets. Public work
+    # only; no cap because nothing here bills.
     - agent: free
       key_env: LITELLM_FREE_KEY
       budget_eur: null
@@ -286,13 +271,13 @@ litellm:
       budget_eur: null
       budget_duration: null
       data_scope: any
-      models: ["tier-vibe", "vibe-tier", "opencode-go-tier"]
+      models: ["tier-vibe", "vibe-tier", "opencode-go-tier", "paid"]
     - agent: tier-go-cheap
       key_env: LITELLM_TIER_GO_CHEAP_KEY
       budget_eur: null
       budget_duration: null
       data_scope: any
-      models: ["tier-go-cheap", "opencode-go-tier"]
+      models: ["tier-go-cheap", "opencode-go-tier", "paid"]
     # Its chain starts on free models of several labs, whose providers may train on the prompt,
     # so this key is public work only.
     - agent: tier-review
@@ -301,6 +286,14 @@ litellm:
       budget_duration: null
       data_scope: public
       models: ["free", "tier-review", "vibe-tier", "opencode-go-tier"]
+    # A dedicated key for paid/<model> only (the `paid` access group alone). A paid group is one
+    # budgeted deployment per paid route, so the key itself is not capped, as with the tier keys.
+    - agent: paid
+      key_env: LITELLM_PAID_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: any
+      models: ["paid"]
 
 # -------------------------------------------------------------------
 # The packages proxy.
@@ -331,6 +324,14 @@ package_proxy:
     go_private: "github.com/JorisJonkers-dev/*"
   vault_path: "packages-system/keys"
   vault_field: "workstation"
+  # After the vault and before the stored token file: the first kube context
+  # whose name ends in context_suffix that can read the secret's `key` data
+  # item in `namespace` supplies the key. Skipped in a run that does not
+  # prompt (--no-prompt, --check, --cloud); kubectl may ask for a password.
+  cluster_secret:
+    namespace: "packages-system"
+    key: "workstation"
+    context_suffix: "-admin"
   # Relative to XDG_CONFIG_HOME, mode 0600.
   token_file: "jorisjonkers/packages-token"
   verify_url: "https://packages.jorisjonkers.dev/npm/typescript"
@@ -1054,7 +1055,7 @@ marketplaces:
   - name: claude-plugins-official
     repo: anthropics/claude-plugins-official
     ref: main
-    commit: b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6
+    commit: 0fbfda5a91f4adc311daca25acc99132f40f0b6e
     # Claude Code reserves this name for GitHub sources, so the pinned folder is
     # declared under another name and its plugins install as <plugin>@agent-kit-official.
     declare_as: agent-kit-official
@@ -1065,7 +1066,7 @@ marketplaces:
   - name: drawio
     repo: jgraph/drawio-mcp
     ref: main
-    commit: 9bd19b362038593bc8611d426c92cd62dc222302
+    commit: b7941af5541ba45edb72d6db164302294bf6cb40
   - name: kubernetes-skill
     repo: LukasNiessen/kubernetes-skill
     ref: main
@@ -2032,22 +2033,31 @@ local_skills:
 # (read 2026-11-01). Model names live here and in the critique routing only.
 # -------------------------------------------------------------------
 vibe_critic_agents:
+  # Reviews default to Flash-class, small or free models (owner rule,
+  # 2026-11-26). critic-mistral-large and the full critic-glm are retired
+  # here so setup removes their installed files; scripts/crates/critique/src/tests/review_routes.rs
+  # fails when a review route names a model outside that class.
   - name: critic-mistral-large
     model: mistral-large-4-0
     input_price: 0.7
     output_price: 2.1
-    surfaces: [workstation]
+    surfaces: []
 
+  - name: critic-glm
+    model: zai-glm-5-3
+    input_price: 1.4
+    output_price: 4.4
+    surfaces: []
   - name: critic-mistral-small
     model: mistral-small-latest
     input_price: 0.15
     output_price: 0.6
     surfaces: [workstation]
 
-  - name: critic-glm
-    model: zai-glm-5-3
-    input_price: 1.4
-    output_price: 4.4
+  - name: critic-glm-flash
+    model: zai-glm-5-3-flash
+    input_price: 0.15
+    output_price: 0.5
     surfaces: [workstation]
 
   - name: critic-deepseek-flash
@@ -2215,7 +2225,7 @@ skill_sources:
   - name: drawio
     repo: https://github.com/jgraph/drawio-mcp
     ref: main
-    commit: 9bd19b362038593bc8611d426c92cd62dc222302
+    commit: b7941af5541ba45edb72d6db164302294bf6cb40
     license: Apache-2.0
     # Published three times, once per host CLI. The explicit path is what
     # keeps the duplicate-name refusal from rejecting two of them.

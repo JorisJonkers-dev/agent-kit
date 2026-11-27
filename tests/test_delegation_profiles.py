@@ -112,7 +112,7 @@ def test_a_registry_that_is_not_a_mapping_is_refused(tmp_path):
         (lambda p: p["cheap-research"].update(distinct_families=9), "more than the families"),
         (
             lambda p: p["public-gemini"].update(
-                exclude_writer_family=True, models=["pi-public:public/gemini-3.6-flash"]
+                exclude_writer_family=True, models=["pi-free:free/gemini-3.6-flash"]
             ),
             "only one",
         ),
@@ -224,8 +224,9 @@ def test_the_pi_providers_hold_each_tier_as_a_model_and_a_free_tier_costs_nothin
         p["name"]: p
         for p in json.loads(render_registry.render_pi_providers(render_registry.load_registry()))["providers"]
     }
-    free = providers["litellm-free"]["models"]
-    assert [m["id"] for m in free] == ["tier-free"] and free[0]["cost"] == {
+    # The free key also reaches every free group the catalogue deploys; the tier is one model among them.
+    free = {m["id"]: m for m in providers["litellm-free"]["models"]}
+    assert free["tier-free"]["cost"] == {
         "input": 0,
         "output": 0,
         "cacheRead": 0,

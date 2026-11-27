@@ -63,6 +63,12 @@
       ],
       "roots": [
         "repos/w1/.git/critique"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\necho public\n"
+      },
+      "exec": [
+        "bin/gh"
       ]
     },
     {

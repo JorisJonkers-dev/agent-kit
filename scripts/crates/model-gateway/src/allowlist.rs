@@ -1,6 +1,7 @@
 //! The family allowlist critique writes and the gateway reads: per repository,
-//! the model families its content may go to, whether that content may be code
-//! and its history, and whether the repository is public.
+//! the model families its content may go to, and whether that content may be
+//! code and its history. A public repository is not held to it, and that is
+//! read from GitHub, never from the file.
 
 use crate::error::GatewayError;
 use crate::json::{self, Object, Value};
@@ -14,9 +15,6 @@ pub struct AllowlistEntry {
     pub families: Vec<String>,
     pub code: bool,
     pub history: bool,
-    /// Whether the repository is public, so that a client on a public-only route may reach it. An entry recorded
-    /// before the flag existed reads as private.
-    pub public: bool,
 }
 
 /// The family allowlist, keyed by `<host>/<owner>/<repo>`.
@@ -64,11 +62,8 @@ fn parse_entry(key: &str, raw: &Object) -> Result<AllowlistEntry, GatewayError> 
         None => false,
         Some(value) => require_boolean(value, &format!("{where_}.history"))?,
     };
-    let public = match raw.get("public") {
-        None => false,
-        Some(value) => require_boolean(value, &format!("{where_}.public"))?,
-    };
-    Ok(AllowlistEntry { families, code, history, public })
+    // A `public` flag an older `allow` recorded is ignored: whether a repository is public is GitHub's to say.
+    Ok(AllowlistEntry { families, code, history })
 }
 
 fn require_strings(value: Option<&Value>, where_: &str) -> Result<Vec<String>, GatewayError> {

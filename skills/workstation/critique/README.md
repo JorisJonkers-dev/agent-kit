@@ -11,32 +11,48 @@ finding's evidence and rules on it. Bold words are defined in
 critique stage when you say yes, and names the Pocock command when only you
 can type it.
 
-Nothing is sent until the repository has a **family allowlist** entry
-(per machine, `~/.config/agent-kit/critique-allowlist.json`, keyed by the
-remote). A repository with no remote never sends. A `nedap` remote needs no entry and
-has a work-only roster instead: Codex on the nedap account, only under a live
-model-gateway grant for the `workflow` the call names, and the work Claude
-agent, each never in the orchestrator's own family, and no other family. An
-entry covers documents only until its code permission is on, which the code
-stages need, and leaves out commit messages and issue text until its history
-permission is on. Both are off by default. The first stage that needs one
-offers it. A third flag, `public`, is off too and is only ever set by `allow`:
-a repository is private until the owner says it is public, and a client on a
-public-only LiteLLM route (below) is never routed to a private repository.
+Which critics a repository may send to depends first on where it lives. A
+repository with a `nedap` remote sends nothing to any critic, whatever its
+visibility. A repository GitHub says is public (`gh api repos/<owner>/<repo>
+--jq .visibility`, cached for fifteen minutes) is not held to the allowlist:
+every family, the public-only LiteLLM routes among them, may critique its
+documents, code and history. Every other repository, including one whose
+visibility cannot be read (no gh, offline, not on github.com), sends nothing
+until it has a **family allowlist** entry (per machine,
+`~/.config/agent-kit/critique-allowlist.json`, keyed by the remote), and a
+repository with no remote never sends. An entry covers documents only until
+its code permission is on, which the code stages need, and leaves out commit
+messages and issue text until its history permission is on. Both are off by
+default. The first stage that needs one offers it. An entry has no `public`
+flag: `allow` refuses one, and one an older `allow` recorded is ignored, so a
+client on a public-only route (below) is never routed to a repository GitHub
+does not say is public.
+
+## Reviewers are Flash-class or free
+
+Every review and critic slot names a Flash-class, small or free model (owner rule,
+2026-11-26): `deepseek-v4-1-flash-1017`, `zai-glm-5-3-flash`, `mistral-small-latest`,
+`gemini-3.8-flash-*`, and the `free` clients on public repositories. Full GLM 5.3,
+Mistral Large and Kimi are never picked for a review automatically. The paid
+frontier clients (`codex-work`, `claude-work`) stay only as the `work` pool, the
+orchestrator and deep tier, never a cheap review slot.
+`scripts/crates/critique/src/tests/review_routes.rs` fails on a review route, a Vibe critic
+agent, a review profile of the gateway or a `tier-review` step outside that class,
+unless the test lists the exception with its reason. `pi-vibe-mistral-large` and `pi-vibe-glm` stay in `routing.json` only so the Gold Band lint can read the family of a template binding such as `mistral-large-4-0`; no slot names them.
 
 ## Stages
 
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
-| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`); with a decision record among the decisions, DeepSeek Flash (`adr-reviewer`, `adr-record`) too | GLM | Up to seven questions about decision branches nobody opened |
-| `plan` | `/critique-plan` | `/improve-codebase-architecture` (a refactor) / `/to-spec`; takes the decisions stage's place | DeepSeek Flash (`plan-critic`, `incremental-safety`), Mistral Large (`plan-critic`, `evidence-anchoring`) | GLM (`plan-critic`, `coupling` and `test-seams`) | Plan fixes that change only how, or in what order, the plan reaches its target; a question for any fix that changes the target, an ADR's standing or accepts an irreversible step; a second round after more than three accepted critical findings |
-| `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
-| `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
-| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`, Spec axis) and GLM (Standards axis) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
-| `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
-| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
-| `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Large (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
-| `architecture-review` | `/review-architecture` | on demand, outside any feature | Gemini Flash (`architecture-critic`, `dependency-direction` and `coupling`), Mistral Large (`architecture-critic`, `domain-language` and `aggregates`) | GLM (`architecture-critic`, `test-seams` and `quality-scenarios`), DeepSeek Flash (`decision-recoverer`) | Cited candidates for `/improve-codebase-architecture`, each with its lines, its facts and the observable that would show a fix worked; a question for any fix that would change a rule, ten at most across both kinds; no issue is filed |
+| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Small, Gemini Flash (`gap-critic`); with a decision record among the decisions, DeepSeek Flash (`adr-reviewer`, `adr-record`) too | GLM Flash | Up to seven questions about decision branches nobody opened |
+| `plan` | `/critique-plan` | `/improve-codebase-architecture` (a refactor) / `/to-spec`; takes the decisions stage's place | DeepSeek Flash (`plan-critic`, `incremental-safety`), Mistral Small (`plan-critic`, `evidence-anchoring`) | GLM Flash (`plan-critic`, `coupling` and `test-seams`) | Plan fixes that change only how, or in what order, the plan reaches its target; a question for any fix that changes the target, an ADR's standing or accepts an irreversible step; a second round after more than three accepted critical findings |
+| `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Small, Gemini Flash (`spec-redteam`) | GLM Flash, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
+| `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Small | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
+| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`, Spec axis) and GLM Flash (Standards axis) | Mistral Small | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
+| `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Small, Gemini Flash (`feature-reviewer`) | GLM Flash, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
+| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Small with `adr-reviewer` and `adr-record`, Gemini Flash with `adr-reviewer` and `decision-log` | GLM Flash with `adr-reviewer`, both lenses | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
+| `decision-recovery` | `/recover-decisions` | on demand, outside any feature | DeepSeek Flash, Mistral Small (`decision-recoverer`) | none | Recovered decisions the code embodies and no record states, each traced to two sites of the code; a question for any that is significant and new, ten at most, and an ADR written from your answer |
+| `architecture-review` | `/review-architecture` | on demand, outside any feature | Gemini Flash (`architecture-critic`, `dependency-direction` and `coupling`), Mistral Small (`architecture-critic`, `domain-language` and `aggregates`) | GLM Flash (`architecture-critic`, `test-seams` and `quality-scenarios`), DeepSeek Flash (`decision-recoverer`) | Cited candidates for `/improve-codebase-architecture`, each with its lines, its facts and the observable that would show a fix worked; a question for any fix that would change a rule, ten at most across both kinds; no issue is filed |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -482,8 +498,8 @@ generated too). Model names live only there and in the
 
 No critic shares the orchestrator's family, and a stage runs one critic per
 family. A critic that can't run (family not allowed, CLI missing or signed
-out, quota) gives its slot to the first fallback that can: Mistral Large
-falls back to GLM, then Gemini Flash; Gemini Flash to GLM. With none left the
+out, quota) gives its slot to the first fallback that can: Mistral Small
+falls back to GLM Flash, then Gemini Flash; Gemini Flash to GLM Flash. With none left the
 stage runs with fewer critics, and with no critics at all it is reported
 degraded and the flow goes on.
 
@@ -585,30 +601,29 @@ item that is not available, since no read-only proof is wired for Pi yet.
 
 **Pi is the default critic.** In the shipped `routing.json` every stage's
 base and deep slot is a Pi client over the LiteLLM `vibe` route, or `agy`:
-`pi-vibe-mistral-large` (mistral), `pi-vibe-glm` (zhipu),
+`pi-vibe-mistral-small` (mistral), `pi-vibe-glm-flash` (zhipu),
 `pi-vibe-deepseek-flash` (deepseek) and `agy-gemini-flash-high` (google), so
 each stage still has one critic per family and `distinct_families` holds. Each
 Pi client falls back to a Pi client on the `opencode-go` route (`pi-opencode-go-*`,
 the same models on another route and budget), and nothing further: the
-Vibe-login clients (`vibe-mistral-large`, `vibe-glm`, `vibe-deepseek-flash`)
+Vibe-login clients (`vibe-mistral-small`, `vibe-glm-flash`, `vibe-deepseek-flash`)
 spend the owner's Mistral account and run only when an owner's routing override
 names them, so a slot whose Pi clients cannot run stays empty.
-`agy-gemini-flash-high` falls back to `pi-vibe-glm` and, last,
-`pi-public-gemini-flash`. The work roster, the triage model and the cold
+`agy-gemini-flash-high` falls back to `pi-vibe-glm-flash` and, last,
+`pi-free-gemini-flash` (the Gemini free tier as `free/gemini-3.6-flash`). The work roster, the triage model and the cold
 read are unchanged.
 
 **Data scope.** A Pi client names the data scope of its route, as
 `registry/generated/litellm/routes.json` has it: `any`, or `public` for a
-route whose key is for public work only (`public`, `openrouter`). The field
+route whose key is for public work only (`free`, `tier-review`). The field
 is required, and a test checks it against `routes.json`. A client with
-`data_scope: public` is routed only to a repository whose allowlist entry has
-`"public": true` (`critique allow --json '{"repo": ..., "families": [...],
-"public": true}'`); for any other repository it is dropped from the roster
-with the reason `data-scope` (its slot goes to the next fallback), it is not
-kept as a fallback, and a refute round passes it over. The run's manifest
-carries `public_repository: true` only when the entry did, so a refute round
-applies the same bar as the run it follows. No public-scope client leads a
-slot in the shipped routing: `pi-public-gemini-flash` is only a last fallback,
+`data_scope: public` is routed only to a repository GitHub says is public; for
+any other repository it is dropped from the roster with the reason `data-scope`
+(its slot goes to the next fallback), it is not kept as a fallback, and a refute
+round passes it over. The run's manifest carries `public_repository: true` only
+when GitHub said so at prepare, so a refute round applies the same bar as the run
+it follows. No public-scope client leads a
+slot in the shipped routing: `pi-free-gemini-flash` is only a last fallback,
 so it runs for a public repository when everything before it could not.
 
 **Tier review (#908).** `critique tier-review` runs the spec critique on the
@@ -619,7 +634,7 @@ available and all three could land on one family. `tier_review.rs` reads the cha
 (a compiled-in copy of `registry/litellm-tiers.json`, so it cannot drift from the
 snapshot) and takes the first step of each of three families in ladder order, free,
 then Vibe Flash, then Go Flash, skipping a step whose data scope bars it (a free step
-for a repository not recorded as public), whose family the allowlist does not name,
+for a repository GitHub does not say is public), whose family the allowlist does not name,
 is the writer's or is already taken, or whose last answer through the tier's key the
 gateway ledger holds as a refusal that still stands. Each reviewer then calls its own
 step model through the tier's key (`litellm-tier-review`, which holds the steps' access
@@ -638,20 +653,22 @@ and exits 3; fewer than three resolvable families is the refusal `too-few-famili
 families `openai`, `alibaba`, `minimax` and `xiaomi` join the ones a critic and an
 allowlist entry may name (the allowlist takes the last three).
 
-**Free-only roster.** A run costs nothing when its critics are free Pi models on
-a public-only LiteLLM route. Such a client carries `"free": true` (allowed only
-with `"data_scope": "public"`), and a stage's `free` slots, parallel to `work`,
-name only free clients; a free client's fallbacks are free clients too. The
-shipped routing has four, all on `litellm-openrouter` (the route behind `pi-openrouter`
-and `pi-free`'s catalogue): `pi-free-nemotron-ultra` (nvidia), `pi-free-gemma`
-(google), `pi-free-north-mini-code` (cohere) and `pi-free-opencode-go-beam`
-(reflection, OpenCode Go's free model), each stage's `free` roster mirrors its base
-roster's roles and lenses, and `pi-free-north-mini-code` and `pi-free-opencode-go-beam`
-are the fallbacks of the first two. A run asks for it with `"roster": "free"` in
+**Free-only roster.** A run costs nothing when its critics are free Pi models.
+A free model is reached only as `free/<model>` on the `litellm-free` provider
+(the `free` route's key, which holds the access group `free` alone), where the
+proxy tries every free copy of the model and never a paid one. Such a client
+carries `"free": true` (allowed only with `"data_scope": "public"`), and a
+stage's `free` slots, parallel to `work`, name only free clients; a free client's
+fallbacks are free clients too. The shipped routing has five free clients, all on
+`litellm-free`: `pi-free-nemotron-ultra` (nvidia, `free/nemotron-3-ultra-550b-a55b`),
+`pi-free-gemma` (google, `free/gemma-4-31b-it`), `pi-free-north-mini-code` (cohere,
+`free/north-mini-code`), `pi-free-beam` (reflection, `free/beam-1.0-501b-a23b`) and
+`pi-free-gemini-flash` (google, `free/gemini-3.6-flash`, the last fallback of
+`agy-gemini-flash-high`). Each stage's `free` roster mirrors its base roster's roles
+and lenses, and `pi-free-north-mini-code` and `pi-free-beam` are the fallbacks of
+the first two. A run asks for it with `"roster": "free"` in
 the prepare input. Free models are for public material only, so prepare refuses
-(`not-public`) unless the repository's allowlist entry has `"public": true`,
-the owner's own mark (`critique allow --json '{"repo": ..., "families": ["nvidia",
-"google", "cohere", "reflection"], "public": true}'`), and refuses
+(`not-public`) unless GitHub says the repository is public, and refuses
 `no-free-roster` for a stage routing gives no free slots. Nothing else changes: the same
 read-only tripwire, quote check, writer-family exclusion (the orchestrator's family
 never critiques) and refute round, except that the round draws only on the stage's free

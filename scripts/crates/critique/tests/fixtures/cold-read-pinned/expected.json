@@ -8,20 +8,19 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"charged_usd\":0.002748,\"client\":\"vibe\",\"cost_usd\":0.002748,\"critic_client\":\"vibe-glm\",\"critic_cost_usd\":0.002748,\"critic_id\":\"cold-read-1\",\"critic_model\":\"zai-glm-5-3\",\"duration_s\":0,\"exit_code\":0,\"family\":\"zhipu\",\"kind\":\"vibe\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"role\":\"cold-reader\",\"round\":1,\"run_id\":\"g-1\",\"spec\":\"o/r#1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002,\"workflow\":\"flow-1\"}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"charged_usd\":0.000303,\"client\":\"vibe\",\"cost_usd\":0.000303,\"critic_client\":\"vibe-glm-flash\",\"critic_cost_usd\":0.000303,\"critic_id\":\"cold-read-1\",\"critic_model\":\"zai-glm-5-3-flash\",\"duration_s\":0,\"exit_code\":0,\"family\":\"zhipu\",\"kind\":\"vibe\",\"mode\":\"read-only\",\"model\":\"zai-glm-5-3-flash\",\"outcome\":\"ok\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"role\":\"cold-reader\",\"round\":1,\"run_id\":\"g-1\",\"spec\":\"o/r#1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002,\"workflow\":\"flow-1\"}\n",
         "home/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
-        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"vibe-glm\",\"max_price_usd\":0.5,\"time_limit_s\":30}}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"vibe-glm-flash\",\"max_price_usd\":0.5,\"time_limit_s\":30}}\n",
         "home/.local/": null,
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"charged_usd\":0.002748,\"client\":\"vibe-glm\",\"critic_id\":\"cold-read-1\",\"family\":\"zhipu\",\"flow\":\"flow-1\",\"kind\":\"vibe\",\"model\":\"zai-glm-5-3\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"g-1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002}\n",
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"charged_usd\":0.000303,\"client\":\"vibe-glm-flash\",\"critic_id\":\"cold-read-1\",\"family\":\"zhipu\",\"flow\":\"flow-1\",\"kind\":\"vibe\",\"model\":\"zai-glm-5-3-flash\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"g-1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002}\n",
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
-        "home/.vibe/agents/critic-glm.toml": "# agent\n",
         "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
         "work/": null,
         "runs/": null,
@@ -39,7 +38,8 @@
         "runs/g-1/cold-read.json": "{\n  \"files\": [\n    {\n      \"answers\": {\n        \"decided\": \"glm\",\n        \"rejected\": \"\",\n        \"revisit\": \"\"\n      },\n      \"missing\": [\n        \"rejected\",\n        \"revisit\"\n      ],\n      \"path\": \"docs/adr/0001-db.md\",\n      \"status\": \"answered\"\n    }\n  ],\n  \"run_id\": \"g-1\",\n  \"status\": \"checked\"\n}\n",
         "runs/g-1/manifest.json": "{\"allowed_families\":[\"zhipu\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g-1/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/g-1\",\"run_id\":\"g-1\",\"stage\":\"spec\",\"version\":1}\n",
         "runs/g-2/": null,
-        "runs/g-2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g-2/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/g-2\",\"run_id\":\"g-2\",\"stage\":\"spec\",\"version\":1}\n"
+        "runs/g-2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g-2/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/g-2\",\"run_id\":\"g-2\",\"stage\":\"spec\",\"version\":1}\n",
+        "home/.vibe/agents/critic-glm-flash.toml": "# agent\n"
       }
     },
     {
@@ -50,20 +50,19 @@
         "state/": null,
         "state/agent-kit/": null,
         "state/agent-kit/model-gateway/": null,
-        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"charged_usd\":0.002748,\"client\":\"vibe\",\"cost_usd\":0.002748,\"critic_client\":\"vibe-glm\",\"critic_cost_usd\":0.002748,\"critic_id\":\"cold-read-1\",\"critic_model\":\"zai-glm-5-3\",\"duration_s\":0,\"exit_code\":0,\"family\":\"zhipu\",\"kind\":\"vibe\",\"mode\":\"read-only\",\"model\":\"glm-5-3\",\"outcome\":\"ok\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"role\":\"cold-reader\",\"round\":1,\"run_id\":\"g-1\",\"spec\":\"o/r#1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002,\"workflow\":\"flow-1\"}\n",
+        "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T12:00:00.000Z\",\"charged_usd\":0.000303,\"client\":\"vibe\",\"cost_usd\":0.000303,\"critic_client\":\"vibe-glm-flash\",\"critic_cost_usd\":0.000303,\"critic_id\":\"cold-read-1\",\"critic_model\":\"zai-glm-5-3-flash\",\"duration_s\":0,\"exit_code\":0,\"family\":\"zhipu\",\"kind\":\"vibe\",\"mode\":\"read-only\",\"model\":\"zai-glm-5-3-flash\",\"outcome\":\"ok\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"role\":\"cold-reader\",\"round\":1,\"run_id\":\"g-1\",\"spec\":\"o/r#1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002,\"workflow\":\"flow-1\"}\n",
         "home/": null,
         "home/.config/": null,
         "home/.config/agent-kit/": null,
-        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"vibe-glm\",\"max_price_usd\":0.5,\"time_limit_s\":30}}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"cold_read\":{\"client\":\"vibe-glm-flash\",\"max_price_usd\":0.5,\"time_limit_s\":30}}\n",
         "home/.local/": null,
         "home/.local/share/": null,
         "home/.local/share/agent-kit/": null,
         "home/.local/share/agent-kit/critique/": null,
-        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"charged_usd\":0.002748,\"client\":\"vibe-glm\",\"critic_id\":\"cold-read-1\",\"family\":\"zhipu\",\"flow\":\"flow-1\",\"kind\":\"vibe\",\"model\":\"zai-glm-5-3\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"g-1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002}\n",
+        "home/.local/share/agent-kit/critique/ledger.jsonl": "{\"charged_usd\":0.000303,\"client\":\"vibe-glm-flash\",\"critic_id\":\"cold-read-1\",\"family\":\"zhipu\",\"flow\":\"flow-1\",\"kind\":\"vibe\",\"model\":\"zai-glm-5-3-flash\",\"recorded_at\":\"2026-11-03T12:00:00.000Z\",\"repository\":\"o/r\",\"round\":1,\"run_id\":\"g-1\",\"stage\":\"spec\",\"status\":\"ok\",\"type\":\"invocation\",\"vibe_cost_usd\":0.002}\n",
         "home/.vibe/": null,
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\n",
         "home/.vibe/agents/": null,
-        "home/.vibe/agents/critic-glm.toml": "# agent\n",
         "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
         "work/": null,
         "runs/": null,
@@ -82,7 +81,8 @@
         "runs/g-1/manifest.json": "{\"allowed_families\":[\"zhipu\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g-1/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/g-1\",\"run_id\":\"g-1\",\"stage\":\"spec\",\"version\":1}\n",
         "runs/g-2/": null,
         "runs/g-2/cold-read.json": "{\n  \"files\": [\n    {\n      \"missing\": [\n        \"decided\",\n        \"rejected\",\n        \"revisit\"\n      ],\n      \"path\": \"docs/adr/0001-db.md\",\n      \"reason\": \"the allowlist does not permit the zhipu family\",\n      \"status\": \"unavailable\"\n    }\n  ],\n  \"run_id\": \"g-2\",\n  \"status\": \"checked\"\n}\n",
-        "runs/g-2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g-2/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/g-2\",\"run_id\":\"g-2\",\"stage\":\"spec\",\"version\":1}\n"
+        "runs/g-2/manifest.json": "{\"allowed_families\":[\"mistral\"],\"artifact\":{\"labels\":[],\"reference\":\"o/r#1\",\"tracker\":\"github\"},\"created_at\":\"2026-10-30T12:00:00.000Z\",\"critics\":[],\"depth\":\"base\",\"depth_choice\":{\"chosen_by\":\"argument\",\"measures\":{},\"signals\":[]},\"distinct_families\":true,\"dropped\":[],\"flow\":\"flow-1\",\"limits\":{\"antigravity_quota\":{\"daily_cap\":20,\"reserve_threshold\":10,\"reserved_stages\":[\"spec\"]},\"search\":{\"max_bytes\":8192,\"max_matches\":50}},\"orchestrator_family\":\"anthropic\",\"packet_dir\":\"@SANDBOX@/runs/g-2/packet\",\"packet_files\":[],\"repo_root\":\"@SANDBOX@/repos/cr\",\"repository\":\"o/r\",\"run_dir\":\"@SANDBOX@/runs/g-2\",\"run_id\":\"g-2\",\"stage\":\"spec\",\"version\":1}\n",
+        "home/.vibe/agents/critic-glm-flash.toml": "# agent\n"
       }
     }
   ]

@@ -15,7 +15,8 @@ use crate::run::{RunMode, RunTokens};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-/// A git whose answers the test chooses; the repository it finds belongs to nedap, which permits Claude Code.
+/// A git whose answers the test chooses; the repository it finds is a private one whose allowlist entry permits
+/// every family.
 struct FakeGit {
     common: Result<String, String>,
     add: Result<(), String>,
@@ -27,7 +28,7 @@ impl Git for FakeGit {
         Ok(Some(path.to_string()))
     }
     fn remotes(&self, _path: &str) -> Result<Vec<GitRemote>, String> {
-        Ok(vec![GitRemote { name: "origin".into(), url: "git@github.com:nedap/x.git".into() }])
+        Ok(vec![GitRemote { name: "origin".into(), url: "git@github.com:acme/x.git".into() }])
     }
     fn remove_worktree(&self, _repo: &str, _path: &str) -> Result<(), String> {
         self.remove.clone()
@@ -84,6 +85,7 @@ fn machine() -> Machine {
     machine.process.install("vibe");
     machine.process.answer("claude", answer(CLAUDE_ANSWER));
     std::fs::create_dir_all(format!("{}/tmp", machine.sandbox.text())).expect("tmp");
+    machine.allow_everything("github.com/acme/x");
     machine
 }
 
@@ -268,6 +270,10 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
         write: None,
         attempt: Some(2),
         attempt_of: Some("r0".into()),
+        exit_code: None,
+        signal: Some(9),
+        stderr_tail: Some("killed".into()),
+        failure: Some(crate::run_failure::Failure { kind: crate::run_failure::FailureKind::Signalled, reason: "the client was ended by SIGKILL".into(), output_tail: None }),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
         routing: crate::routing::Routing::unseen("claude"),
@@ -281,7 +287,7 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
     };
     assert_eq!(
         keys.join(","),
-        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,attempt,attempt_of,cleanup_warning,warnings"
+        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,exit_code,signal,stderr_tail,failure,attempt,attempt_of,cleanup_warning,warnings"
     );
 }
 
@@ -384,7 +390,8 @@ fn a_client_a_run_cannot_launch_is_a_launch_failure() {
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"m","prompt":"p"}"#).expect("JSON")).expect("input");
     let input = crate::run::RunInput { client: "foo".into(), ..input };
     let paths = crate::launchers::LaunchPaths::default();
-    let (result, _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", None, false);
+    let ((result, ending), _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", (None, false, Default::default()), &crate::ports::Unwatched);
+    assert_eq!(ending, crate::ports::Ending::default());
     assert_eq!((failure.as_deref(), result.exit_code), (Some("launch-failed"), 1));
     assert_eq!(result.stderr, "foo is not a client a run can launch");
     assert_eq!(routing.capture, crate::routing::Capture::Hidden);
@@ -455,6 +462,7 @@ fn pi_machine() -> Machine {
     )
     .expect("models");
     machine.runtime.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), "agent-launcher".to_string());
+    machine.allow_everything("github.com/acme/x");
     machine
 }
 
@@ -548,41 +556,17 @@ fn a_free_only_run_follows_the_catalogues_free_flag_not_the_price_in_the_pi_file
     assert_eq!(error.code, "free-only-refused");
 }
 
-fn openrouter_machine(models: &str) -> Machine {
-    let machine = pi_machine();
-    std::fs::write(
-        format!("{}/home/.pi/agent/models.json", machine.sandbox.text()),
-        format!(r#"{{"providers":{{"litellm-openrouter":{{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{models}]}}}}}}"#),
-    )
-    .expect("models");
-    machine
-}
-
-fn openrouter_run(model: &str, extra: &str) -> String {
-    format!(r#"{{"workflow":"w","client":"pi-openrouter","mode":"read-only","model":"{model}","prompt":"p","escalate":false{extra}}}"#)
-}
-
 const ZERO: &str = r#","cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}"#;
 
 #[test]
-fn a_free_openrouter_model_runs_on_pi_a_billed_one_is_refused() {
-    let machine = openrouter_machine(&format!(r#"{{"id":"openrouter/gemma-4-31b-it"{ZERO}}},{{"id":"openrouter/pricey","cost":{{"input":1,"output":2}}}},{{"id":"openrouter/unpriced"}}"#));
-    assert_eq!(text(&run(&machine, &openrouter_run("openrouter/gemma-4-31b-it", "")).expect("the free run"), "status"), "ok");
-    for billed in ["openrouter/pricey", "openrouter/unpriced"] {
-        let error = run(&machine, &openrouter_run(billed, "")).expect_err("a billed model");
-        assert_eq!(error.code, "openrouter-billed", "{billed}");
-    }
-}
-
-#[test]
-fn openrouter_stays_refused_on_every_client_but_pi_openrouter() {
+fn openrouter_stays_refused_on_every_client() {
     let machine = machine();
     let other = |client: &str, model: &str, extra: &str| {
         format!(r#"{{"workflow":"w","client":"{client}","mode":"read-only","model":"{model}","prompt":"p","escalate":false{extra}}}"#)
     };
     let hermes = run(&machine, &other("hermes", "m", r#","provider":"openrouter""#)).expect_err("hermes on openrouter");
     assert_eq!(hermes.code, "provider-not-allowed");
-    assert!(hermes.message.starts_with("openrouter is not allowed on hermes: OpenRouter runs only through pi-openrouter"), "{}", hermes.message);
+    assert!(hermes.message.starts_with("openrouter is not allowed on hermes: a free model runs only as free/<model> on pi-free"), "{}", hermes.message);
     let named = run(&machine, &other("claude", "openrouter/free", "")).expect_err("a model named openrouter/");
     assert_eq!(named.code, "provider-not-allowed");
 }

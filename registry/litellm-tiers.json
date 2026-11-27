@@ -4,7 +4,7 @@
     "path": "catalog/routing.json",
     "key": "tier_groups",
     "ref": "main",
-    "blob": "2de59bc34187d0d385235b0c4f5c3a59b62d9a17"
+    "blob": "fd3cae2278c94c9c59bd55e7b17d65db8621f6ae"
   },
   "tier_groups": {
     "tier-free": {
@@ -15,15 +15,15 @@
       ],
       "steps": [
         {
-          "model": "free/hy4-flash-free",
+          "model": "free/hy4-flash",
           "cost": "free"
         },
         {
-          "model": "free/longcat-2.5-free",
+          "model": "free/longcat-2.5",
           "cost": "free"
         },
         {
-          "model": "free/beam-free",
+          "model": "free/beam-1.0-501b-a23b",
           "cost": "free"
         },
         {
@@ -41,7 +41,8 @@
       "key_models": [
         "tier-vibe",
         "vibe-tier",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ],
       "steps": [
         {
@@ -65,7 +66,8 @@
       "ceiling": "go",
       "key_models": [
         "tier-go-cheap",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ],
       "steps": [
         {
@@ -126,7 +128,7 @@
           "cost": "free"
         },
         {
-          "model": "free/gemma-4-31b",
+          "model": "free/gemma-4-31b-it",
           "cost": "free"
         },
         {

@@ -35,6 +35,8 @@ pub enum Command {
     Matrix,
     Models,
     Run,
+    SandboxRefresh,
+    SandboxStatus,
     Usage,
     WorkflowEnd,
     WorkflowList,
@@ -48,6 +50,8 @@ pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> 
         Command::Models => models_command(input, runtime),
         Command::Matrix => crate::matrix::run(input, runtime),
         Command::Catalog => crate::catalog::run(input, runtime),
+        Command::SandboxRefresh => crate::sbx_images::refresh_command(runtime),
+        Command::SandboxStatus => crate::sbx_images::status_command(runtime),
         Command::Usage => usage_command(input, runtime),
         Command::GrantWrite => grant_write(input, runtime),
         Command::GrantList => grant_list(input, runtime),
@@ -147,7 +151,7 @@ pub fn gather(input: &Object, runtime: &Runtime, free_only: bool, read_catalogue
     let judges = config.clients.iter().any(|(id, client)| installed.contains(id) && (client.litellm_route.is_some() || crate::run::is_pi_client(id)));
     let reading = if judges || read_catalogue { crate::litellm_catalogue::read_catalogue(runtime) } else { Default::default() };
     let judged = crate::litellm_catalogue::judge_listing(&config, models::list_models(&config, &installed, &listings, &unavailable), reading.catalogue.as_ref());
-    let mut listing = sources::hold_openrouter_to_free(sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged));
+    let mut listing = sources::hold_to_free(sources::mark_free(runtime, &config, reading.catalogue.as_ref(), judged));
     if free_only {
         listing.models.retain(|model| model.free);
     }

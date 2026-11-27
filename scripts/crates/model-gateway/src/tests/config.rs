@@ -436,23 +436,23 @@ fn the_allowlist_reads_an_entry_families_code_and_history() {
     .expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/widgets"),
-        Some(&AllowlistEntry { families: vec!["anthropic".to_string(), "openai".to_string()], code: true, history: false, public: false })
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string(), "openai".to_string()], code: true, history: false })
     );
 }
 
 #[test]
-fn the_allowlist_reads_an_entry_public_flag_and_reads_a_missing_one_as_private() {
+fn the_allowlist_ignores_the_public_flag_an_older_allow_recorded() {
     let allowlist = parse_allowlist(&json(
-        r#"{"repositories": {"github.com/acme/open": {"families": ["anthropic"], "public": true}, "github.com/acme/closed": {"families": ["anthropic"], "public": false}}, "version": 1}"#,
+        r#"{"repositories": {"github.com/acme/open": {"families": ["anthropic"], "public": true}, "github.com/acme/closed": {"families": ["anthropic"], "public": "no"}}, "version": 1}"#,
     ))
     .expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/open"),
-        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false, public: true })
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false })
     );
     assert_eq!(
         allowlist.repositories.get("github.com/acme/closed"),
-        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false, public: false })
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false })
     );
 }
 
@@ -464,7 +464,7 @@ fn an_entry_recorded_before_a_permission_existed_allows_neither() {
     .expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/widgets"),
-        Some(&AllowlistEntry { families: vec!["mistral".to_string()], code: false, history: false, public: false })
+        Some(&AllowlistEntry { families: vec!["mistral".to_string()], code: false, history: false })
     );
 }
 
@@ -475,7 +475,7 @@ fn a_file_with_no_repositories_is_an_empty_allowlist() {
 
 #[test]
 fn the_allowlist_refuses_what_it_cannot_read() {
-    let cases: [(&str, &str); 9] = [
+    let cases: [(&str, &str); 8] = [
         ("[]", "the allowlist must be a JSON object"),
         (r#"{"repositories": {}, "version": 2}"#, "version must be 1"),
         (r#"{"repositories": [], "version": 1}"#, "repositories must be an object keyed by repository"),
@@ -495,10 +495,6 @@ fn the_allowlist_refuses_what_it_cannot_read() {
         (
             r#"{"repositories": {"github.com/acme/widgets": {"families": [], "history": 1}}, "version": 1}"#,
             "repositories.github.com/acme/widgets.history must be true or false",
-        ),
-        (
-            r#"{"repositories": {"github.com/acme/widgets": {"families": [], "public": "yes"}}, "version": 1}"#,
-            "repositories.github.com/acme/widgets.public must be true or false",
         ),
     ];
     for (raw, message) in cases {
@@ -524,7 +520,7 @@ fn the_allowlist_file_is_read_from_the_machine_configuration() {
     let allowlist = load_allowlist(&runtime).expect("the allowlist");
     assert_eq!(
         allowlist.repositories.get("github.com/acme/widgets"),
-        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false, public: false })
+        Some(&AllowlistEntry { families: vec!["anthropic".to_string()], code: false, history: false })
     );
 }
 
@@ -561,7 +557,7 @@ fn the_shipped_defaults_parse() {
     let config = parse_defaults(&json(crate::SHIPPED_DEFAULTS)).expect("the shipped defaults");
     assert_eq!(config.version, 1.0);
     assert_eq!(config.disabled, Vec::<String>::new());
-    assert_eq!(config.clients.len(), 18);
+    assert_eq!(config.clients.len(), 15);
     assert_eq!(config.clients.get("codex").map(|client| client.cost_class), Some(CostClass::MeteredEmployer));
     assert_eq!(config.clients.get("vibe").map(|client| client.model_source), Some(ModelSource::Live));
     assert_eq!(config.clients.get("agy").and_then(|client| client.families.clone()), Some(vec!["google".to_string()]));
@@ -569,7 +565,7 @@ fn the_shipped_defaults_parse() {
         config.clients.get("opencode").and_then(|client| client.provider_cost_classes.clone()),
         Some(BTreeMap::from(["opencode-go", "litellm-opencode-go", "litellm-vibe", "litellm-vibe-study", "litellm-local"].map(|provider| (provider.to_string(), CostClass::Subsidised))))
     );
-    assert_eq!(config.models.len(), 32 + 7 * 42);
+    assert_eq!(config.models.len(), 41 + 5 * 14);
     assert_eq!(config.models[0].model, "claude-opus-5-5");
     assert_eq!(config.models[0].tier, Tier::Frontier);
     assert_eq!(config.models[5].names, Some(vec!["zai-glm-5-3".to_string()]));
@@ -1100,8 +1096,8 @@ fn an_override_reads_the_clients_before_the_disabled_list_and_the_models() {
 fn the_shipped_defaults_load_with_no_override() {
     let runtime = runtime(StubFiles::new(), StubGit::new(None, &[]), home_env("/home/me"));
     let config = load_config(&runtime).expect("the configuration");
-    assert_eq!(config.clients.len(), 18);
-    assert_eq!(config.models.len(), 32 + 7 * 42);
+    assert_eq!(config.clients.len(), 15);
+    assert_eq!(config.models.len(), 41 + 5 * 14);
 }
 
 #[test]
@@ -1112,7 +1108,7 @@ fn the_override_is_merged_over_the_shipped_defaults() {
     let config = load_config(&runtime).expect("the configuration");
     assert_eq!(config.settings.summary_max_chars, 500.0);
     assert_eq!(config.disabled, vec!["codex:gpt-5.5".to_string()]);
-    assert_eq!(config.clients.len(), 18);
+    assert_eq!(config.clients.len(), 15);
 }
 
 #[test]

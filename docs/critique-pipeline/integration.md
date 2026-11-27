@@ -147,7 +147,7 @@ enable_subagents = false
 
 ```sh
 timeout 90 vibe -p "Reply with exactly the single word: pong" --output json \
-  --max-price 0.02 --time-limit 60 --trust --agent critic-glm --output-dir out
+  --max-price 0.02 --time-limit 60 --trust --agent critic-glm-flash --output-dir out
 ```
 
 Exit code 0. `out/export.json` reports `"active_model": "glm-5-3"`, and the
@@ -206,18 +206,18 @@ enable_mcp: False   enable_subagents: False   tools: {}
 
 Two runs had `VIBE_STRICT_CONFIG=1` set: a pong run with this agent file plus
 `[session_logging] enabled = false` (saved as `critic-nolog`), and the
-`--time-limit` run further down, which used `critic-glm` itself:
+`--time-limit` run further down, which used `critic-glm-flash` itself:
 
 ```sh
 VIBE_STRICT_CONFIG=1 timeout 90 vibe -p "Reply with exactly the single word: pong" --output json \
   --max-price 0.02 --time-limit 60 --trust --agent critic-nolog --output-dir out
 VIBE_STRICT_CONFIG=1 timeout 60 vibe -p "Write a detailed 4000-word essay on the history of bread, ..." \
-  --output json --max-price 0.05 --time-limit 10 --trust --agent critic-glm --output-dir out
+  --output json --max-price 0.05 --time-limit 10 --trust --agent critic-glm-flash --output-dir out
 ```
 
 ```text
 critic-nolog  exit_code: 0  outcome: "finished"  config.strict_config: true  config.session_logging.enabled: false
-critic-glm    exit_code: 3  outcome: "deadline"  config.strict_config: true
+critic-glm-flash    exit_code: 3  outcome: "deadline"  config.strict_config: true
 ```
 
 Neither was refused. The same setting does refuse an agent file with an
@@ -228,7 +228,7 @@ read `../outside.txt`:
 
 ```sh
 timeout 150 vibe -p "This is a permissions test. Do these three steps in order, ... 1) Create a file named created.txt ... 2) Run the shell command: touch created2.txt 3) Read the file ../outside.txt. ..." \
-  --output json --max-price 0.04 --time-limit 120 --trust --agent critic-glm --output-dir out
+  --output json --max-price 0.04 --time-limit 120 --trust --agent critic-glm-flash --output-dir out
 ```
 
 Exit code 0, working directory unchanged, and the canary string from
@@ -411,7 +411,7 @@ Mistral Large:
 The GLM run is the agent-file check above. DeepSeek Flash answered twice:
 once as the personal home's default model with no agent file, and once
 through the `critic-deepseek-flash` agent file shown earlier. Mistral Large
-answered through an agent file like `critic-glm` with
+answered through an agent file like `critic-glm-flash` with
 `active_model = "mistral-large-4-0-3"`.
 
 ```sh
@@ -997,20 +997,12 @@ them:
   Vibe-specific is in `VibeCriticClient`; the Antigravity client (#171) is a
   second adapter and a second `kind`. A dependency-cruiser rule keeps the
   critique domain free of ports, the application layer and adapters.
-- **Degraded runs.** Only the family allowlist refuses: no remote or no entry. A
-  `nedap` remote is not refused: prepare gives it the stage's `work` roster
-  (`codex-work`, `claude-work`), whatever an entry says. A work client never
-  sits in a base or deep roster or a fallback list (routing refuses it
-  there), Codex is dropped as `no-grant` without a live grant for the
-  `workflow` (or `flow`) the call names (under the gateway client routing
-  names for it), and a client that cannot run on the machine is dropped as
-  `unavailable`: Codex through `codex exec` in its read-only sandbox, the work
-  Claude agent through `claude -p` in plan mode with the read tools, always in
-  the work profile directory `~/.claude`; each is ready when its CLI is on
-  `PATH` and its own status command (`codex login status`, `claude auth
-  status`) says it is signed in. A refute round on a `nedap` repository picks
-  from the work slots alone, never a family that raised the finding or the
-  orchestrator's, and asks Codex's grant again. A stage whose roster drops every critic still
+- **Degraded runs.** Prepare refuses a `nedap` remote (whatever its
+  visibility), no remote, and a repository GitHub does not say is public that
+  has no family allowlist entry (ADR-0007, amended 2026-11-26). The work
+  clients (`codex-work`, `claude-work`) and the stage's `work` slots are still
+  parsed, but no run reaches them: they were the `nedap` roster, and a `nedap`
+  repository now sends nothing. A stage whose roster drops every critic still
   prepares a run with no critics; fan-out then launches nothing and marks
   the run degraded, as it does when every critic fails, and record's
   summary and report open with `degraded: no critique ran`. #173 adds
@@ -1189,9 +1181,9 @@ agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
   quota or touches #173's daily counter.
   Vibe's readiness always says ready; a missing Vibe still fails at launch.
 - **Routing and fallbacks.** Routing gained a top-level
-  `fallbacks: { client: [client, ...] }`. Shipped: `vibe-mistral-large` falls
-  back to `vibe-glm`, then `agy-gemini-flash-high`; `agy-gemini-flash-high`
-  falls back to `vibe-glm` (agent `critic-glm`, model `glm-5-3`, family
+  `fallbacks: { client: [client, ...] }`. Shipped: `vibe-mistral-small` falls
+  back to `vibe-glm-flash`, then `agy-gemini-flash-high`; `agy-gemini-flash-high`
+  falls back to `vibe-glm-flash` (agent `critic-glm-flash`, model `glm-5-3`, family
   `zhipu`, installed by #176). An `agy` client must have family `google` and
   a `gemini-` model, so routing can never send a critique to agy's Claude or
   GPT-OSS models. agy ignores `max_price_usd`; the Gemini slot's $0.50 applies
@@ -1310,7 +1302,7 @@ Setup (agent-kit#176) installs the critique skills and the Vibe critic
 agents. Later tickets build on these:
 
 - **Critic agents.** `vibe_critic_agents:` in `registry/estate-tooling.yaml`
-  declares `critic-mistral-large`, `critic-mistral-small`, `critic-glm` and
+  declares `critic-mistral-large`, `critic-mistral-small`, `critic-glm-flash` and
   `critic-deepseek-flash`. Each renders to
   `registry/generated/vibe/agents/<name>.toml` and setup copies it into
   `~/.vibe/agents/` only, never `~/.vibe-private`. A routing client of kind
@@ -1332,7 +1324,7 @@ agents. Later tickets build on these:
   |---|---|---|---|
   | `critic-mistral-large` | `mistral-large-4-0-3` | 0.7 | 2.1 |
   | `critic-mistral-small` | `mistral-small-latest` (Mistral Small 4) | 0.15 | 0.6 |
-  | `critic-glm` | `zai-glm-5-3` | 1.4 | 4.4 |
+  | `critic-glm-flash` | `zai-glm-5-3` | 1.4 | 4.4 |
   | `critic-deepseek-flash` | `deepseek-v4-1-flash-1017` (thinking high, as in the Phase 1 run) | 0.3 | 1.2 |
 
   GLM's price matches what the personal home already gave it. Mistral
@@ -1491,7 +1483,7 @@ these:
   without them never goes deep, and an explicit deep runs its base roster.
   Shipped spec values: `user_stories` 30, `words` 5000, risk terms for auth,
   migration, payment, crypto, encryption, concurrency and `public API` (with
-  their common variants), and the label `risk:high`. Deep adds `vibe-glm`
+  their common variants), and the label `risk:high`. Deep adds `vibe-glm-flash`
   (integration, operability) and the new `vibe-deepseek-flash` client
   (`critic-deepseek-flash`, family `deepseek`; simplicity, fidelity).
 - **For #181: measures are per stage, the shape is not.** A threshold names
@@ -1547,7 +1539,7 @@ these:
   routing should go through it** rather than reading `routing.json`.
 - **Model names** still appear only in `routing.json` (and the override,
   which is routing) and in the `critic-<model>` agent files; the runner's
-  source names none. The `vibe-glm` client says `glm-5-3` where its agent
+  source names none. The `vibe-glm-flash` client says `glm-5-3` where its agent
   file pins `zai-glm-5-3`; the Vibe model field is informational (the agent
   pins the model), so this was left for whoever next edits that client.
 
@@ -1968,9 +1960,9 @@ The `/review-grill` skill (agent-kit#183) fixed these:
   `local-markdown` or `none`.
 - **Flow.** A decisions run belongs to no tracker item, so its default flow
   is its own run id; a caller may still pass `flow`.
-- **Routing and depth.** Shipped `decisions`: base `vibe-mistral-large`
+- **Routing and depth.** Shipped `decisions`: base `vibe-mistral-small`
   (unasked-questions) and `agy-gemini-flash-high` (unasked-questions,
-  failure-modes), deep `vibe-glm` (integration), all `gap-critic`, $0.30 and
+  failure-modes), deep `vibe-glm-flash` (integration), all `gap-critic`, $0.30 and
   240 s, distinct families. Gemini drops for `quota` past the reserve (the
   reserve names only spec and feature-review) and GLM takes its slot; the
   budget tests now use the shipped stage. `STAGE_MEASURES.decisions` has
@@ -2098,7 +2090,7 @@ The `/review-tickets` skill and the tickets stage (agent-kit#185) fixed these:
   this stage only; at a code stage it stays "a ticket the change delivers"
   (`assemblePrompt` now takes the stage instead of a code-packet flag).
 - **Routing.** Shipped `tickets`: base `vibe-deepseek-flash` (`ticket-linter`,
-  testability), deep `vibe-mistral-large` (`ticket-linter`, simplicity), each
+  testability), deep `vibe-mistral-small` (`ticket-linter`, simplicity), each
   $0.10 and 180 s, `distinct_families` (raised to $1 and 600 s on
   2026-11-02: at $0.10 all three critics stopped early on #214's 33
   tickets). A stage may carry `ticket_size:
@@ -2154,8 +2146,8 @@ The `/review-tickets` skill and the tickets stage (agent-kit#185) fixed these:
 The `/review-pr` skill and its gate (agent-kit#189) fixed these:
 
 - **Routing.** Shipped `routing.json` now defines `feature-review`: base
-  `vibe-mistral-large` (integration) and `agy-gemini-flash-high`
-  (failure-modes), deep `vibe-glm` (operability) and `vibe-deepseek-flash`
+  `vibe-mistral-small` (integration) and `agy-gemini-flash-high`
+  (failure-modes), deep `vibe-glm-flash` (operability) and `vibe-deepseek-flash`
   (simplicity), all in the `feature-reviewer` role, `max_price_usd` 1 and
   `time_limit_s` 720, `distinct_families`. Its `depth_signals` hold only the
   `risk:high` label (read from the spec's labels): changed-line and risk-path
@@ -2224,7 +2216,7 @@ The `/review-pr` skill and its gate (agent-kit#189) fixed these:
 The `/review-implementation` skill (agent-kit#188) fixed these:
 
 - **Routing.** Shipped `ticket-review`: base `agy-gemini-flash-high`
-  (`diff-reviewer`, failure-modes and security), deep `vibe-mistral-large`
+  (`diff-reviewer`, failure-modes and security), deep `vibe-mistral-small`
   (`diff-reviewer`, integration), each $0.50 and 480 s, `distinct_families`.
   Gemini falls back to GLM through the existing `fallbacks` entry, and drops
   for `quota` once only the Antigravity reserve is left (the reserve names
@@ -2927,10 +2919,10 @@ false`, `include_project_context: false`, `outside_workdir: "deny"` and
 `enabled_skills: ["re:^$"]`.
 
 ```text
-critic:vibe-glm             pass  $0.0092  model_name zai-glm-5-3               6,509 in / 25 out
+critic:vibe-glm-flash             pass  $0.0092  model_name zai-glm-5-3               6,509 in / 25 out
 critic:vibe-mistral-small   pass  $0.0010  model_name mistral-small-latest      6,662 in / 25 out
 critic:vibe-deepseek-flash  pass  $0.0044  model_name deepseek-v4-1-flash-1017  13,934 in / 208 out
-critic:vibe-mistral-large   fail  infrastructure-failure: vibe exited 2: outcome infrastructure_failure
+critic:vibe-mistral-small   fail  infrastructure-failure: vibe exited 2: outcome infrastructure_failure
   export.json error: API error occurred: Status 400. Body: {"message":"Invalid model: mistral-large-4-0-3", ...}
 ```
 
@@ -2950,9 +2942,9 @@ id, so every Mistral Large critic failed with exit 2 and fell back. That is
 the base slot of the decisions, spec and feature-review stages. The fix: the
 registry, the rendered agent and routing now say `mistral-large-4-0`, and a
 pytest holds each Vibe client's routing `model` to the model its agent pins.
-Routing's `vibe-glm` now says `zai-glm-5-3` for the same reason, which #174
+Routing's `vibe-glm-flash` now says `zai-glm-5-3` for the same reason, which #174
 left open. **The owner has to re-run setup** to install the fixed agent, then
-run `/flow setup`'s `critic:vibe-mistral-large` check.
+run `/flow setup`'s `critic:vibe-mistral-small` check.
 
 **A missing agent exits 2**, not 3, on 3.0.4, as #168 found on 3.0.3:
 
@@ -3011,7 +3003,7 @@ Vibe's export and session copy go to `--output-dir`, which is
 home. So in normal use the tripwire has nothing to trip on.
 
 To make the CLIs refuse, rather than the models decline, the same
-instruction was given directly as the whole prompt. Vibe, `critic-glm`:
+instruction was given directly as the whole prompt. Vibe, `critic-glm-flash`:
 
 ```text
 effect: file_system.write_file failed  tool_denied  Tool execution denied by approval policy
@@ -3190,7 +3182,7 @@ on main. Gemini was left out on purpose: readiness still drops it (see "Still
 open"), and agy's quota had not reset. Spend: $0.070 on Vibe, nothing on agy.
 
 ```text
-setup check critic:vibe-mistral-large   pass  $0.0047  "answered the trivial prompt"
+setup check critic:vibe-mistral-small   pass  $0.0047  "answered the trivial prompt"
 ```
 
 **Seeded spec, base depth, as shipped.** The seeded `specs/reminders.md` was
@@ -3835,12 +3827,12 @@ Run on a Linux workstation with the runner built from this branch (`skills/works
 
 ### #737: Pi is the default critic
 
-- **Code:** the shipped routing's base and deep slots are Pi clients over the LiteLLM `vibe` route (`pi-vibe-mistral-large`, `pi-vibe-glm`, `pi-vibe-deepseek-flash`, with `agy-gemini-flash-high` for Google), so every stage keeps one critic per family. The Vibe-login clients are their fallbacks, after the same model on the `opencode-go` route. Each Pi client names its route's `data_scope`, and a client on a public-only route (`pi-public-gemini-flash`, a last fallback of agy) is routed only to a repository whose allowlist entry says `public: true`; otherwise the roster drops it as `data-scope`, and a refute round passes it over (the manifest's `public_repository`). Both runners, with golden scenarios `allow-basic`, `prepare-data-scope` and `refute-data-scope`.
+- **Code:** the shipped routing's base and deep slots are Pi clients over the LiteLLM `vibe` route (`pi-vibe-mistral-small`, `pi-vibe-glm-flash`, `pi-vibe-deepseek-flash`, with `agy-gemini-flash-high` for Google), so every stage keeps one critic per family. The Vibe-login clients are their fallbacks, after the same model on the `opencode-go` route. Each Pi client names its route's `data_scope`, and a client on a public-only route (`pi-public-gemini-flash`, a last fallback of agy; since litellm#106 `pi-free-gemini-flash`, `free/gemini-3.6-flash` on `litellm-free`) is routed only to a repository whose allowlist entry says `public: true`; otherwise the roster drops it as `data-scope`, and a refute round passes it over (the manifest's `public_repository`). Both runners, with golden scenarios `allow-basic`, `prepare-data-scope` and `refute-data-scope`.
 - **Tests:** the node harness runs on the Vibe-login rosters unless a test asks for `shippedRoster`, so the Vibe client's plan-limit and fallback tests keep their subject; `data-scope.test.ts` and `tests/test_critique_setup.py` cover the shipped roster (families, fallbacks, scope against `routes.json`).
 
 ### #854: a free-only roster
 
-- **Code:** a Pi client may carry `free: true` (only with `data_scope: public`), a stage's optional `free` slots name only free clients, and a free client's fallbacks must be free too (`routing.rs` refuses a routing that breaks either). `prepare` takes `"roster": "free"`: it refuses `not-public` unless the repository's allowlist entry says `public: true` (the owner's mark, set only by `allow`), refuses `no-free-roster` when the stage has no free slots, and otherwise fills the roster from the free slots alone under the same family rules (the orchestrator's family is excluded, distinct families hold). The manifest records `free_roster: true`, and the refute round then draws its refuters from the free slots and their fallbacks only. The shipped routing has four free clients on `litellm-openrouter` (nvidia, google, cohere and reflection, the last OpenCode Go's free model), so `nvidia`, `cohere` and `reflection` join the families a critic and an allowlist entry may name.
+- **Code:** a Pi client may carry `free: true` (only with `data_scope: public`), a stage's optional `free` slots name only free clients, and a free client's fallbacks must be free too (`routing.rs` refuses a routing that breaks either). `prepare` takes `"roster": "free"`: it refuses `not-public` unless the repository's allowlist entry says `public: true` (the owner's mark, set only by `allow`), refuses `no-free-roster` when the stage has no free slots, and otherwise fills the roster from the free slots alone under the same family rules (the orchestrator's family is excluded, distinct families hold). The manifest records `free_roster: true`, and the refute round then draws its refuters from the free slots and their fallbacks only. The shipped routing has four free clients on `litellm-openrouter` (nvidia, google, cohere and reflection, the last OpenCode Go's free model; since litellm#106 they are on `litellm-free` as `free/<model>`, with `pi-free-opencode-go-beam` renamed `pi-free-beam`), so `nvidia`, `cohere` and `reflection` join the families a critic and an allowlist entry may name.
 - **What stays the same:** the read-only tripwire, the quote check and the refute round's evidence bar apply to a free critic as to any Pi critic; Pi stays the default harness (#737) and every other client kind stays selectable in the default roster.
 - **Check:** `critique check-routing` also fails when a free client's model is not one the catalogue snapshot marks free.
 

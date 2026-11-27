@@ -696,7 +696,7 @@ fn input(text: &str) -> Value {
 #[test]
 fn the_command_reports_the_figures() {
     let sandbox = Sandbox::new();
-    let run = Run::new("r1", "c1", "vibe-mistral-large", "spec", "2026-01-01T00:00:00.000Z");
+    let run = Run::new("r1", "c1", "vibe-mistral-small", "spec", "2026-01-01T00:00:00.000Z");
     let finding = Finding::new("r1", "f1", "spec", "2026-01-01T00:00:00.000Z", &["c1"], "accepted");
     write(&sandbox, LEDGER, &format!("{}\n{}\n", run.text(), finding.text()));
     let runtime = runtime(&sandbox, FakeGit::none());
@@ -714,7 +714,7 @@ fn the_command_reports_the_figures() {
     assert!(report.starts_with("# Critique stats\n\nLedger: "), "{report}");
     assert!(report.contains("Repository: all. Dates: 2026-01-01 to today."), "{report}");
     assert!(report.contains("\n## spec\n"), "{report}");
-    assert!(report.contains("| vibe-mistral-large | "), "{report}");
+    assert!(report.contains("| vibe-mistral-small | "), "{report}");
 }
 
 #[test]

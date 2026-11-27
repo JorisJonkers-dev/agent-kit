@@ -40,10 +40,11 @@ pub fn mask_grant_ids(text: &str) -> String {
     out
 }
 
-/// The change time and inode of the client program in a Vibe probe's cache entry are @N@, as in the goldens.
+/// The change time and inode of the client program in a Vibe probe's cache entry are @N@, as in the goldens, and so
+/// are the process ids a run's event log names (the gateway's and the client's), escaped or not.
 pub fn mask_stamp(text: &str) -> String {
     let mut out = text.to_string();
-    for key in ["\"binary_ctime_ms\":", "\"binary_ino\":"] {
+    for key in ["\"binary_ctime_ms\":", "\"binary_ino\":", "\"gateway_pid\":", "\"pid\":", "\\\"gateway_pid\\\":", "\\\"pid\\\":"] {
         let mut from = 0;
         while let Some(found) = out[from..].find(key) {
             let start = from + found + key.len();

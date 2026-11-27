@@ -242,6 +242,53 @@ that grant, and OpenCode answered with it (`tests/confine.rs` pins the refusal o
 No client runs with an unlimited network. **A host allowlist is not built:** `443` is any host, and the
 allow-listing proxy of the open point above is still the open item for every client with web tools.
 
+## One base for every client, and the git it sees
+
+Every confined launch, Pi or any other client, starts from the same grants (`launchers::base_grants`): its
+working directory (read, or written by a writing run with the git directories Codex may write), the git it sees,
+and its own install (`--run-from`). A client's recipe (the table above) only adds to that base.
+
+**The git it sees** (`GitView`) is part of the base because a throwaway or writing worktree's `.git` is a file
+pointing at `<common>/worktrees/<name>`, outside the working directory. Without it every git call in the
+worktree fails, and OpenCode, which asks git where its project is before it serves a session
+(`Project.resolve` → `Git.repo.discover`), answered every request with HTTP 500 and 0 tokens: every OpenCode
+run that named a repository failed, while one with no repository worked. Traced on macOS 27 with OpenCode 2.4.1:
+`process-exec* /Library/Developer/CommandLineTools/usr/bin/git` (the `/usr/bin/git` shim runs the Command Line
+Tools' git, outside `/usr`) and `file-read-data <common>/worktrees/<name>/{HEAD,commondir}` were denied, and the
+server logged `EPERM: posix_spawn '/Library/Developer/CommandLineTools/usr/bin/git'`. The view grants:
+
+- **read** the worktree's git directory and, of the common directory, only what git reads to work in a
+  worktree: `HEAD`, `config`, `packed-refs`, `objects`, `refs`, `info`, `shallow` (those that exist). Never the
+  common directory whole: it holds the other runs' homes under `model-gateway/runs`, with their logins.
+  A writing run's writable git directories are not granted twice. A run in the repository itself (its
+  `.git` is a directory inside the working directory) or in an empty directory gets no read.
+- **run** the install of the git on `PATH`, from `git --exec-path` (`<prefix>/libexec/git-core`): a Homebrew
+  `Cellar/git/<version>`, or for a developer directory's `usr` (Command Line Tools, Xcode) the developer
+  directory itself, since the shim refuses one it cannot read (`developer directory ... isn't accessible`).
+  Nothing is added when git is in the system runtime already (`/usr`, Linux), so Landlock sees the same grants.
+
+A read-only run's working directory stays read-only, and the view grants no write. Proved live: with the grants
+of a writing OpenCode run, a shell under the confinement wrote its worktree and ran `git status` and `git log`
+there, and was refused (`Operation not permitted`) writing the main checkout, the scratch directory above it,
+the common `.git/config` and `~`; it could not read another run's directory.
+
+**`#!/usr/bin/env NAME` past a version manager's shim.** Pi is `#!/usr/bin/env node`. With mise's shims first
+on `PATH`, `node` is a link to the `mise` binary, so the launcher granted mise's install, `env` could run
+neither, and every Pi launch exited 127 (`env: node: No such file or directory`). The launcher now grants the
+first `NAME` on `PATH` whose real file is named after it (`node`, `python3.12`), passing over a shim (mise,
+Volta); under the confinement `env` cannot run the shim and goes on down `PATH` to the granted one.
+
+**Vibe's project-config walk.** Vibe asks whether `<dir>/.vibe/config.toml` is a file for every directory from its
+working directory up to `/`; it stops only at the parent of `VIBE_HOME`, and the run's own home is never an
+ancestor. Under Seatbelt a path that is not there answers "no such file", but one that is there and not granted
+answers "operation not permitted", and Python's `Path.is_file()` raises on that, so Vibe aborts with
+`Layer 'project-toml': _check_trust() failed`. Proved with a stand-in file: from a granted directory, a missing
+`<ancestor>/x/config.toml` is `False` and an existing one raises `PermissionError`. Every critique critic hit it,
+because its packet sits under the repository's `.git`, below the owner's `~/.vibe/config.toml`. A Vibe launch now
+reads each `<ancestor>/.vibe/config.toml` that exists, as that one file (`client_run::vibe_project_configs`); no
+directory and no other name is granted. Vibe then finds it untrusted (the run's home trusts no folder) and does not
+load it.
+
 ## Gaps left, per client
 
 - An OpenCode run on its own providers can write the owner's OpenCode data directory. It holds the sign-in and

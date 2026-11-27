@@ -487,6 +487,15 @@ def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
             raise RegistryError("package_proxy.token_file must be relative to XDG_CONFIG_HOME")
         if not str(proxy["verify_url"]).startswith(base + "/"):
             raise RegistryError("package_proxy.verify_url must sit under package_proxy.base")
+        cluster = dict(proxy.get("cluster_secret") or {})
+        if set(cluster) != {"namespace", "key", "context_suffix"}:
+            raise RegistryError("package_proxy.cluster_secret takes namespace, key and context_suffix, all of them")
+        if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?", str(cluster["namespace"])):
+            raise RegistryError("package_proxy.cluster_secret.namespace must be a DNS label")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", str(cluster["key"])):
+            raise RegistryError("package_proxy.cluster_secret.key must be a plain data key name")
+        if not re.fullmatch(r"-[A-Za-z0-9._-]+", str(cluster["context_suffix"])):
+            raise RegistryError("package_proxy.cluster_secret.context_suffix must start with - and name no more")
 
     gold_band = data.get("gold_band")
     if gold_band is not None:
@@ -2456,6 +2465,136 @@ LAYOUT_POINTER_FILES = (
     '"${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"',
 )
 
+# Docker Sandboxes for the model gateway. Raw text: the python and the \$USER
+# in it are bash's, written as they are. Needs `model-gateway sandbox refresh
+# --json` to print {"clients": [{"client", "image", "tag", "digest"}]}; an
+# older gateway without that subcommand is skipped, not failed.
+_SANDBOX_STEP = r"""# -----------------------------------------------------------------
+# Docker Sandboxes (sbx) for the model gateway: installed where setup can (Homebrew
+# on Apple silicon), signed in to by hand, and each client's prebuilt image pulled so
+# the first sandboxed run does not wait for a ~3 GB download. AGENT_KIT_SANDBOX=sbx
+# turns sandboxed gateway runs on; setup never sets it or any other sbx policy.
+# -----------------------------------------------------------------
+sandbox_setup() {
+  if [ "${CLOUD}" = 1 ]; then
+    log "sbx: not set up in cloud mode"
+    return 0
+  fi
+  if ! command -v sbx >/dev/null 2>&1; then
+    case "$(uname -s)" in
+      Darwin)
+        if [ "$(uname -m)" != arm64 ]; then
+          log "sbx: Docker Sandboxes do not run on Intel Macs; skipped"
+          return 0
+        fi
+        if ! sw_vers -productVersion 2>/dev/null | awk -F. '{ exit !($1 >= 14) }'; then
+          log "sbx: Docker Sandboxes need macOS 14 or later; skipped"
+          return 0
+        fi
+        if ! command -v brew >/dev/null 2>&1; then
+          warn "sbx: Homebrew is not on PATH; install it, then re-run setup"
+          return 0
+        fi
+        run_sh 'brew trust docker/tap && brew install docker/tap/sbx'
+        if [ "${CHECK_ONLY}" = 1 ]; then
+          log "sbx would be installed; its sign-in and images follow once it is"
+          return 0
+        fi
+        if ! command -v sbx >/dev/null 2>&1; then
+          fail "sbx still not on PATH after brew install; open a new shell and re-run"
+          return 0
+        fi
+        ok "sbx installed"
+        ;;
+      Linux)
+        # Installing needs sudo, so setup prints the commands instead of running them.
+        log "sbx: not installed; run these, then re-run setup:"
+        log "  curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh && sudo apt install docker-sbx"
+        log "  sudo usermod -aG kvm \$USER"
+        warn "sbx: not installed (commands above)"
+        return 0
+        ;;
+      *)
+        log "sbx: not supported on $(uname -s); skipped"
+        return 0
+        ;;
+    esac
+  fi
+  # sbx diagnose prints "Authentication — authenticated" when signed in; "not authenticated" is not.
+  local auth_line signed_in=0
+  auth_line="$(sbx diagnose 2>/dev/null | grep 'Authentication' || true)"
+  case "${auth_line}" in
+    *'not authenticated'* | *unauthenticated* | '') ;;
+    *authenticated*) signed_in=1 ;;
+  esac
+  if [ "${signed_in}" != 1 ]; then
+    warn "sbx: not signed in; run sbx login yourself (setup never runs it), then re-run setup for the images"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would run: model-gateway sandbox refresh --json, then pre-pull each client's image"
+    return 0
+  fi
+  if ! command -v model-gateway >/dev/null 2>&1; then
+    warn "sbx: model-gateway is not on PATH; the images are not refreshed"
+    return 0
+  fi
+  local out rc=0 line_list status name ref shown sbx_name
+  out="$(model-gateway sandbox refresh --json 2>&1)" || rc=$?
+  if [ "${rc}" != 0 ]; then
+    case "${out}" in
+      *'unknown subcommand "sandbox"'* | *unknown-command*)
+        log "sbx: model-gateway has no sandbox subcommand; images not refreshed (update it, then re-run setup)"
+        return 0
+        ;;
+    esac
+    warn "sbx: model-gateway sandbox refresh failed (exit ${rc}); images not pulled"
+    return 0
+  fi
+  if ! line_list="$(printf '%s' "${out}" | python3 -c '
+import json, re, sys
+data = json.load(sys.stdin)
+for entry in (data.get("clients", []) if isinstance(data, dict) else data):
+    name = str(entry.get("client", ""))
+    image = str(entry.get("image", ""))
+    digest = str(entry.get("digest", ""))
+    tag = str(entry.get("tag", ""))
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or not image or not digest.startswith("sha256:"):
+        print("bad\t" + (name or "<unnamed>"))
+        continue
+    print("ok\t" + "\t".join((name, image + "@" + digest, image + (":" + tag if tag else ""))))
+' 2>/dev/null)"; then
+    warn "sbx: model-gateway sandbox refresh printed no client list; images not pulled"
+    return 0
+  fi
+  while IFS=$'\t' read -r status name ref shown; do
+    if [ "${status}" != ok ]; then
+      warn "sbx: a client in the gateway's image list has no usable name, image or digest (${name}); skipped"
+      continue
+    fi
+    # A pre-pull: a throwaway sandbox with no workspace, removed once its image is in sbx's store.
+    sbx_name="agent-kit-prepull-${name}"
+    if sbx create --name "${sbx_name}" --no-input --pull missing -t "${ref}" shell >/dev/null 2>&1; then
+      ok "sbx: ${name} image ${shown} ready"
+    else
+      warn "sbx: ${name} image ${shown} did not pull; its first sandboxed run downloads it"
+    fi
+    sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
+  done <<< "${line_list}"
+  log "sbx: AGENT_KIT_SANDBOX=sbx runs model-gateway delegations in sandboxes; the default stays confine for now"
+}
+sandbox_setup
+"""
+
+
+def _sandbox_step(w: Any, declared: bool) -> None:
+    """The sbx step: only where the model gateway is declared, since that is what sandboxes it."""
+    if not declared:
+        return
+    for line in _SANDBOX_STEP.splitlines():
+        w(line)
+    w("")
+
 
 def _layout_pointer_fn(w: Any) -> None:
     """The layout_pointer function: writes or removes the projects-layout block in one instruction file."""
@@ -2629,11 +2768,13 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     pypi_url = str(proxy.get("pypi") or "")
     cargo_url = str(proxy.get("cargo") or "")
     maven = {name: str(url) for name, url in (proxy.get("maven") or {}).items()}
+    cluster = {name: str(value) for name, value in (proxy.get("cluster_secret") or {}).items()}
     if not (
         verify_url and token_file and vault_path and vault_field
         and base and npm_url and go_url and pypi_url and cargo_url and go_private
         and maven.get("main") and maven.get("spring_milestone")
         and maven.get("sonatype_snapshots") and maven.get("google_maven")
+        and cluster.get("namespace") and cluster.get("key") and cluster.get("context_suffix")
     ):
         return
     # netrc keys on the bare host; npm's token line is the registry URL with
@@ -2654,8 +2795,51 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("# The packages proxy")
     w("# -----------------------------------------------------------------")
     w("")
+    # pp_cluster_key: the key the cluster holds, from the data item of the
+    # first secret that has it in the namespace, read through the first
+    # admin-suffixed kube context that can read it. The python reads the
+    # kubectl JSON on stdin and prints only the decoded value; a value that is
+    # not UTF-8 or not base64 prints nothing, which counts as no key.
+    cluster_python = (
+        "import base64, json, sys\n"
+        "try:\n"
+        "    for item in json.load(sys.stdin).get('items') or []:\n"
+        "        value = (item.get('data') or {}).get(sys.argv[1])\n"
+        "        if value:\n"
+        "            sys.stdout.write(base64.b64decode(value).decode('utf-8'))\n"
+        "            break\n"
+        "except Exception:\n"
+        "    pass\n"
+    )
+    w("# pp_cluster_key prints the key the cluster holds for the workstation, or")
+    w("# nothing. The first kube context ending in the admin suffix that can read")
+    w("# the secret's data item supplies it; a context that fails is skipped. Only")
+    w("# a run that may prompt looks: kubectl may ask for a password. The key is")
+    w("# captured, never printed or logged, and a failed read returns 1.")
+    w("pp_cluster_key() {")
+    w('  local ctx="" key="" secrets=""')
+    w('  if [ "${PROMPT}" != 1 ] || [ "${CHECK_ONLY}" = 1 ] || [ "${CLOUD}" = 1 ]; then')
+    w("    return 1")
+    w("  fi")
+    w('  command -v kubectl >/dev/null 2>&1 || return 1')
+    w('  command -v python3 >/dev/null 2>&1 || return 1')
+    w('  while IFS= read -r ctx; do')
+    w(f'    case "${{ctx}}" in *{cluster["context_suffix"]}) ;; *) continue ;; esac')
+    namespace, data_key = cluster["namespace"], cluster["key"]
+    w(f'    secrets="$(kubectl --context "${{ctx}}" -n {namespace} get secrets -o json 2>/dev/null)" || continue')
+    picker = _q(cluster_python)
+    w(f"    key=\"$(printf '%s' \"${{secrets}}\" | python3 -c {picker} {data_key} 2>/dev/null)\" || continue")
+    w('    if [ -n "${key}" ]; then')
+    w("      printf '%s' \"${key}\"")
+    w("      return 0")
+    w("    fi")
+    w("  done < <(kubectl config get-contexts -o name 2>/dev/null)")
+    w("  return 1")
+    w("}")
+    w("")
     w("# pp_resolve_key prints the proxy key (always captured, never logged),")
-    w("# in order: PACKAGES_PROXY_TOKEN, the vault secret, the stored token file.")
+    w("# in order: PACKAGES_PROXY_TOKEN, the vault secret, the cluster secret, the")
+    w("# stored token file.")
     w("# The last resort is a prompt, and only in an interactive run.")
     w("pp_resolve_key() {")
     w('  local root="$1"')
@@ -2671,6 +2855,10 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("      printf '%s' \"${key}\"")
     w("      return 0")
     w("    fi")
+    w("  fi")
+    w('  if key="$(pp_cluster_key)" && [ -n "${key}" ]; then')
+    w("    printf '%s' \"${key}\"")
+    w("    return 0")
     w("  fi")
     w('  if [ -s "${token}" ]; then')
     w('    printf \'%s\' "$(cat "${token}" 2>/dev/null)"')
@@ -3081,7 +3269,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("    return 0")
     w("  fi")
     w('  if ! key="$(pp_resolve_key "${root}")"; then')
-    w('    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault or the prompt), skipped"')
+    w('    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault, the cluster or the prompt), skipped"')
     w("    return 0")
     w("  fi")
     w('  if ! printf \'header = "Authorization: Bearer %s"\\n\' "${key}" \\')
@@ -5628,6 +5816,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
 
     _gateway_step(w, gateway_declared)
+    _sandbox_step(w, gateway_declared)
     _layout_step(w, layout_declared)
     _attribution_rule_step(w)
     # --- first-party skills ---
@@ -6093,23 +6282,18 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
 
 LITELLM_ENV = re.compile(r"[A-Z][A-Z0-9_]*")
 LITELLM_ROUTE_KEYS = {"agent", "key_env", "budget_eur", "budget_duration", "data_scope", "models"}
-# The free-only routes of the litellm repository (catalog/sync.py FREE_KINDS): each serves only ids its
-# provider marks free, in its own `<route>-free-public` access group.
-LITELLM_FREE_ROUTES = (
-    "groq", "cloudflare", "nvidia", "zai", "kilo", "ovh", "requesty", "axforge", "naga", "routeway", "inferbase",
-)
-# The public-only access groups: the free-tier deployments, whose provider may train on the
-# prompts (the Google free tier, OpenRouter's free models, OpenCode Go's free ids, and each free-only
-# route). Only a `data_scope: public` key may hold one, and a public key holds at least one; several
-# public keys are allowed. The litellm repository puts each free provider's deployments in its own
-# group (litellm catalog/sync.py).
-LITELLM_PUBLIC_GROUPS = (
-    "google-free-public",
-    "openrouter-free-public",
-    "opencode-go-free-public",
-    *(f"{route}-free-public" for route in LITELLM_FREE_ROUTES),
-    "free",
-)
+# The public-only access group: the free deployments, whose provider may train on the prompts.
+# The litellm repository serves every free model only as a `free/<model>` group (litellm#106),
+# each holding every free copy of one model across the free providers, in this one access group.
+# Only a `data_scope: public` key may hold it, and a public key holds it.
+LITELLM_FREE_GROUP = "free"
+LITELLM_PUBLIC_GROUPS = (LITELLM_FREE_GROUP,)
+# The prefix of every free model name the proxy serves: a free model is reached as `free/<model>`
+# and in no other way.
+LITELLM_FREE_PREFIX = "free/"
+# The access groups that once reached free models by another name (`openrouter/<x>`, `public/<x>`,
+# `google-free/<x>`, `opencode-go-free/<x>`, `<provider>/<x>`). No route may hold one again.
+LITELLM_RETIRED_FREE_GROUP = re.compile(r"[a-z0-9-]+-free-public")
 LITELLM_BUDGET_DURATION = "30d"
 
 
@@ -6204,6 +6388,12 @@ def _validate_litellm(data: dict[str, Any]) -> None:
             )
         if len(set(route["models"])) != len(route["models"]):
             raise RegistryError(f"litellm route {agent}: models must not repeat an access group")
+        retired = sorted(g for g in groups if LITELLM_RETIRED_FREE_GROUP.fullmatch(g))
+        if retired:
+            raise RegistryError(
+                f"litellm route {agent}: {', '.join(retired)} is retired: a free model is reached only as "
+                f"{LITELLM_FREE_PREFIX}<model>, through the {LITELLM_FREE_GROUP} access group",
+            )
         public_groups = sorted(set(groups) & set(LITELLM_PUBLIC_GROUPS))
         if public_groups and scope != "public":
             raise RegistryError(
@@ -6344,12 +6534,10 @@ def litellm_route_models(
                 continue
             if route.get("agent") == "local" and "local" not in entry.routes:
                 continue
-        # The catalogue does not say which public-only access group serves a public group, so the
-        # estate's naming stands in: a group on the openrouter route is reached by openrouter-free-public,
-        # one on the opencode-go route by opencode-go-free-public. A group that names its own access
-        # groups (the `free` ones) was already matched exactly by canonical_groups().
-        named = all(any(g.startswith(f"{route}-") for g in held) for route in entry.routes)
-        if entry.public and not entry.access_groups and not named:
+        # A public group is a free model, and a free model is reached only by its `free/<model>` name:
+        # a provider's own `<provider>/<model>`, `public/<model>` or `<route>-free/<model>` group is
+        # never listed, whatever access group still reaches it.
+        if entry.public and not entry.name.startswith(LITELLM_FREE_PREFIX):
             continue
         model: dict[str, Any] = {"id": entry.name}
         if entry.context_length is not None:

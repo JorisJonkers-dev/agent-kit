@@ -12,9 +12,12 @@ use crate::json::{self, Value};
 use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
 use crate::pi_launch::{launcher_of, prepare_pi};
-use crate::ports::{Files, Process, ProcessResult};
+use crate::ports::{Clock, Ending, Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
+use crate::sandbox::{dry_run, SandboxBackend};
+use crate::sbx_images;
+use crate::sbx_launch;
 use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
@@ -41,6 +44,8 @@ pub struct ClientRunRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientRunOutcome {
     pub result: ProcessResult,
+    /// How the client's process ended past its exit code: the signal that ended it, a stop it was given.
+    pub ending: Ending,
     /// Parsed `export.json`, or `None` when the client wrote none or it does not parse.
     pub exported: Option<Value>,
     pub output: ClientOutput,
@@ -70,6 +75,7 @@ fn names(extras: &RunExtras, name: &str) -> bool {
         "disable_home_mcp" => extras.disable_home_mcp.is_some(),
         "env" => extras.env.is_some(),
         "mcp_servers" => extras.mcp_servers.is_some(),
+        "network_allow" => extras.network_allow.is_some(),
         "sandbox" => extras.sandbox.is_some(),
         "schema" => extras.schema.is_some(),
         _ => extras.tools.is_some(),
@@ -117,6 +123,8 @@ pub fn require_supported_extras(client: RunClient, extras: &RunExtras) -> Result
 pub struct ClientRun<'a> {
     pub process: &'a dyn Process,
     pub files: &'a dyn Files,
+    /// The clock the sbx image records are dated by.
+    pub clock: &'a dyn Clock,
     /// The environment the client's home is named in.
     pub env: &'a HashMap<String, String>,
 }
@@ -129,7 +137,22 @@ impl ClientRun<'_> {
     /// The launch, with the tool scope a delegation profile gives a Pi run: its home holds exactly the skills
     /// and plugins the scope lists.
     pub fn launch_scoped(&self, request: &ClientRunRequest, scope: Option<&ToolScope>) -> Result<ClientRunOutcome, ClientRunError> {
+        self.launch_watched(request, scope, &Unwatched)
+    }
+
+    /// `launch_scoped`, with what the client does reported to `watch` as it happens (a run's event log).
+    pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
+        let mut image_warnings = Vec::new();
+        let backend = SandboxBackend::select(self.env)?;
+        if request.extras.network_allow.is_some() && backend != SandboxBackend::Sbx {
+            return Err(GatewayError::new("extras-not-supported", "network_allow needs the sbx backend: only a Docker Sandbox holds per-run host rules").into());
+        }
+        if backend == SandboxBackend::Sbx {
+            sbx_launch::preflight(self.process, request.client, &request.extras.network.clone().unwrap_or_default())?;
+            // A sandbox an ended gateway left behind goes before this run makes its own.
+            image_warnings.extend(sbx_launch::prune_orphans(self.process));
+        }
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
         let home = self.home_of(request)?;
@@ -147,7 +170,35 @@ impl ClientRun<'_> {
         let mut extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
         extras.env.extend(credential);
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
-        let ran = self.process.run(&command);
+        // The launch's own directories may hold a key or a link to a login: they go before any refusal.
+        let discard = || confine.iter().map(|confine| confine.agent_dir.clone()).chain(home.iter().map(|home| home.dir.clone())).for_each(|dir| {
+            let _ = self.files.remove(&dir);
+        });
+        if backend == SandboxBackend::SbxDryRun {
+            discard();
+            return Err(dry_run(request.client.as_str(), &command).into());
+        }
+        let sandboxed = if backend == SandboxBackend::Sbx {
+            match self.sandboxed(request, &command, confine.as_ref(), home.as_ref()) {
+                Ok((sandboxed, warnings)) => {
+                    image_warnings.extend(warnings);
+                    Some(sandboxed)
+                }
+                Err(error) => {
+                    discard();
+                    return Err(error.into());
+                }
+            }
+        } else {
+            None
+        };
+        let (ran, sandbox_warnings) = match sandboxed {
+            Some(sandboxed) => {
+                let run = sbx_launch::run(self.process, self.files, &sandboxed, &command, watch);
+                (run.ran, run.warnings)
+            }
+            None => (self.process.run_watched(&command, watch), Vec::new()),
+        };
         // What the launch refreshed in its copy of a login goes back to the owner's, before the home goes.
         let unsynced: Vec<String> = home.iter().filter_map(|home| home.login.as_ref()).filter_map(|(owner, copy)| sync_login(self.files, owner, copy).err()).collect();
         // The agent directory holds the route's key, so it goes the moment the launch ends, and so does a run home; a
@@ -158,14 +209,37 @@ impl ClientRun<'_> {
             .chain(home.iter().map(|home| home.dir.clone()))
             .filter_map(|dir| self.files.remove(&dir).err().map(|error| format!("the launch's directory {dir} was not removed: {}", error.message)))
             .chain(unsynced)
+            .chain(sandbox_warnings)
+            .chain(image_warnings)
             .collect();
-        let result = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
+        let Launched { result, ending } = ran.map_err(|message| ClientRunError::Spawn(if leftovers.is_empty() { message } else { format!("{message}; {}", leftovers.join("; ")) }))?;
         let exported = match launcher.report_path {
             Some(path) => self.read_report(&path(&request.paths))?,
             None => None,
         };
         let output = (launcher.read)(&result.stdout, exported.as_ref());
-        Ok(ClientRunOutcome { result, exported, output, warnings: leftovers })
+        Ok(ClientRunOutcome { result, ending, exported, output, warnings: leftovers })
+    }
+
+    /// The sbx side of a launch: its image is the client's current record (refreshed first when it is stale), its
+    /// route is read from the launch's own config, which the sandbox must reach through the host name it sees, so a
+    /// loopback base URL is rewritten in that file once the rule for it is taken. The image's warnings come with it.
+    fn sandboxed(&self, request: &ClientRunRequest, command: &ProcessCommand, confine: Option<&PiConfinement>, home: Option<&RunHome>) -> Result<(sbx_launch::SbxLaunch, Vec<String>), GatewayError> {
+        let (reference, warnings) = sbx_images::ensure(self.process, self.files, self.clock, self.env, request.client.as_str())?;
+        let dir = confine.map(|confine| confine.agent_dir.clone()).or_else(|| home.map(|home| home.dir.clone())).unwrap_or_default();
+        let path = sbx_launch::config_path(request.client, &dir);
+        // Claude Code and Codex reach their own provider at fixed hosts: they have no route file to read.
+        let text = if crate::sbx_clients::fixed_hosts(request.client).is_some() { String::new() } else { self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", request.client.as_str(), error.message)))? };
+        let mut sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
+        sandboxed.image = reference;
+        sandboxed.env_file = join(&[&dir, "sbx.env"]);
+        sbx_launch::apply_network(&mut sandboxed, self.process, self.files, self.env, &request.extras.network.clone().unwrap_or_default(), request.extras.network_allow.as_deref().unwrap_or_default(), &join(&[&dir, "packages.npmrc"]))?;
+        let config = crate::sbx_clients::with_model(request.client, &text, &sandboxed.args);
+        let config = sbx_launch::rewritten_config(request.client, &config).unwrap_or(config);
+        if config != text {
+            self.files.write_private(&path, &config).map_err(GatewayError::from_fs)?;
+        }
+        Ok((sandboxed, warnings))
     }
 
     /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
@@ -237,6 +311,9 @@ impl ClientRun<'_> {
         if client == RunClient::Vibe && self.files.exists(&agents_skills).unwrap_or(false) {
             reads.push(agents_skills);
         }
+        if client == RunClient::Vibe {
+            reads.extend(vibe_project_configs(self.files, &request.paths.work_dir));
+        }
         let mut writes = home.writes.clone();
         // A home beside the export directory (no run directory) is writable too; one under it already is.
         if !std::path::Path::new(&home.dir).starts_with(crate::launchers::report_dir(&request.paths)) {
@@ -297,4 +374,20 @@ impl ClientRun<'_> {
         }
         Ok(self.files.read_text(path).ok().and_then(|text| json::parse(&text).ok()))
     }
+}
+
+/// The project configs Vibe looks for above its working directory: it asks whether `<dir>/.vibe/config.toml` is a
+/// file for every directory from its working directory up to `/` (it stops only at the parent of `VIBE_HOME`, which
+/// the run's own home never is). Under the confinement a path that is not there answers "no such file", but one
+/// that is there and not granted answers "operation not permitted", and Vibe aborts with
+/// `Layer 'project-toml': _check_trust() failed` (the owner's own `~/.vibe/config.toml` above a repository, say).
+/// Each one that exists is granted as that one file, read-only: Vibe then finds it untrusted (the run's home trusts
+/// no folder) and leaves it unread. The working directory's own is readable already.
+pub fn vibe_project_configs(files: &dyn Files, work_dir: &str) -> Vec<String> {
+    std::path::Path::new(work_dir)
+        .ancestors()
+        .skip(1)
+        .map(|dir| join(&[&dir.to_string_lossy(), ".vibe", "config.toml"]))
+        .filter(|path| files.exists(path).unwrap_or(false))
+        .collect()
 }

@@ -14,7 +14,10 @@ value the tool would read is what is asserted on.
 
 from __future__ import annotations
 
+import base64
 import configparser
+import json
+import shlex
 import stat
 import tomllib
 import xml.etree.ElementTree as ET
@@ -44,6 +47,34 @@ def _curl_stub(root: Path) -> str:
         "  *) exit 22 ;;\n"
         "esac\n"
     )
+
+
+def _kubectl_stub(root: Path, contexts: dict[str, str | None]) -> str:
+    # The kube contexts in order, and each one's answer to the packages-system
+    # secret read: the JSON it prints, or None for a failed read. Records argv
+    # only; the JSON travels on the stub's stdout into the setup script.
+    calls = root / "calls.log"
+    names = " ".join(shlex.quote(name) for name in contexts)
+    lines = [
+        f'echo "kubectl $*" >> "{calls}"',
+        'case "$*" in',
+        f"  'config get-contexts -o name') printf '%s\\n' {names} ;;",
+    ]
+    for name, answer in contexts.items():
+        pattern = shlex.quote(f"--context {name} -n packages-system get secrets -o json")
+        if answer is None:
+            lines.append(f"  {pattern}) exit 1 ;;")
+        else:
+            lines.append(f"  {pattern}) printf '%s' {shlex.quote(answer)} ;;")
+    lines += ["  *) exit 1 ;;", "esac"]
+    return "\n".join(lines) + "\n"
+
+
+def _secret_json(value: bytes) -> str:
+    # What `kubectl get secrets -o json` prints for a namespace with one
+    # secret whose workstation data item holds the base64 of value.
+    encoded = base64.b64encode(value).decode()
+    return json.dumps({"items": [{"metadata": {"name": "workstation-key"}, "data": {"workstation": encoded}}]})
 
 
 def _go_stub(root: Path) -> str:
@@ -80,6 +111,7 @@ def _run(
     preseed_key: str | None = None,
     args: tuple[str, ...] = (),
     without: tuple[str, ...] = (),
+    kube: dict[str, str | None] | None = None,
 ) -> Run:
     scratch = scratch if scratch is not None else root / "scratch"
     if preseed_key is not None:
@@ -91,6 +123,7 @@ def _run(
         "go": _go_stub(root),
         "curl": _curl_stub(root),
         "vault": _vault_stub(ok=vault_ok),
+        "kubectl": _kubectl_stub(root, kube or {}),
     }
     return setup_run(root, "Linux", stubs=stubs, extra_env=extra, args=args, without=without)
 
@@ -189,6 +222,71 @@ def test_with_no_key_anywhere_it_warns_and_skips(tmp_path: Path) -> None:
     assert "packages proxy: no key found" in run.stderr
     assert not _token(tmp_path / "scratch").exists()
     assert VERIFY_URL not in "\n".join(run.calls)
+    _assert_no_key_leak(run)
+
+
+# 6b. The cluster: the workstation key in packages-system, read through an
+# admin kube context. Only a run that may prompt asks, and the stored token
+# file is still the fallback.
+
+
+def test_an_admin_context_supplies_the_key_when_nothing_else_does(tmp_path: Path) -> None:
+    run = _run(tmp_path, kube={"personal-admin": _secret_json(KEY.encode())})
+    token = _token(tmp_path / "scratch")
+    assert token.read_text() == KEY
+    assert stat.S_IMODE(token.stat().st_mode) == 0o600
+    assert "kubectl --context personal-admin -n packages-system get secrets -o json" in run.calls
+    _assert_verified(run)
+    _assert_no_key_leak(run)
+
+
+def test_a_failing_admin_context_is_skipped_for_the_next(tmp_path: Path) -> None:
+    run = _run(
+        tmp_path,
+        kube={"broken-admin": None, "personal-admin": _secret_json(KEY.encode())},
+    )
+    assert _token(tmp_path / "scratch").read_text() == KEY
+    assert "kubectl --context personal-admin -n packages-system get secrets -o json" in run.calls
+    assert _no_proxy_failure(run)
+    _assert_no_key_leak(run)
+
+
+def test_a_context_without_the_admin_suffix_is_never_asked(tmp_path: Path) -> None:
+    run = _run(tmp_path, kube={"staging": _secret_json(KEY.encode())})
+    assert not any("--context staging" in line for line in run.calls)
+    assert "packages proxy: no key found" in run.stderr
+    assert not _token(tmp_path / "scratch").exists()
+    _assert_no_key_leak(run)
+
+
+def test_no_admin_context_falls_through_to_the_stored_token(tmp_path: Path) -> None:
+    run = _run(tmp_path, preseed_key=KEY, kube={"staging": None})
+    assert _token(tmp_path / "scratch").read_text() == KEY
+    _assert_verified(run)
+    assert "no key found" not in run.stderr
+    _assert_no_key_leak(run)
+
+
+def test_a_non_utf8_cluster_value_counts_as_no_key(tmp_path: Path) -> None:
+    run = _run(
+        tmp_path,
+        preseed_key=KEY,
+        kube={"personal-admin": _secret_json(b"\x9e\xe9e")},
+    )
+    assert _token(tmp_path / "scratch").read_text() == KEY
+    assert "UnicodeDecodeError" not in run.stderr
+    _assert_no_key_leak(run)
+
+
+def test_a_non_interactive_run_never_asks_the_cluster(tmp_path: Path) -> None:
+    run = _run(
+        tmp_path,
+        preseed_key=KEY,
+        args=("--no-prompt",),
+        kube={"personal-admin": _secret_json(KEY.encode())},
+    )
+    assert not any(line.startswith("kubectl ") for line in run.calls)
+    assert _token(tmp_path / "scratch").read_text() == KEY
     _assert_no_key_leak(run)
 
 

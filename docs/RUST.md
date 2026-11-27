@@ -605,7 +605,7 @@ good skipping only what depends on it, and the reservations of delegations that 
 `not-run`. The binary swap is done (below). The engine guard is not part of `run` or `batch` and is not ported.
 
 Pi (`src/pi_launch.rs`, `src/launchers.rs`, `src/outputs.rs`): one client per LiteLLM route
-(`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, `pi-public`, `pi-openrouter`, `pi-free`), all started by the one `pi`
+(`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, `pi-free` and the tier clients), all started by the one `pi`
 program. A Pi run goes through `agent-launcher confine`, as the Pi critics do: the launch reads (or, for
 a writing run, writes) its working directory, runs Pi, writes its own agent directory and reaches the
 proxy's port, and nothing else. The agent directory is made per launch under the run directory, holds the
@@ -615,7 +615,7 @@ launcher) never starts: it is `launch-failed` with the reason in `stderr.txt`. `
 home's `models.json` gives each route's provider, judged by the live catalogue's canonical groups
 (`litellm_catalogue.rs`: usable when a deployment is, free when public or every deployment tried first is
 free); the tier and notes come from the defaults entries for client `pi`, which `config_parse` expands into
-one entry per `pi-*` client. A client with `data_scope: public` (`pi-public`, `pi-openrouter`, `pi-free`) is never sent a repository, and the last two run models priced at zero only (`FREE_ONLY_CLIENTS`).
+one entry per `pi-*` client. A client with `data_scope: public` (`pi-free`, `pi-tier-review`) is sent a repository only when GitHub says it is public, and `pi-free` runs models priced at zero only (`FREE_ONLY_CLIENTS`), each a `free/<model>` group of the proxy.
 The goldens `models-pi`, `run-pi`, `run-pi-unconfined` and `run-write-pi` use a fake `pi` and a fake
 `agent-launcher` that records its arguments and the agent directory it was given. Different from the node
 runner: with no `HOME` the home's Pi directory resolves under `/`, not the working directory.
@@ -636,7 +636,7 @@ million, so a cache written by the other runner may count as a miss and be probe
 defaults are embedded in the binary instead of read from a file beside it, and a grant's random id
 suffix comes from the standard library's hasher rather than from `randomBytes`; a client named like an object property (`constructor`) is an unknown client, where the node runner trips over the property; a kept worktree with no `path` (a hand-edited kept-worktrees file) is a failed entry with its own reason, where the node runner passes `undefined` to git and cannot delete it by hand, and a JSON `null` entry in that file is treated like any entry with no path; the OS error words of a worktree directory that cannot be deleted by hand differ.
 
-Also different in `run`: the tools a client's `extras.env` adds are ordered by name (`BTreeMap`) rather than by insertion (only an in-process caller can send them); a surrogate pair in a client's output is cut by characters, not UTF-16 units, where the two differ; a `named_reset` past the last moment a JavaScript `Date` holds gives none, as the node runner gives an invalid date; an error that is not one of the gateway's own (a file that cannot be written) has the code `unexpected`; the process adapter calls `kill` through an `extern "C"` declaration (the only `unsafe`), since std cannot send SIGTERM; and the monotonic clock is `Instant`-based, frozen at 0 in the goldens as the node clock fake freezes `performance.now`.
+Also different in `run`: the tools a client's `extras.env` adds are ordered by name (`BTreeMap`) rather than by insertion (only an in-process caller can send them); a surrogate pair in a client's output is cut by characters, not UTF-16 units, where the two differ; a `named_reset` past the last moment a JavaScript `Date` holds gives none, as the node runner gives an invalid date; an error that is not one of the gateway's own (a file that cannot be written) has the code `unexpected`; the process adapter calls `kill` and `signal` through `extern "C"` declarations (the only `unsafe`), since std cannot send SIGTERM to a process group or catch a stop of the gateway; and the monotonic clock is `Instant`-based, frozen at 0 in the goldens as the node clock fake freezes `performance.now`. Not in the node runner at all: a launch is streamed and its client leads a process group of its own, a run's result carries `exit_code`, `signal`, `stderr_tail` and `failure`, `stderr.txt` is written for every launched run, and the run directory holds the run event log `events.jsonl` (ADR-0017; the goldens mask the process ids it names).
 
 ```bash
 cargo test --manifest-path scripts/Cargo.toml -p model-gateway   # SCENARIO=<name> replays one scenario

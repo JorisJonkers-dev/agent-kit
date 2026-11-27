@@ -11,6 +11,7 @@ use crate::git_remote::{identify_repository, RepositoryIdentity};
 use crate::json::{object, Value};
 use crate::models::{ListedModel, MissingClient, ModelListing, SkippedModel};
 use crate::ports::Runtime;
+use crate::visibility::repository_visibility;
 
 /// What a delegation to one client model may carry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,13 +56,16 @@ pub struct PolicyDecision {
 }
 
 /// What a delegation would carry: a repository's content, or only what the
-/// caller declares. A repository with no remote, and one owned by `nedap`, are
-/// decided by their own rule rather than by an allowlist entry.
+/// caller declares. A repository with no remote, one owned by `nedap`, and one
+/// GitHub says is public are decided by their own rule rather than by an
+/// allowlist entry; any other repository, including one whose visibility could
+/// not be read, is decided by its entry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DataScope {
     Outside,
     NoRemote,
     Nedap,
+    Public { key: String },
     Repository { key: String, entry: Option<AllowlistEntry> },
 }
 
@@ -73,11 +77,6 @@ pub struct PolicySubject {
     pub model: String,
     pub family: String,
 }
-
-/// The two clients a `nedap` repository may reach, whatever an allowlist entry
-/// says. It is the client that counts, not the family: a Claude-family model
-/// served by another client is not Claude Code.
-const NEDAP_CLIENTS: [&str; 2] = ["claude", "codex"];
 
 /// The cost classes a delegation outside any repository may reach.
 const INLINE_COST_CLASSES: [CostClass; 3] = [CostClass::Free, CostClass::Subsidised, CostClass::MeteredPersonal];
@@ -115,19 +114,19 @@ fn permission(config: &GatewayConfig, subject: &PolicySubject, scope: &DataScope
             base(true, NOTHING, permitted)
         }
         DataScope::NoRemote => base(false, NOTHING, false),
-        DataScope::Nedap => base(false, EVERYTHING, NEDAP_CLIENTS.contains(&subject.client.as_str())),
+        // A nedap repository sends nothing to any client, whatever its visibility or an entry says.
+        DataScope::Nedap => base(false, NOTHING, false),
+        // A public repository is not held to the allowlist: every client, a public-only route among them, with code and history.
+        DataScope::Public { .. } => base(false, EVERYTHING, true),
         DataScope::Repository { entry, .. } => {
             let may_send = match entry {
                 None => NOTHING,
                 Some(entry) => SendPermission { code: entry.code, history: entry.history },
             };
-            // A client on a public-only route reaches a repository only when the entry says the repository is public,
-            // and only the families that entry allows; a private or unrecorded repository never reaches it.
+            // A client on a public-only route never reaches a repository that is not public, whatever its entry lists.
             let public_only = config.clients.get(&subject.client).is_some_and(|client| client.public_only);
             let allows_family = entry.as_ref().is_some_and(|entry| entry.families.contains(&subject.family));
-            let public_repository = entry.as_ref().is_some_and(|entry| entry.public);
-            let permitted = allows_family && (!public_only || public_repository);
-            base(false, may_send, permitted)
+            base(false, may_send, allows_family && !public_only)
         }
     }
 }
@@ -137,14 +136,11 @@ fn reason_for(scope: &DataScope) -> String {
     match scope {
         DataScope::Outside => "no repository: only inline content, to subsidised and metered-personal clients".to_string(),
         DataScope::NoRemote => "the repository has no remote, so nothing is sent".to_string(),
-        DataScope::Nedap => "a nedap repository: only Codex and Claude Code, with code and history".to_string(),
+        DataScope::Nedap => "a nedap repository: nothing is sent to any model".to_string(),
+        DataScope::Public { key } => format!("{key} is public on GitHub, so the allowlist does not apply: every client, with code and history"),
         DataScope::Repository { key, entry } => match entry {
             None => format!("{key} has no allowlist entry, so nothing is sent"),
             Some(entry) if entry.families.is_empty() => format!("{key}: the entry allows no family"),
-            Some(entry) if entry.public => format!(
-                "{key}: the entry allows {}, and records the repository as public, so a public-only route may read it",
-                entry.families.join(", ")
-            ),
             Some(entry) => format!("{key}: the entry allows {}", entry.families.join(", ")),
         },
     }
@@ -174,7 +170,9 @@ pub fn permitted_models(listing: ModelListing, decision: &PolicyDecision) -> Pol
 /// What a delegation from `repo` would carry: a repository's content, or only
 /// what the caller declares. No `repo`, and a path in no repository, both mean
 /// the caller declares its content itself; a path git cannot read is an error,
-/// never a permissive scope.
+/// never a permissive scope. A `nedap` remote decides before visibility is
+/// asked; a repository is public only when GitHub says so, and one whose
+/// visibility cannot be read is held to its allowlist entry.
 pub fn resolve_scope(runtime: &Runtime, repo: Option<&str>) -> Result<DataScope, GatewayError> {
     let Some(repo) = repo else {
         return Ok(DataScope::Outside);
@@ -185,7 +183,10 @@ pub fn resolve_scope(runtime: &Runtime, repo: Option<&str>) -> Result<DataScope,
     match identify_repository(&git_or_fail(repo, runtime.git.remotes(&root))?) {
         RepositoryIdentity::DeniedOwner { .. } => Ok(DataScope::Nedap),
         RepositoryIdentity::NoRemote => Ok(DataScope::NoRemote),
-        RepositoryIdentity::Identified { key, .. } => {
+        RepositoryIdentity::Identified { key, location } => {
+            if repository_visibility(runtime, &location).is_public() {
+                return Ok(DataScope::Public { key });
+            }
             let allowlist = load_allowlist(runtime)?;
             Ok(DataScope::Repository { entry: allowlist.repositories.get(&key).cloned(), key })
         }

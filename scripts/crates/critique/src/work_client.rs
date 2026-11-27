@@ -13,7 +13,7 @@ use crate::vibe_client::{gateway_client, launch_error, on_path};
 use model_gateway::client_run::{ClientRun, ClientRunOutcome, ClientRunRequest};
 use model_gateway::extras::RunExtras;
 use model_gateway::json::{self, Value};
-use model_gateway::launchers::{LaunchPaths, LaunchRequest};
+use model_gateway::launchers::LaunchRequest;
 use model_gateway::ports::{ProcessCommand, ProcessResult};
 use model_gateway::run::RunMode;
 use model_gateway::text::js_trim;
@@ -165,16 +165,10 @@ fn launch(
         // The work clients run on their own gateway client, whatever the config pins as the model's alias.
         client: gateway_client(None, client)?,
         prompt: runtime.files.read_text(&launch.prompt_path).map_err(CritiqueError::from_fs)?,
-        paths: LaunchPaths {
-            export_dir: join(&[&launch.critic_dir, "export"]),
-            prompt_path: launch.prompt_path.clone(),
-            run_dir: None,
-            work_dir: launch.packet_dir.clone(),
-            git_writable: None,
-        },
+        paths: crate::paths::launch_paths(runtime, &launch.critic_dir, &launch.prompt_path, &launch.packet_dir)?,
         extras,
     };
-    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };
+    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env, clock: runtime.clock.as_ref() };
     gateway.launch(&request).map_err(launch_error)
 }
 

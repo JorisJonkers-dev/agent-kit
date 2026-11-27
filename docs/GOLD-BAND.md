@@ -442,7 +442,7 @@ violator fails, a listed template that now passes fails with "remove it from
 `known-critique-failures.txt`", and a line without a ticket fails. Today: `to-spec`,
 `to-tickets`, `brainstorming`, `grill-me` and `grill-with-docs` have no critic (#795).
 `workflow-c` and `workflow-c-work` passed `critic-family` once their writers and orchestrators
-were bound to one family (#796; before it a Mistral writer met `pi-vibe-mistral-large` and a
+were bound to one family (#796; before it a Mistral writer met `pi-vibe-mistral-small` and a
 Claude writer met `claude-work`). `workflow-b` and the critique templates pass both rules.
 
 `agent-kit-merge converge gold-band-workflows` runs the same check in process, with the
@@ -1132,7 +1132,7 @@ orchestrators that rule on their review (`spec-verdicts`, `tickets-verdicts`, Vi
 The runner leaves the orchestrator's family out of the critics' roster, so no
 critic the runner picks is of the writer's family (#796; `workflow-lint --critique`
 and the run-start `critic-family` check hold it). Before #796 the drafts were
-Mistral and met `pi-vibe-mistral-large` in the roster. No node writes memory and
+Mistral and met `pi-vibe-mistral-small` in the roster. No node writes memory and
 none binds Codex or Opus; the grill rounds use Vibe GLM. The work-instance variant is
 `workflow-c-work.json` (next section); this file is not changed by it.
 
@@ -1168,12 +1168,10 @@ nothing else. What differs from the personal file:
   failure edge to a manual check (`grant-refused`, shared by both)
   that has no way on: the owner asks for a new grant and starts the run again.
   The run-start gate also needs a live grant for the run before any node.
-* The critique steps are the stage templates' nodes; their prepare and fan-out
-  gate goals say that a `nedap` repository routes to the work-only critic
-  roster (Codex under the grant and the work Claude agent, never the
-  orchestrator's own family). The routing itself is the critique runner's; the
-  launchers for those critics are ticket #558, so until it lands the runner
-  reports the work critics as unavailable and the review does not pass.
+* The critique steps are the stage templates' nodes. Since the 2026-11-26
+  amendment to ADR-0007 the critique runner refuses a `nedap` repository
+  outright (reason `nedap`): nothing of it is sent to any critic, the work
+  critics included, so these steps cannot pass on a `nedap` repository.
 * Publication still pauses on `publication-check` for the owner, and only
   after it does the publish gate create GitHub issues, through the pinned
   `ticket-publish` wrapper, in the repository the work repository's own
@@ -1389,7 +1387,7 @@ longer says which model answers.
   tier is not in the snapshot or the provider is not the tier's (`unknown-tier`).
 * **The run-start shim resolves them too.** A tier is a chain of models of several families, so the family check
   takes the families of the chain's steps: each one must be allowed by the repository's entry, and a step with
-  no family (`free/beam-free`) cannot be vouched for by any entry, so a repository with an entry that names
+  no family cannot be vouched for by any entry, so a repository with an entry that names
   fewer families than the chain holds is refused until its entry is extended with `allow`. A repository with no
   entry takes the personal default, and a `nedap` repository allows no tier (only `claude-work` and `codex`).
 * **The ledger shows the tier.** Gold Band runs outside the gateway's ledger (ADR-0014), so a passing run-start

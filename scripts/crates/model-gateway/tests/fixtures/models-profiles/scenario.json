@@ -11,7 +11,7 @@
       ],
       "write": {
         "bin/pi": "#!/bin/sh\nexit 0\n",
-        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3-flash\"},{\"id\":\"deepseek-v4.1-flash\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-public\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"public/gemini-3.6-flash\"},{\"id\":\"public/gemini-3.5-flash-lite\"}]}}}"
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-vibe\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"ministral-8b\"},{\"id\":\"mistral-small\"},{\"id\":\"glm-5.3-flash\"},{\"id\":\"deepseek-v4.1-flash\"},{\"id\":\"glm-5.3\"},{\"id\":\"mistral-large-4\"}]},\"litellm-opencode-go\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"kimi-k2.7-code\"},{\"id\":\"qwen3.8-flash\"}]},\"litellm-free\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"free/gemini-3.6-flash\"},{\"id\":\"free/gemini-3.5-flash-lite\"}]}}}"
       },
       "exec": [
         "bin/pi"

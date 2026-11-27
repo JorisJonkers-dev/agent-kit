@@ -130,11 +130,10 @@ prices until it is removed from `defaults.json`.
 ### Pi: one client per LiteLLM route
 
 Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
-`pi-local`, `pi-public`, `pi-openrouter`, `pi-free`, `pi-tier-vibe`,
+`pi-local`, `pi-free`, `pi-tier-vibe`,
 `pi-tier-go-cheap` and `pi-tier-review`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
-route's own team and budget. `pi-openrouter` and `pi-free` are the free-only
-clients (below). A tier client sends the tier's name as the model. All are
+route's own team and budget. `pi-free` is the free-only client (below). A tier client sends the tier's name as the model. All are
 `subsidised`, except a model that is `free` (below).
 
 **One definition of free.** A model is `free` when the live LiteLLM catalogue
@@ -172,45 +171,30 @@ probed is blocked or failed, is marked `"free": true` when it is public or every
 deployment tried first is a free model, and is offered unchecked when the
 catalogue probed none of them.
 
-**Free-only clients.** The owner allows OpenRouter for free models only, with
-public data only, so OpenRouter runs through exactly one client, `pi-openrouter`
-(the `openrouter` route; `pi-free` is the same for the `free` route). Both have
-`"data_scope": "public"` and hold their models to the one definition of free:
-`models` lists a free model and names a billed or unpriced one in `skipped`
-with the reason, `run` refuses a billed `pi-openrouter` model with code
-`openrouter-billed` (a billed `pi-free` model with `free-only-refused`) before
-anything starts, and a delegation that names a `repo` follows the same rule as
-on `pi-public`: it is sent only to a repository whose allowlist entry records
-it as public and allows the model's family, since the models may train on what
-they are sent. Every other client still refuses OpenRouter: a model named
-`openrouter/...`, or a Hermes or OpenCode run on the `openrouter` provider, is
-`provider-not-allowed`, and no machine file opens it.
+**The free client.** A free model is reached in one way only: as
+`free/<model>` on `pi-free`, the `free` route, whose key holds the access group
+`free` and nothing else (litellm#106). Each `free/<model>` group is every free
+copy of one model across the free providers; the proxy checks each provider's
+limits before the call, skips a provider that is limited and returns it at its
+reset, and never falls back to a paid deployment, so a request every free copy
+refuses fails instead of billing. No other client, provider or name reaches a
+free model: the old per-provider names (`openrouter/<x>`, `public/<x>`,
+`google-free/<x>`, `opencode-go-free/<x>`, OpenCode's own `-free` ids) and the
+`pi-public`, `pi-openrouter` and `opencode-free` clients are gone. `pi-free` holds
+its models to the one definition of free: `models` lists a free model and names
+a billed or unpriced one in `skipped` with the reason, and `run` refuses a billed
+one with `free-only-refused` before anything starts. Every client refuses
+OpenRouter: a model named `openrouter/...`, or a Hermes or OpenCode run on the
+`openrouter` provider, is `provider-not-allowed`, and no machine file opens it.
 
-**OpenCode's own free models.** `opencode-free` runs OpenCode's free models
-(`opencode/glm-5.3-flash-free`, `opencode/big-pickle`, `opencode/nemotron-3.5-super-vl-free`
-and the rest) through the OpenCode CLI, the only client OpenCode serves them to
-(its harness guide: "Other harnesses receive HTTP 403 for those models, even
-with a Console API key"), so no LiteLLM route reaches them. Its models are what
-`opencode api GET /api/model` lists for OpenCode's own provider with every price
-zero, asked again before each run, so a model that stopped being free, or any
-paid `opencode/<id>`, is refused with `free-only-refused`, and a model of
-another provider with `provider-not-allowed`. It is `"data_scope": "public"`
-like the other free-only clients: several free models keep or train on what they
-are sent (Big Pickle, Iceman, Inkling, Flint, the NVIDIA trial endpoints). A free
-model whose id names no known family and that no catalogue entry names takes the
-family `opencode`. When OpenCode lists no free model, `models` names
-`opencode-free` in `missing` with what to check: OpenCode's models catalogue
-failed to load (its log says `failed to load plugin plugin.id=opencode.models.dev`),
-or `OPENCODE_DISABLE_FREE_MODELS` is set.
-
-`pi-public` has `"data_scope": "public"` (a client field, `any` by default):
-that route is for public work only, so a delegation that reads a repository is
-sent to it only when the repository's allowlist entry says `"public": true`
-and allows the model's family. A public repository is already public, so the
-route may read it: a read-only run and a writing run alike, carrying the code
-and the history the entry allows. A private repository, an entry without the
-flag and a repository with no entry at all are refused, as is a family the
-entry does not allow; `models` with a `repo` follows the same rule, listing the
+`pi-free` and `pi-tier-review` have `"data_scope": "public"` (a client field,
+`any` by default): a free provider may train on what it is sent, so those routes
+are for public work only, so a delegation that reads a repository is
+sent to it only when GitHub says the repository is public. A public repository
+is already public, so the route may read it: a read-only run and a writing run
+alike, carrying its code and history. A private repository, one whose
+visibility cannot be read and a `nedap` one are refused, whatever an allowlist
+entry lists; `models` with a `repo` follows the same rule, listing the
 client's models for a public repository and leaving them out for any other. With no `repo` it lists as before, since such a
 run carries only what the caller declares.
 
@@ -250,8 +234,8 @@ word; its tier is a guess from the name (`routine`; `trivial` for a name with
 catalogue lists under another modality is named in `skipped` with the
 catalogue's own reason, and a model it calls blocked or failed is refused as
 before. `run` places a model the same way, so `run` accepts a model that
-`models` lists. A Pi run names the canonical group (`beam-1.0-501b-a23b`), not
-the upstream id it is served under (`beam-free`); the refusal for the upstream
+`models` lists. A Pi run names the canonical group (`free/beam-1.0-501b-a23b`),
+not the upstream id it is served under (`beam-free`); the refusal for the upstream
 id names the group.
 
 A missing, unreadable or malformed catalogue is never an error: the models
@@ -423,14 +407,15 @@ Everything that can refuse the run happens before anything is launched:
   one this machine lists in `clients.hermes.providers` (empty by default, so
   every Hermes run is refused until the owner names one). `openrouter` is
   refused whatever the configuration says, and so is a model id that starts
-  with `openrouter/`, on every client but `pi-openrouter` (free models only).
+  with `openrouter/`, on every client: free models run only as `free/<model>`
+  on `pi-free`.
   An OpenCode model is named
   `<provider>/<model>`, and only the providers `clients.opencode.providers`
   names (default `["opencode-go", "litellm-opencode-go"]`, the second being the
   provider setup writes for the LiteLLM OpenCode Go route) are allowed; every
   other provider is refused, and so is `opencode/<model>`, OpenCode's
   pay-per-token Zen, even when the machine lists it: a run never reaches a
-  pay-per-token model. Its free models run on `opencode-free` instead. When
+  pay-per-token model, nor one of Zen's own free models. When
   every model OpenCode lists is on a provider the list does not name, `models`
   names `opencode` in `missing` with the reason instead of offering nothing.
 - `workflow-ended` — the run names a workflow that ended, so its caps and
@@ -524,6 +509,39 @@ ends in an assistant message with `stopReason` `error` or `aborted`, or has no
 assistant message, is a failed run with the error's own text. `AGENT_KIT_LAUNCHER_BIN`
 names the launcher, else `agent-launcher` on `PATH`.
 
+`AGENT_KIT_SANDBOX` picks the sandbox every launch runs in. Unset, empty or
+`confine` is `agent-launcher confine`, as above. `sbx-dry-run` starts nothing:
+the launch is prepared as for `confine`, what it made is removed, and it is
+refused (`sandbox-dry-run`) with the Docker Sandboxes plan its grants translate
+to: mounts (`PATH` or `PATH:ro`), the variables passed in by name (never their
+values), ports, and the gaps sbx does not hold the same way. Any other value
+is refused (`sandbox-unknown`) before anything is made.
+
+`sbx` runs a Pi, OpenCode, Vibe, Claude Code, Codex or Hermes launch in its own Docker Sandbox, from
+Docker's prebuilt `docker.io/sbx/<client>-image` (`pi`, `opencode`, `vibe`, `claude`, `codex`, `hermes-agent`),
+pinned by digest to the newest tag dated at least two days ago (a cooldown, so a
+fresh build never runs at once). Its variables reach the client through a 0600
+env file that is removed after the run. A launch refuses (`sandbox-unsupported`)
+before sbx is asked anything for Antigravity (its sign-in is the macOS login keychain and its state is in
+the owner's `~/.gemini`, which no sandbox holds),
+a plan with no written mount, or a route that names no base URL (a Vibe model on
+Mistral's own provider names none and is allowed `api.mistral.ai:443`; its
+`MISTRAL_API_KEY` is read from the keychain outside and passed by name, and a
+login the gateway cannot read there is refused as a keychain gap). Claude Code gets its
+`CLAUDE_CODE_OAUTH_TOKEN` the same way and reaches `api.anthropic.com:443` alone, never the LiteLLM proxy.
+Codex signs in with the copy of `auth.json` in its run home (the home is mounted written, the owner's
+file never is), reaches `chatgpt.com`, `api.openai.com` and `auth.openai.com` on 443, runs with its own sandbox off
+(`-s danger-full-access`, the microVM is the sandbox), and the tokens it refreshed go back to the owner's file
+after the run. Hermes takes its LiteLLM key by name and the proxy host from its run home's `config.yaml`
+(a Hermes provider of the owner's own, with no `base_url`, is refused). `sandbox-unavailable`
+when `sbx version` does not answer (the install command is named), or when no image
+is recorded and the refresh failed. The records are `sbx-images.json` under the
+gateway's state directory, one per client with its `tag`, `digest` and `checked_at`.
+A launch refreshes a record that is missing or older than a day. `model-gateway sandbox refresh [--json]`
+asks Docker Hub for the newest image of each enabled client and records it; it exits 1
+only when every client failed and holds no record. `model-gateway sandbox status [--json]`
+prints the records and makes no network call.
+
 Codex runs non-interactively with its own sandbox: `-s read-only` for a
 read-only run and `-s workspace-write` for a writing one, so the sandbox is
 Codex's, not the gateway's. Its reasoning effort is the model id's last word
@@ -577,9 +595,54 @@ runs sit with the repository's; an inline run keeps it in
 `$XDG_STATE_HOME/agent-kit/model-gateway/runs/<run_id>/`, else
 `~/.local/state/agent-kit/model-gateway/runs/<run_id>/`. It holds `prompt.md`,
 `input.json`, `output.json` (the client's full output), `stderr.txt` (what the
-client printed on stderr, when anything) and `result.json`, and a writing run's
+client printed on stderr, written for every launched run, empty when it printed
+nothing), `events.jsonl` (below) and `result.json`, and a writing run's
 `check-output.txt`. `run_id` is a UTC timestamp plus a short
-random suffix.
+random suffix. `output.json` and `stderr.txt` grow while the client runs, as
+the gateway reads its pipes, and are rewritten whole when it ends.
+
+Every launched run's result says how the client's process ended:
+`exit_code` (`null` when a signal ended it or it never started), `signal`
+(`SIGKILL`, only when one ended it), `stderr_tail` (the last 4 KB of its
+stderr, `""` when it printed none) and, when the run failed, `failure`:
+`kind` and one line of `reason`, plus `output_tail` (the last 2 KB of its
+output) when its stderr was empty. The kinds are `spawn-failed` (never
+started), `signalled` (a signal ended it, or the gateway was stopped and
+stopped it), `timed-out`, `sandbox-denied` (its stderr says the sandbox
+refused something; the sandbox's own denial log is not captured),
+`harness-error` (it ran and failed by its own account: the error its output
+carries, else the last line of its stderr, else the exit code) and
+`gateway-error` (the gateway stopped before the result was written). Read
+`failure` before retrying by hand; `reason` stays the slug the retry and the
+climb read.
+
+The client starts as the leader of a process group of its own. Its time limit
+sends SIGTERM to the whole group, and SIGKILL five seconds later; what it
+leaves running in the group when it exits is killed. A gateway stopped with
+SIGINT, SIGTERM or SIGHUP while a client runs passes the stop on to the group,
+writes the run's result and starts no further launch.
+
+### The event log
+
+`events.jsonl` is one JSON object per line, appended while the run goes, the
+same for every client. Each line has `v` (the schema version, `1`), `seq`
+(from 1, per run), `ts` (RFC 3339, milliseconds), `type`, `run_id`,
+`workflow`, the OpenTelemetry GenAI attributes `gen_ai.operation.name`
+(`invoke_agent`), `gen_ai.system` (the model family), `gen_ai.agent.name`
+(the client) and `gen_ai.request.model`, and `data`:
+
+| `type` | `data` |
+| :- | :- |
+| `run.started` | `gateway_pid`, `mode`, `time_limit_s` |
+| `diagnostic` | `level`, `source` (`stderr`: one per stderr line, the first 200; `gateway`: what the runner did, such as the time limit's SIGTERM), `text` |
+| `heartbeat` | every 15 s while the client runs: `pid`, `alive_s`, `stdout_bytes`, `stderr_bytes`, `last_output_age_s` |
+| `run.finished` | exactly once: `status` (`ok`, `failed`, `lost`), `exit_code`, `signal`, `reason`, `failure`, `stderr_tail`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `cost_usd`, `pid`, `duration_s` |
+
+`tail -f events.jsonl` shows a live run. A gateway killed before it wrote
+`run.finished` leaves the log open; the next run started beside it (same runs
+directory) finishes it as `lost` (reason `gateway-lost`) once that gateway's
+process is gone. The log never fails a run, and `result.json` stays the
+record.
 
 Every run also appends one JSON line to the machine-wide ledger,
 `$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl` (else
@@ -617,8 +680,8 @@ make in all.
   Refusals (`policy-refused`, `provider-not-allowed`, `cap-exceeded`,
   `no-grant`, `no-estimate`, `workflow-ended` and the other error codes) are
   errors before anything is launched and are never retried. The raw or partial output stays in
-  the run directory (`output.json`, and `stderr.txt` when the client printed
-  any) beside the `reason` in `result.json`.
+  the run directory (`output.json`, `stderr.txt` and `events.jsonl`) beside the
+  `reason` and `failure` in `result.json`.
 - **Retry.** The first failure is retried once on the same client model. The
   retry's prompt is the caller's prompt plus `A previous attempt failed:
   <reason>; <the last 1,000 characters of the check's output for a failed
@@ -628,7 +691,7 @@ make in all.
 - **Climb.** A second failure moves to the next stronger subsidised model: a
   catalogue `tier` higher than the failing model's, whatever the failing
   model's own cost class, in the repository's permitted list (the family
-  allowlist and the nedap rule, through the data policy above), never a model
+  allowlist and the visibility rules, through the data policy above), never a model
   the machine disabled, ordered by tier and then catalogue order. It never
   moves into a metered class (a metered-personal run climbs only to a
   subsidised model, and a metered-employer model is never a climb target at
@@ -657,9 +720,8 @@ make in all.
   of which ever ran: when an earlier attempt really ran and failed and a later
   one cannot start with nothing to swap to, the last real result comes back
   instead, with `escalation: "stopped"` and `stopped_reason` naming what the
-  next attempt could not start with. In a `nedap` repository only Claude Code
-  and Codex are permitted, so Claude Code never falls through to Vibe or
-  Antigravity.
+  next attempt could not start with. In a `nedap` repository nothing is
+  permitted, so nothing is started there at all.
 
 - **The family is binding by default.** The model a delegation names fixes its
   family, and the retry, the climb and the fall-through stay inside that family.
@@ -1078,8 +1140,8 @@ the staged diff before you commit it.
 A delegation profile is one named bundle that owns the models a delegation may
 use and the tool scope it runs with. The shipped profiles are `cheap-research`,
 `cross-critic` (two model families other than the writer's), `public-gemini`
-(Gemini models on the public route: named for what they are, not for being
-free, since the proxy bills them once the free-tier quota is used) and
+(the Gemini free tier as `pi-free:free/gemini-3.5-flash-lite` and
+`free/gemini-3.6-flash`, for public material only, never a paid fallback) and
 `implement-cheap` (a cheap writer with a ladder to a stronger model), and the
 delegation roles below. They live
 in `registry/delegation-profiles.yaml` and are rendered into the `profiles`
@@ -1108,10 +1170,10 @@ optional `narrow` object that may only take something away:
 
 The data policy always wins: it is intersected with the profile. A profile left
 with no allowed model for the repository is `profile-refused`, never a silent
-fallback to another model. `public-gemini` runs on the public route, which is
-never sent a repository, so it has a model only for inline work; a nedap
-repository reaches only Claude Code and Codex, and a private repository only
-the families its entry names. A delegation that fails stays inside its profile:
+fallback to another model. `public-gemini` runs on `pi-free`, which is
+sent only a repository GitHub says is public; a nedap repository reaches no
+model, a public one every model, and a private one only the families its entry
+names. A delegation that fails stays inside its profile:
 the retry, the climb and the fall-through use only its models.
 
 ### Roles and harnesses
@@ -1124,9 +1186,9 @@ spec and find unsafe assumptions, and reports findings with the evidence for
 each, never a fix), `refute` (checks one claim from another family) and
 `triage` (sorts into labelled buckets). Each has a model set, a deny-all tool
 scope (no MCP server, skill or plugin), a per-run `max_spend_usd` and the data
-policy of any profile: a repository never reaches the public clients
-(`pi-public`, `pi-openrouter`, `pi-free`), which `research` and `triage` list
-only for public-data work. A free model is run only when the catalogue marks it
+policy of any profile: a repository GitHub does not say is public never
+reaches the public-only client `pi-free`, which the roles list (as
+`free/<model>`) only for public-data work. A free model is run only when the catalogue marks it
 free (`free-only-refused` otherwise).
 
 A role runs on Pi by default, and any harness can be chosen per run:
@@ -1148,14 +1210,12 @@ so it is refused until one is configured. `harness` needs `profile`, and cannot
 be given with `client` or `model`.
 
 `opencode` runs every role too. It takes the first of the profile's models that
-OpenCode can run: one of OpenCode's own free models (`opencode-free:opencode/<id>`)
-as it is, or a Pi route's model on OpenCode's own LiteLLM provider of that route
+OpenCode can run: an `opencode-go/<id>` model as it is, or a Pi route's model
+on OpenCode's own LiteLLM provider of that route
 (`pi-vibe:glm-5.3` runs as `opencode:litellm-vibe/glm-5.3`), for the routes that
 take any data. The route's key is read from the secret store into OpenCode's
-environment for the run, as for Hermes. Pi stays the default: a role's
-`opencode-free` models are listed after its Pi models, so a tie goes to Pi, and
-OpenCode is the harness when a model needs it (OpenCode's free models answer 403
-to every other client).
+environment for the run, as for Hermes. Pi stays the default. A free model
+(`pi-free`) is never run on OpenCode: the public-only routes stay on Pi.
 
 ### Tiers
 
@@ -1196,7 +1256,7 @@ and a fixed one shows as stale.
 
 Only Pi enforces a tool scope by name. A role runs on another harness if the
 client is one whose per-run home holds no MCP server, skill or plugin and whose
-escape probe passes (`claude`, `hermes`, `opencode`, `opencode-free`: they hold a
+escape probe passes (`claude`, `hermes`, `opencode`: they hold a
 deny-all scope, and refuse a list), or if the profile names the client in
 `unenforced_clients`: the profile author's explicit acceptance of the
 restrictions the gateway puts on that client's launch (Antigravity's `--mode
@@ -1295,7 +1355,7 @@ A run is also refused with `profile-refused` when:
   confined launch reaches only the proxy port, so a server could not connect),
   `any`, a name that is not a plain name, and a skill or plugin that is not in
   Pi's home. A confined client with a home that holds none (`claude`,
-  `hermes`, `opencode`, `opencode-free`) holds a scope that grants nothing and
+  `hermes`, `opencode`) holds a scope that grants nothing and
   refuses a list. Every other client is treated as unable unless the profile
   lists it in `unenforced_clients`, so a profile that restricts tools (every seed
   profile does, since deny-all is the default) is refused for `vibe` and the rest
@@ -1307,8 +1367,8 @@ An unknown name is `unknown-profile`. `narrow` without `profile` is
 
 ## The data policy
 
-The family allowlist critique writes decides what a repository's content may
-go to. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
+A repository's GitHub visibility decides first, and the family allowlist
+critique writes decides for every repository that is not public. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
 `~/.config/agent-kit/critique-allowlist.json`, and keys each repository by
 `<host>/<owner>/<repo>` with `families`, `code` and `history`.
 
@@ -1316,18 +1376,24 @@ go to. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
   entry names, and each reports the entry's `code` and `history` in `may_send`.
 - A repository with a remote but no entry, or with no remote, lists nothing and
   `policy` says why.
-- A repository owned by the `nedap` GitHub organisation lists only Codex and
-  Claude Code, whatever its entry says, with code and history allowed.
-- A client with `"data_scope": "public"` (`pi-public`) is never listed for a
-  repository, whatever its entry says of the family.
+- A repository owned by the `nedap` GitHub organisation lists nothing, whatever
+  its visibility or its entry says.
+- A repository GitHub says is public (`gh api repos/<owner>/<repo> --jq
+  .visibility`, asked through `gh` and cached for fifteen minutes in
+  `$XDG_CACHE_HOME/model-gateway/repository-visibility.json`) lists every client
+  model, the `"data_scope": "public"` ones among them, each allowed to send code
+  and history; its allowlist entry is not read.
+- A repository whose visibility cannot be read (no gh, offline, an API error, a
+  remote not on github.com) counts as private, never as public.
+- A client with `"data_scope": "public"` (`pi-free`, `pi-tier-review`) is never listed for a
+  repository that is not public, whatever its entry says of the family.
 - No `repo`, or a path outside any repository, lists only subsidised and
   metered-personal client models, each `inline_only` and allowed to send
   neither code nor history.
 
 `anthropic` and `openai` are families like any other: a repository's entry must
-list them for a delegation to reach Claude Code or Codex. In a `nedap`
-repository it is the client that counts, not the family: only the Codex and
-Claude Code clients may receive anything.
+list them for a delegation from a private repository to reach Claude Code or
+Codex. A `nedap` repository may send nothing to any client.
 
 A path git cannot read — one that does not exist, or a repository git refuses
 for its ownership or permissions — is an error (`code:
@@ -1352,7 +1418,8 @@ and merges over the shipped defaults:
   may name (`provider-not-allowed` otherwise; `["opencode-go", "litellm-opencode-go"]` by default) and
   the ones a Hermes run may name (`hermes --provider`; empty by default, so no
   Hermes run is allowed until the owner lists one). `openrouter` stays refused
-  whatever it says; only `pi-openrouter` runs it, for free models.
+  whatever it says, on every client; free models run only as `pi-free`'s
+  `free/<model>`.
 - `clients.<id>.plan_limits` is what that client's plan allows, window by
   window: a list of `{"window": "5h"|"day"|"week"|"month", "limit_usd": n}`,
   or `{"window": ..., "limit_runs": n}` for a plan that is not billed in

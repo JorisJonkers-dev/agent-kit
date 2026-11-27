@@ -26,11 +26,12 @@ use crate::outputs::ClientOutput;
 use crate::policy::{decide_policy, resolve_scope, DataScope, ModelPermission, PolicySubject};
 use crate::ports::{ProcessResult, Runtime};
 use crate::proof::read_proof_files;
+use crate::network::{NetworkScope, Reach};
 use crate::profiles::{hold_to_profile, run_scope, tools_json};
 use crate::routing::{recorded, Routing};
 use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
-    ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, FREE_ONLY_CLIENTS, NO_TOKENS, OPENROUTER_CLIENT, PROVIDER_CLIENTS,
+    ClientReport, LaunchExit, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens, FORBIDDEN_PROVIDERS, FREE_CLIENT, FREE_ONLY_CLIENTS, NO_TOKENS, PROVIDER_CLIENTS,
 };
 use crate::slots::SlotGuard;
 use crate::state_file::Workflows;
@@ -38,6 +39,10 @@ use crate::text::join;
 use crate::timestamps::to_iso;
 use crate::usage::{plan_windows, warnings_of};
 use crate::workflows;
+use crate::adapters::process::signal_name;
+use crate::ports::{Ending, LaunchWatch};
+use crate::run_events::{finished_data, recover_lost, RunEvents, RunIdentity, RunStart};
+use crate::run_failure::{failure_of, tail, Failure, TAIL_BYTES};
 use crate::write_run::{writing, FinishedWrite, WatchedWorktree, WriteReport};
 use std::collections::BTreeMap;
 
@@ -66,6 +71,14 @@ pub struct RunResult {
     pub attempt: Option<usize>,
     /// The run id of the delegation's first attempt, on every later one.
     pub attempt_of: Option<String>,
+    /// The client's exit code; `None` when it never started or a signal ended it.
+    pub exit_code: Option<i32>,
+    /// The signal that ended the client, when one did.
+    pub signal: Option<i32>,
+    /// The end of what the client wrote to stderr (`TAIL_BYTES`); `None` when no client was launched.
+    pub stderr_tail: Option<String>,
+    /// Why the delegate failed, when it did: the kind and one line of reason.
+    pub failure: Option<Failure>,
     /// Set when the run's throwaway worktree could not be removed.
     pub cleanup_warning: Option<String>,
     /// One line per plan window of this client at or above the warning ratio.
@@ -97,6 +110,15 @@ impl RunResult {
         let optional = [
             ("reason", self.reason.as_deref().map(Value::str)),
             ("unavailable_until", self.unavailable_until.as_deref().map(Value::str)),
+        ];
+        members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
+        // How the client's process ended, after the reason: its exit code (null for a signal or no start), the
+        // signal's name, the end of its stderr, and the failure decoded from them.
+        let optional = [
+            ("exit_code", self.stderr_tail.as_ref().map(|_| self.exit_code.map_or(Value::Null, |code| Value::Num(f64::from(code))))),
+            ("signal", self.signal.map(|signal| Value::str(&signal_name(signal)))),
+            ("stderr_tail", self.stderr_tail.as_deref().map(Value::str)),
+            ("failure", self.failure.as_ref().map(Failure::to_json)),
         ];
         members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
         // A writing run's report sits where the node runner spreads it: after the reason, before the escalation's own members.
@@ -250,6 +272,8 @@ pub(crate) struct Delegated<'a> {
     pub(crate) watched: Vec<WatchedWorktree>,
     /// When the run's grant or workflow lapses; the check may not outlive it.
     pub(crate) ends_at_ms: Option<i64>,
+    /// The run's event log, which the launch reports to as it goes.
+    pub(crate) events: &'a RunEvents<'a>,
 }
 
 pub struct RunCommand<'a> {
@@ -389,6 +413,19 @@ impl RunCommand<'_> {
             None => self.workplace(root.as_deref(), throwaway)?,
         };
         let input = held_to(input, reservation.as_ref());
+        // A gateway killed before it finished a run beside this one left that run's log open; it is closed here.
+        let runs = crate::text::dirname(&run_dir);
+        recover_lost(self.runtime.files.as_ref(), self.runtime.process.as_ref(), self.runtime.clock.as_ref(), &runs);
+        // The log's first line goes in before anything else of the run, so its directory is made here.
+        let _ = self.runtime.files.mkdir_all(&run_dir);
+        let identity = RunIdentity { run_id: id.clone(), workflow: input.workflow.clone(), client: input.client.clone(), model: input.model.clone(), family: family.clone() };
+        let events = RunEvents::start(
+            self.runtime.files.as_ref(),
+            self.runtime.clock.as_ref(),
+            &run_dir,
+            identity,
+            &RunStart { mode: input.mode.as_str(), time_limit_s: input.time_limit_s },
+        );
         let delegated = self.delegate(&Delegated {
             started_at,
             started_ms,
@@ -404,6 +441,7 @@ impl RunCommand<'_> {
             branch: workplace.branch.as_deref(),
             watched,
             ends_at_ms: reservation.as_ref().and_then(|reservation| reservation.ends_at_ms),
+            events: &events,
         });
         let warning = self.release(&workplace);
         let mut result = delegated?;
@@ -425,6 +463,7 @@ impl RunCommand<'_> {
         result.warnings.extend(warnings_of(&input.client, &windows));
         let text = format!("{}\n", json::pretty(&result.to_json()));
         self.runtime.files.write_text(&join(&[&run_dir, "result.json"]), &text).map_err(GatewayError::from_fs)?;
+        events.finish(finished_data(&result));
         Ok(result)
     }
 
@@ -474,15 +513,13 @@ impl RunCommand<'_> {
         if input.client == "opencode" {
             require_allowed_provider(&input.model, client.providers.as_deref())?;
         }
-        crate::run::require_opencode_own_model(&input.client, &input.model)?;
         require_provider(input, &client)?;
         let entry = catalogue_entry(&config, &input.client, &input.model)?;
         crate::litellm_catalogue::require_usable(self.runtime, &config, &input.client, &input.model)?;
         if FREE_ONLY_CLIENTS.contains(&input.client.as_str()) && !self.is_free(&config, &input.client, &input.model) {
-            let code = if input.client == OPENROUTER_CLIENT { "openrouter-billed" } else { "free-only-refused" };
             return Err(GatewayError::new(
-                code,
-                format!("{}:{} is not priced at zero: this client runs free models only (OpenRouter only ever for those), so a billed one is never run", input.client, input.model),
+                "free-only-refused",
+                format!("{}:{} is not priced at zero: this client runs free models only, so a billed one is never run", input.client, input.model),
             ));
         }
         let family = match entry.as_ref().map(|entry| entry.family.clone()).or_else(|| family_of_model_id(&input.model).map(str::to_string)) {
@@ -542,7 +579,7 @@ impl RunCommand<'_> {
                 .map_err(|reason| GatewayError::new("profile-refused", format!("profile {profile} cannot run on {}: {reason}", input.client)))?;
         }
         Ok(match scope {
-            DataScope::Repository { key, .. } => Some(key),
+            DataScope::Repository { key, .. } | DataScope::Public { key } => Some(key),
             _ => None,
         })
     }
@@ -655,6 +692,7 @@ impl RunCommand<'_> {
             prompt_path: join(&[run.run_dir, "prompt.md"]),
             run_dir: Some(run.run_dir.to_string()),
             work_dir: run.work_dir.to_string(),
+            git_view: crate::launchers::git_view(self.runtime.git.as_ref(), files, run.work_dir, codex.git_writable.as_deref().unwrap_or_default()),
             git_writable: codex.git_writable,
         };
         let prompt = wrapped_prompt(&input.prompt, run.config.settings.summary_max_chars, input.mode, codex.worker.as_ref());
@@ -663,7 +701,9 @@ impl RunCommand<'_> {
         files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
         let scope = run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref());
         let tiered = input.profile.as_deref().and_then(|name| run.config.profiles.get(name)).is_some_and(|profile| profile.tier.is_some());
-        let (result, output, failure, launch_warnings, routing) = self.launch(run.binary, input, &paths, &prompt, scope.as_ref(), tiered);
+        let network = self.network_scope(run);
+        let (launched, output, failure, launch_warnings, routing) = run.events.beating(|| self.launch(run.binary, input, &paths, &prompt, (scope.as_ref(), tiered, network.clone()), run.events));
+        let (result, ending) = launched;
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
         let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
@@ -682,9 +722,9 @@ impl RunCommand<'_> {
         let cost = price_run(output.charged, output.tokens, run.entry.and_then(|entry| entry.prices.as_ref()));
         let output_path = join(&[run.run_dir, "output.json"]);
         files.write_text(&output_path, &result.stdout).map_err(GatewayError::from_fs)?;
-        if !result.stderr.is_empty() {
-            files.write_text(&join(&[run.run_dir, "stderr.txt"]), &result.stderr).map_err(GatewayError::from_fs)?;
-        }
+        files.write_text(&join(&[run.run_dir, "stderr.txt"]), &result.stderr).map_err(GatewayError::from_fs)?;
+        let failure = delegate_reason.as_deref().map(|why| failure_of(why, &result, &ending, output.error.as_ref().map(|error| error.text.as_str())));
+        let never_started = delegate_reason.as_deref() == Some("launch-failed");
         let summary = output.answer.as_deref().map_or_else(String::new, |answer| summary_of(answer, run.config.settings.summary_max_chars));
         Ok(RunResult {
             ok: reason.is_none(),
@@ -703,21 +743,37 @@ impl RunCommand<'_> {
             write: finished.map(|finished| finished.report),
             attempt: None,
             attempt_of: None,
+            exit_code: (!never_started && ending.signal.is_none()).then_some(result.exit_code),
+            signal: ending.signal,
+            stderr_tail: Some(tail(&result.stderr, TAIL_BYTES)),
+            failure,
             cleanup_warning: None,
             warnings: launch_warnings,
             routing,
         })
     }
 
+    /// The network reach and the sbx secrets the run's profile gives it, with the open web cut to the package
+    /// registries when the repository is not public: a private repository keeps its policy of no open reach.
+    fn network_scope(&self, run: &Delegated) -> NetworkScope {
+        let profile = run.input.profile.as_deref().and_then(|name| run.config.profiles.get(name));
+        let wants_open_web = profile.is_some_and(|profile| profile.network == Some(Reach::OpenWeb));
+        let public = !wants_open_web || matches!(resolve_scope(self.runtime, run.repo), Ok(DataScope::Public { .. } | DataScope::Outside));
+        NetworkScope::of(profile, public)
+    }
+
     /// The client, non-interactively, through the gateway's launch path, with the mark that stops a delegate
     /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
     /// result and a ledger line. The failure is the reason the run carries. A tier run on Pi goes through the
     /// recording proxy, so the routing LiteLLM reports in its headers is known; any other run's routing is unseen.
-    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scope: Option<&ToolScope>, tiered: bool) -> (ProcessResult, ClientOutput, Option<String>, Vec<String>, Routing) {
+    /// It reports to `watch` as the client runs, and says how the client's process ended beside its result.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scoped: (Option<&ToolScope>, bool, NetworkScope), watch: &dyn LaunchWatch) -> ((ProcessResult, Ending), ClientOutput, Option<String>, Vec<String>, Routing) {
+        let (scope, tiered, network) = scoped;
         let client = RunClient::parse(&input.client);
         let go = |env: &std::collections::HashMap<String, String>| {
             client.ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
-                (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env }).launch_scoped(&ClientRunRequest {
+                (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), clock: self.runtime.clock.as_ref(), env }).launch_watched(&ClientRunRequest {
                     launch: LaunchRequest {
                         model: input.model.clone(),
                         time_limit_s: input.time_limit_s,
@@ -729,8 +785,8 @@ impl RunCommand<'_> {
                     client,
                     prompt: prompt.to_string(),
                     paths: paths.clone(),
-                    extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), ..RunExtras::default() },
-                }, scope)
+                    extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), network: Some(network.clone()), ..RunExtras::default() },
+                }, scope, watch)
             })
         };
         let (launched, routing) = match client {
@@ -742,11 +798,11 @@ impl RunCommand<'_> {
             _ => (go(&self.runtime.env), Routing::unseen(&input.client)),
         };
         match launched {
-            Ok(outcome) => (outcome.result, outcome.output, None, outcome.warnings, routing),
+            Ok(outcome) => ((outcome.result, outcome.ending), outcome.output, None, outcome.warnings, routing),
             Err(error) => {
                 let (ClientRunError::Gateway(GatewayError { message, .. }) | ClientRunError::Spawn(message)) = error;
                 let output = ClientOutput { answer: None, tokens: NO_TOKENS, charged: None, failure: None, error: None };
-                (ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, output, Some("launch-failed".to_string()), Vec::new(), routing)
+                ((ProcessResult { stdout: String::new(), stderr: message, exit_code: 1, timed_out: false }, Ending::default()), output, Some("launch-failed".to_string()), Vec::new(), routing)
             }
         }
     }
@@ -843,17 +899,17 @@ fn allowed(client: &ClientConfig) -> String {
 }
 
 /// The provider a run may use. A client that runs on a provider the caller names must name one this machine
-/// lists for it, and no configuration can open OpenRouter to a client but `pi-openrouter`, which holds it to
-/// models priced at zero.
+/// lists for it, and no configuration can open OpenRouter to any client: its free models are reached only as the
+/// proxy's `free/<model>` groups.
 fn require_provider(input: &RunInput, client: &ClientConfig) -> Result<(), GatewayError> {
     let named = PROVIDER_CLIENTS.contains(&input.client.as_str());
     let forbidden = FORBIDDEN_PROVIDERS
         .iter()
         .find(|forbidden| input.provider.as_deref() == Some(**forbidden) || input.model.starts_with(&format!("{forbidden}/")));
-    if let Some(forbidden) = forbidden.filter(|_| input.client != OPENROUTER_CLIENT) {
+    if let Some(forbidden) = forbidden {
         return Err(GatewayError::new(
             "provider-not-allowed",
-            format!("{forbidden} is not allowed on {}: OpenRouter runs only through {OPENROUTER_CLIENT}, and only on a model priced at zero", input.client),
+            format!("{forbidden} is not allowed on {}: a free model runs only as free/<model> on {FREE_CLIENT}", input.client),
         ));
     }
     let Some(provider) = &input.provider else {

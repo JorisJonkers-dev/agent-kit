@@ -58,3 +58,36 @@ MCP wrapper can come later on top of the command.
   runs per workflow (default $2) and per day (default $5). The gateway
   reserves each run's estimate against both caps, as it does for grants, and
   refuses a run that does not fit either.
+
+## Amended (2026-11-26): the allowlist follows the repository's visibility
+
+The owner's rule: on public repositories every model is allowed and the
+allowlist does not apply; on `nedap` repositories nothing is allowed; on
+private repositories the allowlist decides. It replaces the `nedap` exception
+above and the per-entry `public` flag `critique allow` used to set.
+
+- **nedap repositories.** A repository with any `nedap`-owned remote sends
+  nothing to any client: no delegation through the gateway (Codex and Claude
+  Code included) and no critic (the work roster included). This holds even
+  when the repository is public, and it is decided from the remotes alone,
+  before visibility is asked.
+- **Public repositories.** A repository GitHub says is public may reach every
+  client the machine has, `data_scope: public` routes among them, with code and
+  history; its allowlist entry is not read.
+- **Private repositories.** A private or internal repository, and one whose
+  visibility cannot be read (no `gh`, offline, an API error, a remote not on
+  github.com), is held to its allowlist entry as before, and never reaches a
+  `data_scope: public` route. Unknown visibility fails closed: it is never
+  read as public.
+- **Lookup.** Visibility is `gh api repos/<owner>/<repo> --jq .visibility`, run
+  by the gateway's `visibility` module, which critique uses too. A known answer
+  is cached for fifteen minutes under the cache directory; a failed lookup is
+  never cached.
+- **The `public` flag.** An entry no longer records one. `critique allow`
+  refuses a `public` field, and a flag an older `allow` wrote is ignored and
+  dropped on the next write. It could only widen what a private repository
+  sends, which the rule no longer allows, and narrowing a public repository
+  would contradict "allowlists don't apply".
+- **Hooks.** The commit and PR gate and the session-start hook still read only
+  the allowlist entry, with no network: they send nothing to a model, and a
+  hook must finish well under a second.

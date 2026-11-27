@@ -54,7 +54,7 @@ fn read(raw: &Value) -> Result<String, ShapeError> {
 pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     let run_dir = read_input("fan-out", read(raw))?;
     let manifest = read_json_file(runtime, &manifest_path(&run_dir), "invalid-run", parse_manifest)?;
-    // A work client sees nedap code only: a run of any other repository that names one is refused, whatever its manifest says.
+    // A work client served only the nedap roster, which no run has any more: a run that names one is refused, whatever its manifest says.
     if manifest.work.is_none() {
         if let Some(stray) = manifest.critics.iter().find(|critic| matches!(critic.client_config, CriticClient::Codex(_) | CriticClient::Claude(_))) {
             return Err(CritiqueError::new(
