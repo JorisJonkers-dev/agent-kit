@@ -2353,3 +2353,25 @@ fn a_stored_key_the_proxy_does_not_describe_or_that_is_unsafe_is_left_alone() {
     assert!(said.is_empty(), "{said}");
     assert_eq!(proxy.lock().unwrap().calls, ["GET /key/info"]);
 }
+
+#[test]
+fn a_non_utf8_environment_entry_is_skipped_not_a_panic() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let bad_value = OsStr::from_bytes(b"\x9E\xE9e").to_os_string();
+    let bad_name = OsStr::from_bytes(b"BAD\xFF").to_os_string();
+    let vars = vec![
+        (OsString::from("PACKAGES_PROXY_TOKEN"), bad_value),
+        (bad_name, OsString::from("unused")),
+        (OsString::from("KEEP_ME"), OsString::from("yes")),
+    ];
+    let env = utf8_env(vars.into_iter());
+    assert_eq!(env.get("KEEP_ME").map(String::as_str), Some("yes"));
+    assert!(!env.contains_key("PACKAGES_PROXY_TOKEN"));
+    assert_eq!(env.len(), 1);
+}
+
+#[test]
+fn the_process_environment_is_read_without_panicking() {
+    assert!(process_env().contains_key("PATH"));
+}

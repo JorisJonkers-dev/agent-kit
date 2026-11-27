@@ -487,6 +487,15 @@ def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
             raise RegistryError("package_proxy.token_file must be relative to XDG_CONFIG_HOME")
         if not str(proxy["verify_url"]).startswith(base + "/"):
             raise RegistryError("package_proxy.verify_url must sit under package_proxy.base")
+        cluster = dict(proxy.get("cluster_secret") or {})
+        if set(cluster) != {"namespace", "key", "context_suffix"}:
+            raise RegistryError("package_proxy.cluster_secret takes namespace, key and context_suffix, all of them")
+        if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?", str(cluster["namespace"])):
+            raise RegistryError("package_proxy.cluster_secret.namespace must be a DNS label")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", str(cluster["key"])):
+            raise RegistryError("package_proxy.cluster_secret.key must be a plain data key name")
+        if not re.fullmatch(r"-[A-Za-z0-9._-]+", str(cluster["context_suffix"])):
+            raise RegistryError("package_proxy.cluster_secret.context_suffix must start with - and name no more")
 
     gold_band = data.get("gold_band")
     if gold_band is not None:
@@ -2759,11 +2768,13 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     pypi_url = str(proxy.get("pypi") or "")
     cargo_url = str(proxy.get("cargo") or "")
     maven = {name: str(url) for name, url in (proxy.get("maven") or {}).items()}
+    cluster = {name: str(value) for name, value in (proxy.get("cluster_secret") or {}).items()}
     if not (
         verify_url and token_file and vault_path and vault_field
         and base and npm_url and go_url and pypi_url and cargo_url and go_private
         and maven.get("main") and maven.get("spring_milestone")
         and maven.get("sonatype_snapshots") and maven.get("google_maven")
+        and cluster.get("namespace") and cluster.get("key") and cluster.get("context_suffix")
     ):
         return
     # netrc keys on the bare host; npm's token line is the registry URL with
@@ -2784,8 +2795,51 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("# The packages proxy")
     w("# -----------------------------------------------------------------")
     w("")
+    # pp_cluster_key: the key the cluster holds, from the data item of the
+    # first secret that has it in the namespace, read through the first
+    # admin-suffixed kube context that can read it. The python reads the
+    # kubectl JSON on stdin and prints only the decoded value; a value that is
+    # not UTF-8 or not base64 prints nothing, which counts as no key.
+    cluster_python = (
+        "import base64, json, sys\n"
+        "try:\n"
+        "    for item in json.load(sys.stdin).get('items') or []:\n"
+        "        value = (item.get('data') or {}).get(sys.argv[1])\n"
+        "        if value:\n"
+        "            sys.stdout.write(base64.b64decode(value).decode('utf-8'))\n"
+        "            break\n"
+        "except Exception:\n"
+        "    pass\n"
+    )
+    w("# pp_cluster_key prints the key the cluster holds for the workstation, or")
+    w("# nothing. The first kube context ending in the admin suffix that can read")
+    w("# the secret's data item supplies it; a context that fails is skipped. Only")
+    w("# a run that may prompt looks: kubectl may ask for a password. The key is")
+    w("# captured, never printed or logged, and a failed read returns 1.")
+    w("pp_cluster_key() {")
+    w('  local ctx="" key="" secrets=""')
+    w('  if [ "${PROMPT}" != 1 ] || [ "${CHECK_ONLY}" = 1 ] || [ "${CLOUD}" = 1 ]; then')
+    w("    return 1")
+    w("  fi")
+    w('  command -v kubectl >/dev/null 2>&1 || return 1')
+    w('  command -v python3 >/dev/null 2>&1 || return 1')
+    w('  while IFS= read -r ctx; do')
+    w(f'    case "${{ctx}}" in *{cluster["context_suffix"]}) ;; *) continue ;; esac')
+    namespace, data_key = cluster["namespace"], cluster["key"]
+    w(f'    secrets="$(kubectl --context "${{ctx}}" -n {namespace} get secrets -o json 2>/dev/null)" || continue')
+    picker = _q(cluster_python)
+    w(f"    key=\"$(printf '%s' \"${{secrets}}\" | python3 -c {picker} {data_key} 2>/dev/null)\" || continue")
+    w('    if [ -n "${key}" ]; then')
+    w("      printf '%s' \"${key}\"")
+    w("      return 0")
+    w("    fi")
+    w("  done < <(kubectl config get-contexts -o name 2>/dev/null)")
+    w("  return 1")
+    w("}")
+    w("")
     w("# pp_resolve_key prints the proxy key (always captured, never logged),")
-    w("# in order: PACKAGES_PROXY_TOKEN, the vault secret, the stored token file.")
+    w("# in order: PACKAGES_PROXY_TOKEN, the vault secret, the cluster secret, the")
+    w("# stored token file.")
     w("# The last resort is a prompt, and only in an interactive run.")
     w("pp_resolve_key() {")
     w('  local root="$1"')
@@ -2801,6 +2855,10 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("      printf '%s' \"${key}\"")
     w("      return 0")
     w("    fi")
+    w("  fi")
+    w('  if key="$(pp_cluster_key)" && [ -n "${key}" ]; then')
+    w("    printf '%s' \"${key}\"")
+    w("    return 0")
     w("  fi")
     w('  if [ -s "${token}" ]; then')
     w('    printf \'%s\' "$(cat "${token}" 2>/dev/null)"')
@@ -3211,7 +3269,7 @@ def _package_proxy_step(w: Any, data: dict[str, Any]) -> None:
     w("    return 0")
     w("  fi")
     w('  if ! key="$(pp_resolve_key "${root}")"; then')
-    w('    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault or the prompt), skipped"')
+    w('    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault, the cluster or the prompt), skipped"')
     w("    return 0")
     w("  fi")
     w('  if ! printf \'header = "Authorization: Bearer %s"\\n\' "${key}" \\')

@@ -198,8 +198,42 @@ tokens_and_keys() {
 # The packages proxy
 # -----------------------------------------------------------------
 
+# pp_cluster_key prints the key the cluster holds for the workstation, or
+# nothing. The first kube context ending in the admin suffix that can read
+# the secret's data item supplies it; a context that fails is skipped. Only
+# a run that may prompt looks: kubectl may ask for a password. The key is
+# captured, never printed or logged, and a failed read returns 1.
+pp_cluster_key() {
+  local ctx="" key="" secrets=""
+  if [ "${PROMPT}" != 1 ] || [ "${CHECK_ONLY}" = 1 ] || [ "${CLOUD}" = 1 ]; then
+    return 1
+  fi
+  command -v kubectl >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+  while IFS= read -r ctx; do
+    case "${ctx}" in *-admin) ;; *) continue ;; esac
+    secrets="$(kubectl --context "${ctx}" -n packages-system get secrets -o json 2>/dev/null)" || continue
+    key="$(printf '%s' "${secrets}" | python3 -c 'import base64, json, sys
+try:
+    for item in json.load(sys.stdin).get('\''items'\'') or []:
+        value = (item.get('\''data'\'') or {}).get(sys.argv[1])
+        if value:
+            sys.stdout.write(base64.b64decode(value).decode('\''utf-8'\''))
+            break
+except Exception:
+    pass
+' workstation 2>/dev/null)" || continue
+    if [ -n "${key}" ]; then
+      printf '%s' "${key}"
+      return 0
+    fi
+  done < <(kubectl config get-contexts -o name 2>/dev/null)
+  return 1
+}
+
 # pp_resolve_key prints the proxy key (always captured, never logged),
-# in order: PACKAGES_PROXY_TOKEN, the vault secret, the stored token file.
+# in order: PACKAGES_PROXY_TOKEN, the vault secret, the cluster secret, the
+# stored token file.
 # The last resort is a prompt, and only in an interactive run.
 pp_resolve_key() {
   local root="$1"
@@ -215,6 +249,10 @@ pp_resolve_key() {
       printf '%s' "${key}"
       return 0
     fi
+  fi
+  if key="$(pp_cluster_key)" && [ -n "${key}" ]; then
+    printf '%s' "${key}"
+    return 0
   fi
   if [ -s "${token}" ]; then
     printf '%s' "$(cat "${token}" 2>/dev/null)"
@@ -684,7 +722,7 @@ package_proxy_setup() {
     return 0
   fi
   if ! key="$(pp_resolve_key "${root}")"; then
-    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault or the prompt), skipped"
+    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault, the cluster or the prompt), skipped"
     return 0
   fi
   if ! printf 'header = "Authorization: Bearer %s"\n' "${key}" \
