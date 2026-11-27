@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.15.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.14.0...v6.15.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** run OpenCode Go through LiteLLM and fall back to OpenCode's free copy when no free copy is available ([#993](https://github.com/JorisJonkers-dev/agent-kit/issues/993)) ([ed7c4fc](https://github.com/JorisJonkers-dev/agent-kit/commit/ed7c4fc4a0572a308db8b0f0ec475688d08c103f))
+
 ## [6.14.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.13.1...v6.14.0) (2026-11-27)
 
 
