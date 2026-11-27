@@ -982,7 +982,7 @@ fn a_real_vibe_launch_reads_its_journal_and_its_export() {
     let env = [("PATH", path.as_str()), ("HOME", home_text.as_str())];
     let cwd = dir.to_string_lossy().into_owned();
     let child_env: HashMap<String, String> = env.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect();
-    let mut runtime = runtime_with(
+    let runtime = runtime_with(
         || -> Box<dyn Files> { Box::new(SystemFiles { cwd: cwd.clone() }) },
         || -> Box<dyn Process> { Box::new(SystemProcess { env: child_env.clone() }) },
         &env,
