@@ -33,8 +33,6 @@ import render_registry  # noqa: E402
 import yaml  # noqa: E402
 from setup_harness import setup_run  # noqa: E402
 
-PINNED_PACKAGES = [("@earendil-works/pi-coding-agent", "1.5.0"), ("pi-acp", "0.0.34")]
-PINS = [f"{package}@{version}" for package, version in PINNED_PACKAGES]
 INSTALL = "npm install -g --ignore-scripts"
 EXPECTED_PATH = "npm-prefix/bin/pi-acp"
 
@@ -45,6 +43,10 @@ def _registry() -> dict[str, Any]:
 
 def _pi(data: dict[str, Any] | None = None) -> dict[str, Any]:
     return next(cli for cli in (data or _registry())["clis"] if cli["name"] == "pi")
+
+
+PINNED_PACKAGES = [(pkg["package"], pkg["version"]) for pkg in _pi()["pinned_npm"]["packages"]]
+PINS = [f"{package}@{version}" for package, version in PINNED_PACKAGES]
 
 
 def _iso(days_old: int) -> str:

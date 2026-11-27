@@ -282,7 +282,7 @@ absolute path setup prints at the end of the step:
     packages:
       - datasource: npm
         package: "@earendil-works/pi-coding-agent"
-        version: "1.5.0"
+        version: "1.6.0"
       - datasource: npm
         package: "pi-acp"
         version: "0.0.34"
