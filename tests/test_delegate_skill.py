@@ -320,15 +320,16 @@ def test_claude_subagents_and_the_workflow_tool_are_for_claude_chosen_tasks_only
 # ---------------------------------------------------------------------------
 
 
-def test_the_money_rules_say_codex_needs_a_grant_and_openrouter_is_free_only_and_zen_is_never_used() -> None:
+def test_the_money_rules_say_codex_needs_a_grant_and_openrouter_is_free_only_and_paid_zen_is_never_used() -> None:
     section = _section("Money rules")
     assert "Codex is metered-employer: never without a live grant" in section
     flat = " ".join(section.split())
     assert "Free models only as `pi-free`'s `free/<model>`, public data only" in flat
     assert "OpenRouter is refused on every client" in flat
     assert "OpenRouter is never used" not in section
-    assert "`opencode-go/...`" in section
+    assert "`litellm-opencode-go/...`" in section
     assert "never `opencode/...`" in section
+    assert "`opencode/<id>-free` models, public data only" in flat
     assert "enforces the caps and the grants" in section
     assert "do not work around the refusal" in section
 
@@ -381,7 +382,7 @@ def test_the_choice_step_restates_the_model_bans() -> None:
     section = _section("Choose the model")
     assert "excluding OpenRouter entirely" not in section
     assert "any free model that is not `pi-free`'s `free/<model>`" in " ".join(section.split())
-    assert "any `opencode/...` model (only `opencode-go/...`)" in section
+    assert "any `opencode/...` model (only `litellm-opencode-go/...`)" in section
     assert "never a model with `tier: null`" in section
 
 

@@ -123,18 +123,16 @@ falling back.
   the tier or the family the task needs. `pi-free` is the Pi client the data
   policy never lists for a repository GitHub does not say is public: use it
   only for public-data work, a task with no private `repo` and nothing private
-  in the prompt. `pi-free` runs free models only, each named `free/<model>`
-  (the proxy tries every free copy of the model, never a paid one): it is the
-  first choice for such a task, since a free model is the cheapest class, and
-  the gateway refuses a billed model on it.
-- Within one class, choose by the models' capability notes, excluding any
-  `opencode/...` model (only `litellm-opencode-go/...`) and any free model that is not
-  `pi-free`'s `free/<model>`, except OpenCode's own `opencode/<id>-free` models
-  (public data only; prefer the two that keep nothing and train on nothing,
-  `opencode/deepseek-v4.1-flash-free` and `opencode/hy4-flash-free`), and never
-  a model with `tier: null`.
-- metered-employer (Codex) is not a routine last rung. It is eligible only when
-  a live grant already covers the workflow, obtained by asking the owner first.
+  in the prompt. `pi-free` runs free models only, each named `free/<model>` (the proxy
+  tries every free copy of the model, never a paid one): it is the first choice for
+  such a task, since a free model is the cheapest class, and the gateway refuses a
+  billed model on it.
+- Within one class, choose by the models' capability notes, excluding any `opencode/...` model (only `litellm-opencode-go/...`) and any free model that is not
+  `pi-free`'s `free/<model>`, except OpenCode's `opencode/<id>-free` models (public data
+  only; prefer `opencode/deepseek-v4.1-flash-free` and `opencode/hy4-flash-free`, which
+  keep nothing and train on nothing), and never a model with `tier: null`.
+- metered-employer (Codex) is not a routine last rung. It is eligible only when a live
+  grant already covers the workflow, obtained by asking the owner first.
   Otherwise skip that rung and follow "When nothing covers a tier".
 - Move work to another client only within the same or a cheaper cost class, never
   up a cost class because a client is busy, slow or near its limit. There is no
@@ -220,27 +218,22 @@ the Workflow tool for those tasks.
 - Free models only as `pi-free`'s `free/<model>`, public data only, never
   through any other client, name or provider (OpenRouter is refused on every
   client) and never a billed model.
-- OpenCode reaches OpenCode Go through `litellm-opencode-go/...` (budgeted,
-  through the LiteLLM proxy), never `opencode/...` (its pay-per-token Zen). A run
-  that names `opencode-go/<id>` is run as `litellm-opencode-go/<id>` and the
-  result says `rewritten`; with no LiteLLM copy it is refused, naming the model
-  to use. The exception is OpenCode's own free models `opencode/<id>-free`,
-  for public data only. Only `opencode/deepseek-v4.1-flash-free` and
-  `opencode/hy4-flash-free` are zero-retention; the other `-free` models may
-  keep or train on prompts.
-- A `free/<model>` run that finds no free copy (the proxy's limiter refusal, a
-  daily limit, every copy blocked) falls back once to `opencode/<model>-free`
-  when the repository is public or the content is inline public data, the
-  client was not named with `client_pinned: true` and `free_fallback` is not
-  `false`; `escalate: false` does not stop it. The result carries `fallback`
-  (`from`, `to`, `reason`), `available_again_in_s` and `available_at` when the
-  refusal names them, and a `recommendation`: name `opencode:opencode/<id>-free`
-  or `tier-free` on the next calls until then.
-- The family you name is binding: a delegation to a model of one family is never
-  answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with
-  the cause; keep the task or pick another model of the family. Pass
-  `"family_binding": false` only when you want any family to answer, and then
-  read the summary: it opens with `escalated from <family> (...) to <family>`
-  when the answer came from another family.
-- The gateway enforces the caps and the grants. When it refuses, do not work
-  around the refusal: keep the task or split it.
+- OpenCode reaches OpenCode Go through `litellm-opencode-go/...` (budgeted, via the LiteLLM
+  proxy), never `opencode/...` (pay-per-token Zen). `opencode-go/<id>` is run as
+  `litellm-opencode-go/<id>` (result says `rewritten`); with no LiteLLM copy it is refused,
+  naming the model to use. The exception is OpenCode's free `opencode/<id>-free` models,
+  public data only; only `deepseek-v4.1-flash-free` and `hy4-flash-free` are zero-retention,
+  the others may keep or train on prompts.
+- A `free/<model>` run with no free copy (limiter refusal, daily limit, every copy blocked)
+  falls back once to `opencode/<model>-free` when the repository is public or the content is
+  inline public data, the client was not pinned (`client_pinned: true`) and `free_fallback`
+  is not `false`; `escalate: false` does not stop it. The result carries `fallback` (`from`,
+  `to`, `reason`), `available_again_in_s`/`available_at` when known, and a `recommendation`:
+  name `opencode:opencode/<id>-free` or `tier-free` on the next calls until then.
+- The family you name is binding: a delegation to a model of one family is never answered by
+  another. If none of that family can answer it ends failed (or `unavailable`, when none can
+  start) with the cause; keep the task or pick another model of the family. Pass
+  `"family_binding": false` only when any family may answer, and then read the summary: it
+  opens with `escalated from <family> (...) to <family>` when another family answered.
+- The gateway enforces the caps and the grants. When it refuses, do not work around the
+  refusal: keep the task or split it.
