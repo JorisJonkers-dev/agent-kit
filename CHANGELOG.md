@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.12.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.11.0...v6.12.0) (2026-11-27)
+
+
+### Features
+
+* **claim:** a cross-device claim command for tickets ([#983](https://github.com/JorisJonkers-dev/agent-kit/issues/983)) ([b7518a6](https://github.com/JorisJonkers-dev/agent-kit/commit/b7518a648c8b7cc8126c58c7794a80ac4a16e2ff))
+
 ## [6.11.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.10.1...v6.11.0) (2026-11-27)
 
 
