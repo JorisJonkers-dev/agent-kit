@@ -606,7 +606,7 @@ Checked live on the Linux workstation (2026-11-14) with `~/.npm` (the npm and
 (restored afterwards). `playwright-mcp` resolves to
 `~/.npm-global/bin/playwright-mcp`, which links to
 `~/.npm-global/lib/node_modules/@playwright/mcp/cli.js` (`@playwright/mcp`
-0.0.84, the registry pin). Every client's config holds the same entry,
+0.0.86, the registry pin). Every client's config holds the same entry,
 `playwright-mcp --headless --browser chromium`.
 
 | Client | How it was listed | Result |
