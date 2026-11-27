@@ -1,5 +1,5 @@
 //! The spec critique on the tiers, end to end: `critique tier-review` through the command line, with stubbed harnesses. The
-//! stubs are real programs and real sockets: a `pi` that calls the proxy the way Pi would, an `agent-launcher` that runs what
+//! stubs are real programs and real sockets: a `pi` that calls the proxy the way Pi would, a plan program that runs what
 //! it confines, and a LiteLLM on 127.0.0.1 that answers with the headers a real one would, so a reviewer that LiteLLM
 //! served from another model shows up exactly as it would live. The forwarding is the real `curl`.
 
@@ -139,8 +139,8 @@ impl Machine {
             &format!("{{\"providers\":{{\"litellm-tier-review\":{{\"api\":\"openai-completions\",\"apiKey\":\"sk-tier-review\",\"baseUrl\":\"http://127.0.0.1:{port}/v1\",\"models\":[{{\"id\":\"tier-review\"}}]}}}}}}\n"),
         );
         write("bin/pi", &setup.pi.replace("@SANDBOX@", &sandbox.text()));
-        write("bin/agent-launcher", LAUNCHER);
-        for program in ["pi", "agent-launcher", "gh"] {
+        write("bin/sbx-plan", LAUNCHER);
+        for program in ["pi", "sbx-plan", "gh"] {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(root.join("bin").join(program), std::fs::Permissions::from_mode(0o755)).expect("chmod");
         }
@@ -165,6 +165,7 @@ impl Machine {
         env.insert("PATH".into(), path);
         env.insert("HOME".into(), sandbox.join("home").to_string_lossy().into_owned());
         env.insert("XDG_STATE_HOME".into(), sandbox.join("state").to_string_lossy().into_owned());
+        env.insert("AGENT_KIT_SANDBOX".into(), "host".into());
         let cwd = sandbox.join("work").to_string_lossy().into_owned();
         Runtime {
             gateway: model_gateway::ports::Runtime {
@@ -405,17 +406,22 @@ fn a_reviewer_that_cannot_be_confined_is_no_review_and_its_routing_says_nothing_
     use crate::roster::RosterCritic;
     use crate::routing::{CriticClient, PiCriticClient};
     let machine = Machine::new(&setup());
-    std::fs::remove_file(machine.sandbox.path.join("bin/agent-launcher")).expect("remove the launcher");
+    // A machine whose sbx does not work: the sandbox's `sbx` fails, whatever the host has.
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let sbx = machine.sandbox.path.join("bin/sbx");
+        std::fs::write(&sbx, "#!/bin/sh\nexit 1\n").expect("a failing sbx");
+        std::fs::set_permissions(&sbx, std::fs::Permissions::from_mode(0o755)).expect("chmod sbx");
+    }
     let config = PiCriticClient { binary: "pi".into(), provider: "litellm-tier-review".into(), model: "free/gemma-4-31b-it".into(), family: "google".into(), data_scope: "public".into(), free: true, tier: Some("tier-review".into()) };
     let critic = RosterCritic { client: "c".into(), role: "spec-redteam".into(), lenses: Vec::new(), max_price_usd: 1.0, time_limit_s: 30.0, critic_id: "c1".into(), client_config: CriticClient::Pi(config), fallbacks: Vec::new() };
     machine.put("critic/prompt.md", "review");
     let root = machine.sandbox.text();
     let launch = CriticLaunch { critic: &critic, packet_dir: format!("{root}/critic/packet"), prompt_path: format!("{root}/critic/prompt.md"), critic_dir: format!("{root}/critic"), schema_path: String::new(), toolset: CriticToolset::Pi };
     let _held = EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    // The launcher is gone from the machine, and the host's own (which setup installs in ~/.local/bin) must not be
-    // found in its place: this launch looks for it on the sandbox's PATH alone, and nothing ever starts anyway.
+    // Sandboxes are the default: with no host backend named, the launch asks sbx, which does not answer, and nothing starts.
     let mut runtime = machine.runtime();
-    runtime.env.insert("PATH".to_string(), format!("{}/bin", machine.sandbox.text()));
+    runtime.gateway.env.remove("AGENT_KIT_SANDBOX");
     let report = review_with(&runtime, &launch).expect("a report");
     match report.outcome {
         crate::clients::CriticOutcome::Failed { failure, .. } => assert_eq!(failure, "unconfined"),

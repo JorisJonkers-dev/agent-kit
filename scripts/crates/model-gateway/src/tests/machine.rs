@@ -127,7 +127,7 @@ impl Machine {
         let env = HashMap::from([
             ("HOME".to_string(), format!("{root}/home")),
             ("XDG_STATE_HOME".to_string(), format!("{root}/state")),
-            ("AGENT_KIT_LAUNCHER_BIN".to_string(), super::confined::LAUNCHER.to_string()),
+            ("AGENT_KIT_SANDBOX".to_string(), "host".to_string()),
         ]);
         let runtime = Runtime {
             clock: Box::new(FixedClock(now)),

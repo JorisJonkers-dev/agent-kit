@@ -64,7 +64,7 @@ holds one record per reviewer with `tier`, `litellm_model_id`, `served_model`,
 
 - **Refused**: the result's `message` says why (`not-opted-in` and the other
   prepare refusals, `too-few-families` with what was passed over, or
-  `tier-not-ready` when Pi, its key or the confinement is missing). Give the
+  `tier-not-ready` when Pi, its key or sbx is missing). Give the
   line as it stands and stop. Free steps are for a repository GitHub says is
   public; a private one, or one whose visibility cannot be read, starts at
   Vibe Flash.

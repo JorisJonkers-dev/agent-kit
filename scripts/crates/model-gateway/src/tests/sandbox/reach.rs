@@ -301,7 +301,7 @@ fn the_tasks_hosts_reach_the_sandbox_as_allow_rules_and_a_bad_one_is_refused_bef
 fn network_allow_needs_the_sbx_backend_and_a_client_that_applies_it() {
     let disk = pi_disk("http://localhost:4000/v1");
     let sbx = Sbx::new(healthy);
-    let env = HashMap::from([("HOME".to_string(), "/home/me".to_string())]);
+    let env = env_with(Some("host"));
     let extras = RunExtras { network_allow: Some(strs(&["docs.example.org"])), ..RunExtras::default() };
     let request = ClientRunRequest { extras: extras.clone(), ..pi_request(RunClient::Pi, Some(RunMode::ReadOnly)) };
     let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&request).expect_err("refused"));
@@ -424,7 +424,7 @@ fn the_runs_npm_config_that_cannot_be_written_stops_the_launch() {
 
 #[test]
 fn the_credential_never_prints_its_key() {
-    let mut launch = sbx_launch::translate(RunClient::Pi, "mg-test", &ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "pi"]), ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
+    let mut launch = sbx_launch::translate(RunClient::Pi, "mg-test", &ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "pi"]), ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
     sbx_launch::apply_network(&mut launch, &Sbx::new(healthy), &Disk::default(), &env_with_key("the-real-key"), &NetworkScope::default(), &[], "/run/x.npmrc").expect("applied");
     assert!(!format!("{launch:?}").contains("the-real-key"));
     assert!(format!("{launch:?}").contains("<hidden>"));
@@ -452,4 +452,30 @@ fn a_rule_the_route_and_the_task_both_name_is_allowed_once() {
     let extras = strs(&["host.docker.internal:4000"]);
     let egress = network::plan(Reach::ProxyOnly, &route, &extras, &[]).expect("a plan");
     assert_eq!(egress.allow, ["host.docker.internal:4000", network::PROXY_RULE]);
+}
+
+#[test]
+fn a_planned_launch_gets_the_same_network_reach_as_any_launch_and_the_same_refusal_while_a_secret_is_stored() {
+    // The caller's own plan command (a critique critic) takes the one path: secret check, reach rules, package proxy.
+    let disk = planned_disk();
+    let sbx = Sbx::new(healthy);
+    let launched = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &sbx_env() }.launch_planned(RunClient::Pi, &plan_of_pi(), "/run/export/pi-agent", &NetworkScope::default()).expect("a run");
+    assert_eq!(launched.result.stdout, "ok\n");
+    let calls = sbx.calls();
+    let name = sbx_name_in(&calls);
+    assert_eq!(calls[1], "sbx secret ls -g --json");
+    assert!(calls.contains(&"sbx policy ls --json".to_string()), "{calls:?}");
+    assert!(calls.contains(&format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with(&format!("sbx policy deny network --sandbox {name} "))), "{calls:?}");
+    assert!(file_text(&disk, "/run/export/pi-agent/packages.npmrc").contains("packages.jorisjonkers.dev/npm"));
+
+    let github = r#"{"secrets":[{"scope":"global","type":"service","name":"github","secret":"(stored)"}],"custom_secrets":[],"shadowed_services":[],"env_only_count":0}"#;
+    let refused = Sbx::new(move |args| if args.starts_with(&["secret", "ls"]) { answer(github, "", 0) } else { healthy(args) });
+    let (code, _) = gateway_code(ClientRun { process: &refused, files: &disk, clock: &Fixed, env: &sbx_env() }.launch_planned(RunClient::Pi, &plan_of_pi(), "/run/export/pi-agent", &NetworkScope::default()).expect_err("refused"));
+    assert_eq!(code, "sandbox-unsafe");
+    assert_eq!(refused.calls(), ["sbx version", "sbx secret ls -g --json"]);
+}
+
+fn file_text(disk: &Disk, path: &str) -> String {
+    disk.files.lock().expect("files").get(path).cloned().unwrap_or_default()
 }

@@ -4,7 +4,7 @@
       "argv": [
         "run",
         "--json",
-        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"No launcher.\",\"escalate\":false}"
+        "{\"workflow\":\"w\",\"client\":\"pi-vibe\",\"mode\":\"read-only\",\"model\":\"glm-5.3\",\"prompt\":\"No plan program.\",\"escalate\":false}"
       ],
       "path": [
         "bin"
@@ -59,11 +59,11 @@
         "bin"
       ],
       "write": {
-        "bin/agent-launcher": "#!/bin/sh\nD=\"$HOME/calls\"\nmkdir -p \"$D\"\n{\n  echo \"launcher $*\"\n  echo \"env PATH=$PATH\"\n  echo \"env PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-<unset>}\"\n  echo \"env TMPDIR=${TMPDIR-<unset>}\"\n  echo \"agent settings.json: $(cat \"$PI_CODING_AGENT_DIR/settings.json\")\"\n  echo \"agent models.json: $(cat \"$PI_CODING_AGENT_DIR/models.json\")\"\n} >> \"$D/launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
+        "bin/sbx-plan": "#!/bin/sh\nD=\"$HOME/calls\"\nmkdir -p \"$D\"\n{\n  echo \"launcher $*\"\n  echo \"env PATH=$PATH\"\n  echo \"env PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-<unset>}\"\n  echo \"env TMPDIR=${TMPDIR-<unset>}\"\n  echo \"agent settings.json: $(cat \"$PI_CODING_AGENT_DIR/settings.json\")\"\n  echo \"agent models.json: $(cat \"$PI_CODING_AGENT_DIR/models.json\")\"\n} >> \"$D/launcher.txt\"\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n",
         "bin/agent-kit-secret": "#!/bin/sh\ncase \"$2\" in\n  MISSING) echo \"no such secret\" >&2; exit 1 ;;\n  *) echo \"secret-for-$2\" ;;\nesac\n"
       },
       "exec": [
-        "bin/agent-launcher",
+        "bin/sbx-plan",
         "bin/agent-kit-secret"
       ],
       "now": "2026-11-03T12:01:00Z",

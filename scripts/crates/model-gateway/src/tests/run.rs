@@ -399,14 +399,6 @@ fn names_a_timeout_an_exit_code_or_an_answer_it_could_not_read() {
 }
 
 #[test]
-fn names_a_confinement_the_launcher_could_not_hold_as_a_launch_that_failed() {
-    let refused = "agent-launcher: confine: the confinement cannot be applied here: sandbox-exec is not available; nothing started";
-    assert_eq!(reason(&exit(125, refused), None, None).as_deref(), Some("launch-failed"));
-    // A client that exits 125 of its own accord is only a client that failed.
-    assert_eq!(reason(&exit(125, "boom"), None, None).as_deref(), Some("exit-125"));
-}
-
-#[test]
 fn names_what_the_client_reported_although_it_exited_0_after_a_timeout_or_an_exit_code_and_before_a_missing_answer() {
     assert_eq!(reason(&exit(0, ""), Some("text"), Some(&failure("denied-action"))).as_deref(), Some("denied-action"));
     assert_eq!(reason(&exit(0, ""), None, Some(&failure("client-error"))).as_deref(), Some("client-error"));

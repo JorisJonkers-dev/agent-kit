@@ -214,15 +214,15 @@ impl Replay {
                 std::fs::write(target, self.substitute(content.as_str().unwrap_or_default())).expect("write file");
             }
         }
-        // Every client but Pi runs behind `agent-launcher confine` (#903). A step that makes a fake of one gets a
-        // launcher that starts what follows its `--` as it is, so the fake answers as before; a Codex also gets the
+        // Every launch under the host backend hands the process port a plan command (`sbx-plan grants ... -- client`).
+        // A step that makes a fake of a client gets a plan program that starts what follows its `--` as it is, so the fake answers as before; a Codex also gets the
         // login its home links to, outside the directories the goldens hold.
         let fakes = |client: &str| matches!(field(step, "write"), Some(Value::Obj(writes)) if writes.get(&format!("bin/{client}")).is_some());
-        if ["claude", "codex", "agy", "vibe"].iter().any(|client| fakes(client)) && !sandbox.join("bin/agent-launcher").exists() {
+        if ["claude", "codex", "agy", "vibe"].iter().any(|client| fakes(client)) && !sandbox.join("bin/sbx-plan").exists() {
             use std::os::unix::fs::PermissionsExt;
             std::fs::create_dir_all(sandbox.join("bin")).expect("bin");
-            std::fs::write(sandbox.join("bin/agent-launcher"), "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\ncommand -v \"$1\" >/dev/null || { echo \"$0: exec: $1: not found\" >&2; exit 127; }\nexec \"$@\"\n").expect("launcher shim");
-            std::fs::set_permissions(sandbox.join("bin/agent-launcher"), std::fs::Permissions::from_mode(0o755)).expect("chmod launcher");
+            std::fs::write(sandbox.join("bin/sbx-plan"), "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\ncommand -v \"$1\" >/dev/null || { echo \"$0: exec: $1: not found\" >&2; exit 127; }\nexec \"$@\"\n").expect("launcher shim");
+            std::fs::set_permissions(sandbox.join("bin/sbx-plan"), std::fs::Permissions::from_mode(0o755)).expect("chmod launcher");
         }
         if fakes("codex") && !sandbox.join("owner/codex/auth.json").exists() {
             std::fs::create_dir_all(sandbox.join("owner/codex")).expect("codex home");
@@ -258,6 +258,7 @@ impl Replay {
             env.insert("CODEX_HOME".into(), sandbox.join("owner/codex").to_string_lossy().into_owned());
         }
         env.insert("XDG_STATE_HOME".into(), sandbox.join("state").to_string_lossy().into_owned());
+        env.insert("AGENT_KIT_SANDBOX".into(), "host".into());
         if let Some(Value::Obj(overrides)) = field(step, "env") {
             for (key, value) in overrides.entries() {
                 match value {
@@ -310,6 +311,22 @@ impl Replay {
     }
 }
 
+/// One step as a golden holds it: its exit code, output and files, the files in the order the old golden had them
+/// (a new file goes last), so a rewrite changes only what changed.
+fn golden_step(got: &Outcome, golden: &Value, index: usize) -> Value {
+    let old: Vec<&str> = match field(golden, "steps") {
+        Some(Value::Arr(steps)) => match steps.get(index).and_then(|step| field(step, "files")) {
+            Some(Value::Obj(files)) => files.entries().into_iter().map(|(path, _)| path).collect(),
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    };
+    let mut paths: Vec<&str> = old.into_iter().filter(|path| got.files.contains_key(*path)).collect();
+    paths.extend(got.files.keys().map(String::as_str).filter(|path| !paths.contains(path)).collect::<Vec<_>>());
+    let files = paths.into_iter().map(|path| (path, got.files[path].as_deref().map_or(Value::Null, Value::str))).collect();
+    model_gateway::json::object(vec![("exit", Value::Num(got.exit as f64)), ("stdout", Value::str(&got.stdout)), ("stderr", Value::str(&got.stderr)), ("files", model_gateway::json::object(files))])
+}
+
 /// The golden of one step: its exit code, output and files.
 pub fn expected(golden: &Value, index: usize) -> Outcome {
     let step = match field(golden, "steps") {
@@ -359,15 +376,21 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
     assert!(names.len() >= 7, "the fixture scenarios are missing: {names:?}");
     // Every mismatch is collected, so one run shows all of them; SCENARIO=<name> replays one scenario.
     let only = std::env::var("SCENARIO").ok();
+    // BLESS=1 rewrites the goldens of the replayed scenarios from what they give now; review the diff before committing it.
+    let bless = std::env::var("BLESS").is_ok();
     let mut mismatches: Vec<String> = Vec::new();
     for name in names.iter().filter(|name| is_wanted(name, only.as_deref())) {
         let replay = Replay::new(name);
         let golden = read_json(&replay.dir.join("expected.json"));
         let steps = list(&replay.scenario, "steps");
         assert!(!steps.is_empty(), "{name} has no steps");
+        let mut blessed: Vec<Value> = Vec::new();
         for (index, step) in steps.iter().enumerate() {
             let want = expected(&golden, index);
             let got = replay.step(step);
+            if bless {
+                blessed.push(golden_step(&got, &golden, index));
+            }
             let label = format!("{name} step {index} {:?}", list(step, "argv"));
             if got.stdout != want.stdout {
                 mismatches.push(format!("{label}: stdout\n--- want\n{}\n--- got\n{}", want.stdout, got.stdout));
@@ -384,6 +407,10 @@ fn every_scenario_gives_the_bytes_the_node_runner_gave() {
                 let detail: Vec<String> = changed.iter().map(|path| format!("{path}\n--- want {:?}\n--- got {:?}", want.files.get(*path), got.files.get(*path))).collect();
                 mismatches.push(format!("{label}: files differ\n{}", detail.join("\n")));
             }
+        }
+        if bless {
+            let text = format!("{}\n", model_gateway::json::pretty(&model_gateway::json::object(vec![("steps", Value::Arr(blessed))])));
+            std::fs::write(replay.dir.join("expected.json"), text).expect("write the golden");
         }
     }
     let shown: Vec<&String> = mismatches.iter().take(6).collect();

@@ -9,6 +9,7 @@ use crate::json::{self, Value};
 use crate::outputs::{agy_output, claude_output, codex_output, hermes_output, open_code_output, pi_output, vibe_output, ClientOutput};
 use crate::ports::{Files, Git, ProcessCommand};
 use crate::run::{RunClient, RunMode};
+use crate::sandbox::{PLAN_PROGRAM, PLAN_VERB};
 use crate::run_home::{RunHome, AGY_PROTECTED_ENV, CLAUDE_PROTECTED_ENV, CODEX_PROTECTED_ENV, HERMES_PROTECTED_ENV, OPENCODE_PROTECTED_ENV};
 use crate::text::join;
 use std::collections::BTreeMap;
@@ -168,13 +169,12 @@ pub struct LaunchRequest {
     pub provider: Option<String>,
 }
 
-/// What a confined Pi launch runs through: the launcher, the launch's own agent
+/// What a sandboxed Pi launch runs through: the launch's own agent
 /// directory (made for it, holding only the route's provider with its key), the
 /// home's `bin` where Pi keeps the `fd` its find tool runs, the one TCP port the
 /// proxy answers on, and the `PATH` the launch searches.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiConfinement {
-    pub launcher: String,
     pub agent_dir: String,
     pub bin: Option<String>,
     pub port: u16,
@@ -188,7 +188,7 @@ pub struct PiConfinement {
 /// What a caller adds to one launch, with the client's home servers already resolved.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LaunchExtras {
-    /// Set for a Pi launch, which only ever runs confined to its working directory.
+    /// Set for a Pi launch, which only ever runs in a sandbox.
     pub confine: Option<PiConfinement>,
     pub mcp_servers: Vec<AttachedServer>,
     /// The MCP servers the client's home declares, which a run with `disable_home_mcp` switches off by name.
@@ -200,8 +200,8 @@ pub struct LaunchExtras {
     pub env: BTreeMap<String, String>,
     /// The launch's own home, for a client that runs in one: its variables are set last.
     pub home: Option<RunHome>,
-    /// What every client but Pi is started through: `agent-launcher confine` with these grants. A launch without
-    /// it is not confined, which only a test builds.
+    /// What every client but Pi is granted in its sandbox: the grants its plan command carries. A launch without
+    /// them has no sandbox, which only a test builds.
     pub confinement: Option<Confinement>,
 }
 
@@ -254,14 +254,14 @@ fn caller_env(extras: Option<&LaunchExtras>) -> BTreeMap<String, String> {
     extras.map(|extras| extras.env.clone()).unwrap_or_default()
 }
 
-/// The client's program and arguments, behind `agent-launcher confine` when the launch is confined. The variables
-/// the launch sets, and `key_env`, the one a wrapper reads from the secret store, are passed through by name:
-/// the launcher clears every other.
+/// The client's program and arguments, behind the plan command that carries the launch's grants when it has any.
+/// The variables the launch sets, and `key_env`, the one a wrapper reads from the secret store, are passed into the
+/// sandbox by name: every other stays out.
 fn behind(extras: Option<&LaunchExtras>, input: &LaunchRequest, paths: &LaunchPaths, binary: &str, args: Vec<String>, env: &BTreeMap<String, String>, key_env: Option<&str>) -> Vec<String> {
     let mut words = Vec::new();
     if let Some(confinement) = extras.and_then(|extras| extras.confinement.as_ref()) {
         let names: Vec<String> = env.keys().cloned().chain(key_env.map(str::to_string)).collect();
-        words.push(confinement.launcher.clone());
+        words.push(PLAN_PROGRAM.to_string());
         words.extend(confinement.args(input, paths, binary, &names));
     }
     words.push(binary.to_string());
@@ -701,10 +701,9 @@ pub fn pi_grants(input: &LaunchRequest, paths: &LaunchPaths, binary: &str, confi
 /// extension, skill, prompt template, theme, context file, MCP server and
 /// trust-gated project file switched off, and no session kept. Pi has no
 /// sandbox of its own and its tools run inside its own process, so the whole
-/// process runs through `agent-launcher confine`: it can read (or write) only
-/// its working directory, the Pi and node installs, the system runtime and its
-/// own agent directory, and reach only the proxy's port. It has no time limit
-/// of its own, so the outer timer is the limit.
+/// process runs in a Docker Sandbox: it can read (or write) only
+/// its working directory, the Pi install and its own agent directory, and reach
+/// only the proxy's port. It has no time limit of its own, so the outer timer is the limit.
 fn pi_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     let write = input.mode == Some(RunMode::Write);
     let tools = if write { PI_WRITE_TOOLS.join(",") } else { PI_READ_TOOLS.join(",") };
@@ -748,29 +747,21 @@ fn pi_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: 
             timeout_ms: limit_ms(input),
         };
     };
-    let mut args = strings(&["confine"]);
-    args.extend(pi_grants(input, paths, binary, confine));
-    // The launcher clears the environment down to its own short list; Pi finds the launch's agent directory
-    // and its temporary files only through the variables named here, so each must be named or Pi falls back
-    // to the real home's `~/.pi/agent` (#870).
-    for name in PI_KEPT_ENV {
-        args.extend(strings(&["--env", name]));
-    }
-    args.extend(strings(&["--", binary]));
-    args.append(&mut pi_args);
     let searched = [confine.bin.as_deref(), confine.path.as_deref()].into_iter().flatten().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(":");
     let mut env = caller_env(extras);
     env.insert("PATH".to_string(), searched);
     env.insert("PI_CODING_AGENT_DIR".to_string(), confine.agent_dir.clone());
     env.insert("TMPDIR".to_string(), confine.agent_dir.clone());
-    ProcessCommand {
-        command: confine.launcher.clone(),
-        args,
-        cwd: Some(paths.work_dir.clone()),
-        env,
-        stdin: Some(prompt.to_string()),
-        timeout_ms: limit_ms(input),
+    let mut args = strings(&[PLAN_VERB]);
+    args.extend(pi_grants(input, paths, binary, confine));
+    // The sandbox is given only the variables named here; Pi finds the launch's agent directory and its temporary
+    // files only through them, so each must be named or Pi falls back to the real home's `~/.pi/agent` (#870).
+    for name in PI_KEPT_ENV {
+        args.extend(strings(&["--env", name]));
     }
+    args.extend(strings(&["--", binary]));
+    args.append(&mut pi_args);
+    ProcessCommand { command: PLAN_PROGRAM.to_string(), args, cwd: Some(paths.work_dir.clone()), env, stdin: Some(prompt.to_string()), timeout_ms: limit_ms(input) }
 }
 
 fn confine_of(extras: Option<&LaunchExtras>) -> Option<&PiConfinement> {

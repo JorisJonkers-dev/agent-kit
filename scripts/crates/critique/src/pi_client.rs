@@ -3,10 +3,9 @@
 //! gateway, which has no Pi client. The launch is read-only by its tools: only `read`, `grep`, `find` and `ls`, with
 //! every extension, skill, prompt template, theme, context file, MCP server and trust-gated project file switched off,
 //! and no session kept. Pi has no sandbox of its own and its read tools run inside its own process, so the whole process
-//! is confined by the operating system (`agent-launcher confine`, Landlock): it can read only its packet copy, the Pi and
-//! node installs, the system runtime and its own agent directory, and reach only the proxy's port. The agent directory
-//! is made for the one launch, holds only the route's provider with its key and is removed afterwards. A critic that
-//! cannot be confined does not start. The stream is still checked afterwards as a second layer: any other tool, or a
+//! runs in its own Docker Sandbox (`sbx`, ADR-0019) through the gateway's launch path: it can read only its packet copy
+//! and its own agent directory, and reach only the proxy's host. The agent directory is made for the one launch, holds
+//! only the route's provider with its key and is removed afterwards. A critic whose sandbox cannot start does not start. The stream is still checked afterwards as a second layer: any other tool, or a
 //! path outside the packet, voids the review, and the tripwire catches a write. The node runner's `adapters/pi/index.ts`.
 
 use crate::clients::{ClientReadiness, CriticLaunch, CriticOutcome, CriticReport, CriticTokens};
@@ -20,8 +19,12 @@ use crate::tier_review::GATEWAY_CLIENT;
 use model_gateway::routing::recorded;
 use crate::runtime::Runtime;
 use crate::vibe_client::{js_string, on_path};
+use model_gateway::client_run::{ClientRun, ClientRunError};
 use model_gateway::json::{self, Object, Value};
-use model_gateway::ports::{ProcessCommand, ProcessResult};
+use model_gateway::network::NetworkScope;
+use model_gateway::ports::{Launched as Ran, ProcessCommand, ProcessResult};
+use model_gateway::run::RunClient;
+use model_gateway::sandbox::{SandboxBackend, PLAN_PROGRAM, PLAN_VERB};
 use model_gateway::text::js_trim;
 
 /// The longest `pi auth check` and `pi --list-models` may take; they read local files and call no model.
@@ -42,8 +45,7 @@ pub fn pi_sign_in(runtime: &Runtime, config: &PiCriticClient) -> Result<ClientRe
     Ok(auth_readiness(&checked, config))
 }
 
-/// Signed in, the provider offers the routed model, as `pi --list-models` reads `models.json`, and the operating system
-/// can confine a critic.
+/// Signed in, the provider offers the routed model, as `pi --list-models` reads `models.json`, and a sandbox can start.
 pub fn pi_readiness(runtime: &Runtime, config: &PiCriticClient) -> Result<ClientReadiness, CritiqueError> {
     let sign_in = pi_sign_in(runtime, config)?;
     if !sign_in.ready {
@@ -57,23 +59,13 @@ pub fn pi_readiness(runtime: &Runtime, config: &PiCriticClient) -> Result<Client
             return Ok(models);
         }
     }
-    let route = match route(runtime, config) {
-        Ok(route) => route,
-        Err(detail) => return Ok(ClientReadiness { ready: false, detail: Some(detail) }),
-    };
-    let Some(launcher) = launcher(runtime) else {
-        return Ok(ClientReadiness { ready: false, detail: Some(NO_LAUNCHER.to_string()) });
-    };
-    let mut args = vec!["confine".to_string(), "--check".to_string()];
-    args.extend(grants(runtime, config, &route, None, None));
-    let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    Ok(confine_readiness(&runtime.gateway.process.exec(&launcher, &args, Some(STATUS_TIMEOUT_MS))))
+    if let Err(detail) = route(runtime, config) {
+        return Ok(ClientReadiness { ready: false, detail: Some(detail) });
+    }
+    Ok(sandbox_readiness(&ClientRun::sandbox_ready(runtime.gateway.process.as_ref(), &runtime.gateway.env)))
 }
 
-/// Why a Pi critic cannot run without the launcher.
-const NO_LAUNCHER: &str = "pi: agent-launcher is not on PATH, and a Pi critic only runs confined to its packet; re-run agent-kit setup, which installs it";
-
-/// The launcher's exit code when it could not apply the confinement and started nothing.
+/// The exit code `sbx exec` ends with when it could not start the client in its sandbox.
 pub const CONFINE_REFUSED: i32 = 125;
 
 /// What a confined launch needs of the route's provider in the home's `models.json`.
@@ -125,14 +117,11 @@ pub fn route_of(provider: Option<&Object>, config: &PiCriticClient, path: &str) 
     Ok(PiRoute { base_url, api, api_key, model, port })
 }
 
-/// What `agent-launcher confine --check` says.
-pub fn confine_readiness(checked: &Result<ProcessResult, String>) -> ClientReadiness {
+/// Whether a sandbox can start here: sbx answers, or why a Pi critic does not run.
+pub fn sandbox_readiness(checked: &Result<(), model_gateway::error::GatewayError>) -> ClientReadiness {
     match checked {
-        Ok(result) if !result.timed_out && result.exit_code == 0 => ClientReadiness { ready: true, detail: None },
-        _ => ClientReadiness {
-            ready: false,
-            detail: Some(format!("pi: the operating system cannot confine a Pi critic to its packet here, so it does not run: {}", unreadable(checked))),
-        },
+        Ok(()) => ClientReadiness { ready: true, detail: None },
+        Err(error) => ClientReadiness { ready: false, detail: Some(format!("pi: a Pi critic only runs in a Docker Sandbox, and none can start here: {}", error.message)) },
     }
 }
 
@@ -150,15 +139,7 @@ pub(crate) fn home_bin(runtime: &Runtime) -> Option<String> {
     runtime.files.exists(&bin).unwrap_or(false).then_some(bin)
 }
 
-/// The launcher that confines a critic: `AGENT_KIT_LAUNCHER_BIN`, else `agent-launcher` on `PATH`.
-pub(crate) fn launcher(runtime: &Runtime) -> Option<String> {
-    if let Some(named) = runtime.env.get("AGENT_KIT_LAUNCHER_BIN").filter(|named| !named.is_empty()) {
-        return Some(named.clone());
-    }
-    on_path(runtime, "agent-launcher").then(|| "agent-launcher".to_string())
-}
-
-/// The route's provider as the home's `models.json` holds it, or why a confined critic cannot use it.
+/// The route's provider as the home's `models.json` holds it, or why a sandboxed critic cannot use it.
 pub(crate) fn route(runtime: &Runtime, config: &PiCriticClient) -> Result<PiRoute, String> {
     route_in(runtime, config, &home_agent_dir(runtime))
 }
@@ -196,7 +177,7 @@ pub(crate) fn key(runtime: &Runtime, config: &PiCriticClient, api_key: &str) -> 
     Err(format!("pi: the {} key could not be read from the secret store ({name}): {said}", config.provider))
 }
 
-/// The grants of a confined launch: the packet and the agent directory when there is a launch, Pi, its tools and the
+/// The grants of a sandboxed launch: the packet and the agent directory when there is a launch, Pi, its tools and the
 /// proxy's port.
 pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute, launch: Option<(&str, &str)>, server: Option<&SearchServerLaunch>) -> Vec<String> {
     let mut grants = Vec::new();
@@ -219,27 +200,24 @@ pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute
         grants.extend(["--write".to_string(), agent_dir.to_string()]);
     }
     grants.extend(["--net-connect".to_string(), route.port.to_string()]);
-    // The launcher hands the command no more than its own few variables; Pi's agent directory is the one it names.
+    // The sandbox is handed no more than the variables named here; Pi's agent directory is the one it names.
     grants.extend(["--env".to_string(), "PI_CODING_AGENT_DIR".to_string()]);
     grants
 }
 
 /// The launch's own agent directory: a `models.json` holding only the route's provider, its key read from the secret
-/// store just now and written in plain (mode 0600), and an empty `settings.json`; the launcher and route, or why not.
-pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, server: Option<&SearchServerLaunch>) -> Result<Result<(String, PiRoute), String>, CritiqueError> {
+/// store just now and written in plain (mode 0600), and an empty `settings.json`; the route, or why not.
+pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, server: Option<&SearchServerLaunch>) -> Result<Result<PiRoute, String>, CritiqueError> {
     let route = match route(runtime, config) {
         Ok(route) => route,
         Err(detail) => return Ok(Err(detail)),
-    };
-    let Some(launcher) = launcher(runtime) else {
-        return Ok(Err(NO_LAUNCHER.to_string()));
     };
     let key = match key(runtime, config, &route.api_key) {
         Ok(key) => key,
         Err(detail) => return Ok(Err(detail)),
     };
     write_home(runtime, config, agent_dir, (&route, &key), server)?;
-    Ok(Ok((launcher, route)))
+    Ok(Ok(route))
 }
 
 /// The files of a launch's own agent directory: a `models.json` holding only the route's provider with the key given (the
@@ -273,16 +251,16 @@ pub fn mcp_servers(server: &SearchServerLaunch) -> Value {
     json::object(vec![("mcpServers", json::object(vec![(VIBE_SEARCH_SERVER, entry)]))])
 }
 
-/// The Pi launch run through the launcher, confined: the launcher's grants, then `--` and Pi's own command line. Pi
-/// reads its agent directory from `PI_CODING_AGENT_DIR`, keeps its temporary files there, and finds the home's `fd` on
+/// The Pi launch as a plan command, which the gateway reads and runs in a sandbox: the grants, then `--` and Pi's own
+/// command line. Pi reads its agent directory from `PI_CODING_AGENT_DIR`, keeps its temporary files there, and finds the home's `fd` on
 /// `PATH`.
-pub fn confined_command(launcher: &str, grants: Vec<String>, pi: ProcessCommand, path: Option<&str>, agent_dir: &str, bin: Option<&str>) -> ProcessCommand {
+pub fn confined_command(grants: Vec<String>, pi: ProcessCommand, path: Option<&str>, agent_dir: &str, bin: Option<&str>) -> ProcessCommand {
     let searched = match (bin, path) {
         (None, path) => path.unwrap_or("").to_string(),
         (Some(bin), Some(path)) if !path.is_empty() => format!("{bin}:{path}"),
         (Some(bin), _) => bin.to_string(),
     };
-    let mut args = vec!["confine".to_string()];
+    let mut args = vec![PLAN_VERB.to_string()];
     args.extend(grants);
     args.push("--".to_string());
     args.push(pi.command.clone());
@@ -291,10 +269,10 @@ pub fn confined_command(launcher: &str, grants: Vec<String>, pi: ProcessCommand,
         .into_iter()
         .map(|(key, value)| (key.to_string(), value))
         .collect();
-    ProcessCommand { command: launcher.to_string(), args, env, ..pi }
+    ProcessCommand { command: PLAN_PROGRAM.to_string(), args, env, ..pi }
 }
 
-/// A Pi critic that never started because it could not be confined.
+/// A Pi critic that never started because no sandbox could be made for it.
 pub(crate) fn unconfined_report(launch: &CriticLaunch<'_>, detail: String) -> CriticReport {
     CriticReport {
         exit_code: CONFINE_REFUSED,
@@ -338,41 +316,49 @@ pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: St
     }
 }
 
+/// The plan command run in a sandbox through the gateway's launch path, the one every worker takes: the same backend
+/// choice, `sbx` preflight, image and cleanup. A refusal (no working sbx) is the reason nothing ran.
+fn run_in_sandbox(runtime: &Runtime, command: &ProcessCommand, agent_dir: &str) -> Launched {
+    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), clock: runtime.clock.as_ref(), env: &runtime.gateway.env };
+    match gateway.launch_planned(RunClient::Pi, command, agent_dir, &NetworkScope::default()) {
+        Ok(Ran { result, .. }) => Launched::Ran(Ok(result)),
+        Err(ClientRunError::Gateway(error)) => Launched::Refused(error.message),
+        Err(ClientRunError::Spawn(message)) => Launched::Ran(Err(message)),
+    }
+}
+
 /// What one launch left: the process (or why it never started), and for a tier reviewer what LiteLLM said of it.
 enum Launched {
-    /// The critic could not be confined or set up, and nothing ran.
+    /// The critic could not be sandboxed or set up, and nothing ran.
     Refused(String),
     Ran(Result<ProcessResult, String>),
 }
 
-/// The launch confined, through the route's key as the home holds it.
+/// The launch in its sandbox, through the route's key as the home holds it.
 fn launch_direct(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<Launched, CritiqueError> {
-    let (launcher, route) = match prepare(runtime, config, agent_dir, server)? {
-        Ok(prepared) => prepared,
+    let route = match prepare(runtime, config, agent_dir, server)? {
+        Ok(route) => route,
         Err(detail) => return Ok(Launched::Refused(detail)),
     };
     let grants = grants(runtime, config, &route, Some((&launch.packet_dir, agent_dir)), server);
     let bin = home_bin(runtime);
-    let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
-    let ran = runtime.gateway.process.run(&command);
+    let command = confined_command(grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
+    let launched = run_in_sandbox(runtime, &command, agent_dir);
     let _ = runtime.files.remove(agent_dir);
-    Ok(Launched::Ran(ran))
+    Ok(launched)
 }
 
-/// The launch confined, in the per-run home the recording proxy made: its provider's base URL is the proxy and its key is
+/// The launch in its sandbox, in the per-run home the recording proxy made: its provider's base URL is the proxy and its key is
 /// the run's token, so the real key never reaches the critic. The home is written again to list only the step model the
 /// reviewer asks for.
 fn launch_proxied(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<Launched, CritiqueError> {
     let mut route = route_in(runtime, config, agent_dir).map_err(CritiqueError::unexpected)?;
     route.model = json::object(vec![("id", Value::str(&config.model))]);
-    let Some(launcher) = launcher(runtime) else {
-        return Ok(Launched::Refused(NO_LAUNCHER.to_string()));
-    };
     write_home(runtime, config, agent_dir, (&route, &route.api_key), server)?;
     let grants = grants(runtime, config, &route, Some((&launch.packet_dir, agent_dir)), server);
     let bin = home_bin(runtime);
-    let command = confined_command(&launcher, grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
-    Ok(Launched::Ran(runtime.gateway.process.run(&command)))
+    let command = confined_command(grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
+    Ok(run_in_sandbox(runtime, &command, agent_dir))
 }
 
 /// A tier reviewer's launch behind the recording proxy: the launch and what LiteLLM's headers said of it. When the proxy
@@ -396,6 +382,10 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
         CriticToolset::PiSearch { server, .. } => Some(server),
         _ => None,
     };
+    // The search server is a program of the host's, which no sandbox's image holds: a critic that needs it does not start.
+    if server.is_some() && !SandboxBackend::select(&runtime.gateway.env).is_ok_and(SandboxBackend::is_host) {
+        return Ok(unconfined_report(launch, "pi: the packet search server cannot run inside a Docker Sandbox, so a searching Pi critic does not start; use a Vibe critic for search".to_string()));
+    }
     let (launched, routing) = match &config.tier {
         Some(tier) => {
             let (launched, routing) = launch_recorded(runtime, launch, config, tier, &agent_dir, prompt, server)?;
@@ -653,7 +643,7 @@ pub fn classify_pi_run(result: &ProcessResult, stream: &PiStream, packet_dir: &s
     }
     if result.exit_code == CONFINE_REFUSED {
         let said = first_line(&result.stderr).unwrap_or_else(|| "exit 125".to_string());
-        return failed("unconfined", format!("the operating system could not confine pi to its packet, so it did not start: {said}"));
+        return failed("unconfined", format!("sbx could not start pi in a sandbox, so it did not start: {said}"));
     }
     if result.exit_code != 0 {
         let said = first_line(&result.stderr).map_or_else(String::new, |said| format!(": {said}"));

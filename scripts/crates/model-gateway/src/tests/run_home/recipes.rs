@@ -1,9 +1,9 @@
 //! The recipe of each client (#903, ADR-0016): the grants it is started with, and what cannot be confined.
 
 use super::*;
-use crate::client_confine::{no_launcher, Confinement};
+use crate::client_confine::Confinement;
 use crate::run_home::{prepare_codex, prepare_vibe};
-use crate::tests::confined::{grant_values, LAUNCHER};
+use crate::tests::confined::{grant_values};
 
 /// The grants the launcher was given for one launch.
 fn grants_of(disk: &Disk, request: &ClientRunRequest) -> Vec<String> {
@@ -115,13 +115,13 @@ impl Files for Plain {
 fn the_grants_of_a_launch_read_the_work_directory_or_write_it_and_write_the_run_directory() {
     let input = LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: Some(RunMode::ReadOnly), provider: None };
     let mut paths = LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g1".into(), "/g2".into()]), git_view: GitView::default() };
-    let confinement = Confinement { launcher: LAUNCHER.into(), reads: vec!["/r".into()], run_from: vec!["node".into()], writes: vec!["/own".into()], ports: vec![443, 8443], loopback: true, keychain: true, preferences: true, env: vec!["USER".into()] };
+    let confinement = Confinement { reads: vec!["/r".into()], run_from: vec!["node".into()], writes: vec!["/own".into()], ports: vec![443, 8443], loopback: true, keychain: true, preferences: true, env: vec!["USER".into()] };
     let names = ["B".to_string(), "A".to_string(), "USER".to_string()];
     // A read-only run reads the work directory, never its git directories, and writes the export directory when it has no run directory.
     assert_eq!(
         confinement.args(&input, &paths, "claude", &names),
         strings(&[
-            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--read", "/p", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
+            "grants", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--read", "/p", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
             "B", "--env", "USER", "--"
         ])
     );
@@ -130,12 +130,11 @@ fn the_grants_of_a_launch_read_the_work_directory_or_write_it_and_write_the_run_
     paths.run_dir = Some("/run/own".into());
     paths.prompt_path = "/run/own/prompt.md".into();
     let writing = LaunchRequest { mode: Some(RunMode::Write), ..input };
-    let bare = Confinement { launcher: LAUNCHER.into(), ..Confinement::default() };
-    assert_eq!(bare.args(&writing, &paths, "codex", &[]), strings(&["confine", "--write", "/w", "--write", "/g1", "--write", "/g2", "--run-from", "codex", "--write", "/run/own", "--"]));
+    let bare = Confinement { ..Confinement::default() };
+    assert_eq!(bare.args(&writing, &paths, "codex", &[]), strings(&["grants", "--write", "/w", "--write", "/g1", "--write", "/g2", "--run-from", "codex", "--write", "/run/own", "--"]));
     // No prompt file, no read of one.
     let unnamed = LaunchPaths { prompt_path: String::new(), ..paths.clone() };
     assert_eq!(bare.args(&writing, &unnamed, "codex", &[]), bare.args(&writing, &paths, "codex", &[]));
-    assert_eq!(no_launcher("opencode"), "opencode: agent-launcher is not on PATH, and a delegate only runs confined to its working directory; re-run agent-kit setup, which installs it");
 }
 
 #[test]
@@ -242,21 +241,12 @@ fn hermes_reaches_its_providers_port_and_a_provider_of_the_owners_reads_one_file
 }
 
 #[test]
-fn a_client_that_cannot_be_confined_is_refused_and_leaves_no_home_behind() {
+fn a_client_that_cannot_be_given_a_home_is_refused_and_leaves_no_home_behind() {
     let programs = Programs::answering();
-    // No launcher: no run, and the home made for it goes at once (it may hold a link to the owner's login).
-    let no_launcher = HashMap::from([("HOME".to_string(), "/home/me".to_string())]);
-    let disk = owner();
-    let refused = (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &no_launcher }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("refused");
-    assert!(matches!(&refused, ClientRunError::Gateway(error) if error.code == "unconfined" && error.message.starts_with("codex: agent-launcher is not on PATH")), "{refused:?}");
-    assert!(programs.ran.lock().unwrap().is_empty());
-    assert_eq!(disk.removed.lock().unwrap().as_slice(), ["/run/client-home"]);
-    // A launcher found on `PATH`, and a login that is not there.
-    let on_path = HashMap::from([("HOME".to_string(), "/home/me".to_string()), ("PATH".to_string(), "/usr/local/bin".to_string())]);
-    let found = owner().with("/usr/local/bin/agent-launcher", "");
-    (ClientRun { process: &Programs::answering(), files: &found, clock: &crate::adapters::clock::SystemClock, env: &on_path }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect("launched");
+    // A login that is not there.
     let signed_out = (ClientRun { process: &programs, files: &Disk::default(), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("signed out");
     assert!(matches!(&signed_out, ClientRunError::Gateway(error) if error.message.contains("sign in with codex login")), "{signed_out:?}");
+    assert!(programs.ran.lock().unwrap().is_empty());
     // A home whose directory cannot be made.
     let broken = Programs::answering();
     let unmakeable = (ClientRun { process: &broken, files: &Nowhere(owner()), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect_err("no directory");

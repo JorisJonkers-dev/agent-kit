@@ -81,7 +81,7 @@ pub fn run_in(process: Box<dyn Process>, status: Vec<crate::git::PorcelainEntry>
     runtime.gateway.process = process;
     runtime.env = std::iter::once(("HOME".to_string(), format!("{root}/home"))).chain(env.iter().map(|(key, value)| (key.to_string(), value.to_string()))).collect();
     runtime.gateway.env = runtime.env.clone();
-    runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), super::vibe_client::LAUNCHER.to_string());
+    runtime.gateway.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
     // A confined Codex run links its home to the owner's login.
     std::fs::create_dir_all(format!("{root}/home/.codex")).expect("codex home");
     std::fs::write(format!("{root}/home/.codex/auth.json"), "{}").expect("codex login");

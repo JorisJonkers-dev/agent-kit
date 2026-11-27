@@ -540,14 +540,14 @@ impl Files for FakeFiles {
 
 }
 
-/// The launcher a test names with `AGENT_KIT_LAUNCHER_BIN`.
-pub const LAUNCHER: &str = "/bin/launcher";
+/// The program of the plan command a launch under the host backend hands the fake process.
+pub const LAUNCHER: &str = model_gateway::sandbox::PLAN_PROGRAM;
 
 /// The command as the client sees it: without the launcher and the grants that stand in front of it.
 pub fn unwrapped(command: &ProcessCommand) -> ProcessCommand {
     let mut words = vec![command.command.clone()];
     words.extend(command.args.clone());
-    let Some(start) = words.iter().position(|word| word == LAUNCHER).filter(|at| words.get(at + 1).map(String::as_str) == Some("confine")) else {
+    let Some(start) = words.iter().position(|word| word == LAUNCHER).filter(|at| words.get(at + 1).map(String::as_str) == Some(model_gateway::sandbox::PLAN_VERB)) else {
         return command.clone();
     };
     let Some(end) = words.iter().skip(start).position(|word| word == "--").map(|at| at + start) else {
@@ -613,7 +613,7 @@ pub fn runtime_with(files: impl Fn() -> Box<dyn Files>, process: impl Fn() -> Bo
     gateway.process = process();
     // Every client is started behind the launcher (#903); the fakes record the client's own command.
     gateway.env = env.clone();
-    gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), LAUNCHER.to_string());
+    gateway.env.entry("AGENT_KIT_SANDBOX".to_string()).or_insert_with(|| "host".to_string());
     Runtime {
         clock: Box::new(SystemClock),
         files: files(),
@@ -982,16 +982,15 @@ fn a_real_vibe_launch_reads_its_journal_and_its_export() {
     let env = [("PATH", path.as_str()), ("HOME", home_text.as_str())];
     let cwd = dir.to_string_lossy().into_owned();
     let child_env: HashMap<String, String> = env.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect();
-    let mut runtime = runtime_with(
+    let runtime = runtime_with(
         || -> Box<dyn Files> { Box::new(SystemFiles { cwd: cwd.clone() }) },
         || -> Box<dyn Process> { Box::new(SystemProcess { env: child_env.clone() }) },
         &env,
     );
     // The launcher the gateway starts the client behind is one that starts what follows its `--`.
-    let launcher = bin.join("agent-launcher");
+    let launcher = bin.join("sbx-plan");
     assert!(std::fs::write(&launcher, "#!/bin/sh\nwhile [ \"$1\" != \"--\" ]; do shift; done\nshift\nexec \"$@\"\n").is_ok());
     assert!(std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).is_ok());
-    runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), launcher.to_string_lossy().into_owned());
     let question = ModelQuestion {
         work_dir: packet.to_string_lossy().into_owned(),
         prompt_path: packet.join("prompt.md").to_string_lossy().into_owned(),

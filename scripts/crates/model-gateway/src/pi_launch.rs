@@ -1,8 +1,7 @@
 //! What a confined Pi launch needs before it starts, the port of
 //! `application/pi-launch.ts`: the route's provider from the home's
-//! `models.json`, the key from the secret store, the launcher, and the launch's
-//! own agent directory. Pi has no sandbox of its own, so a launch that cannot be
-//! confined never starts.
+//! `models.json`, the key from the secret store, and the launch's own agent
+//! directory. Pi has no sandbox of its own, so every launch runs in one (ADR-0019).
 
 use crate::config::{ToolList, ToolScope};
 use crate::json::{self, Value};
@@ -13,10 +12,6 @@ use std::collections::HashMap;
 
 /// The longest the secret store may take to give the key; it reads a local file and calls no model.
 const KEY_TIMEOUT_MS: u64 = 20_000;
-
-/// Why a Pi run cannot start without the launcher.
-pub const NO_LAUNCHER: &str =
-    "pi: agent-launcher is not on PATH, and a Pi delegate only runs confined to its working directory; re-run agent-kit setup, which installs it";
 
 const FIX: &str = "re-run agent-kit setup so it writes the LiteLLM providers into ~/.pi/agent/models.json";
 
@@ -107,18 +102,6 @@ fn first_line(text: &str) -> Option<String> {
     text.split('\n').map(js_trim).find(|line| !line.is_empty()).map(str::to_string)
 }
 
-/// The launcher that confines a launch: `AGENT_KIT_LAUNCHER_BIN`, else `agent-launcher` on `PATH`.
-pub(crate) fn launcher_of(files: &dyn Files, env: &HashMap<String, String>) -> Option<String> {
-    if let Some(named) = env.get("AGENT_KIT_LAUNCHER_BIN").filter(|named| !named.is_empty()) {
-        return Some(named.clone());
-    }
-    let path = env.get("PATH").map_or("", String::as_str);
-    path.split(':')
-        .filter(|dir| !dir.is_empty())
-        .any(|dir| files.exists(&join(&[dir, "agent-launcher"])).unwrap_or(false))
-        .then(|| "agent-launcher".to_string())
-}
-
 /// What a scope puts in a Pi launch's home: each skill and plugin the scope names, with the place in the
 /// operator's home it is copied from. Nothing the scope does not list is here, so nothing else is copied.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -162,10 +145,8 @@ pub fn resolve_scope(files: &dyn Files, env: &HashMap<String, String>, tools: &T
 
 /// The launch's own agent directory: a `models.json` holding only the route's
 /// provider, its key read from the secret store just now and written in plain
-/// (mode 0600), and an empty `settings.json`; and what the confined launch runs
-/// through. An error is why no launch can start: the home has no provider for
-/// the route, the key cannot be read, or the operating system has no launcher
-/// to confine with, and a Pi delegate never runs unconfined. With a `scope`, the
+/// (mode 0600), and an empty `settings.json`; . An error is why no launch can start: the home has
+/// no provider for the route or the key cannot be read. With a `scope`, the
 /// directory also holds a copy of each skill and plugin it lists and nothing
 /// else of the operator's, and the launch loads only those.
 pub fn prepare_pi(
@@ -178,7 +159,6 @@ pub fn prepare_pi(
     scope: Option<&ToolScope>,
 ) -> Result<PiConfinement, String> {
     let route = route_of(files, env, provider, model)?;
-    let launcher = launcher_of(files, env).ok_or_else(|| NO_LAUNCHER.to_string())?;
     let listed = match scope {
         Some(scope) => resolve_scope(files, env, scope)?,
         None => PiScope::default(),
@@ -203,7 +183,6 @@ pub fn prepare_pi(
     files.write_private(&join(&[agent_dir, "models.json"]), &format!("{}\n", json::pretty(&models))).map_err(write_failed)?;
     let bin = join(&[&home_agent_dir(env), "bin"]);
     Ok(PiConfinement {
-        launcher,
         agent_dir: agent_dir.to_string(),
         bin: files.exists(&bin).unwrap_or(false).then_some(bin),
         port: route.port,

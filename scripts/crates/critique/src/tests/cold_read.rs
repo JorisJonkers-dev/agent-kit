@@ -187,7 +187,7 @@ fn cold_read_result(with_launcher: bool) -> Value {
     runtime.files = Box::new(SystemFiles { cwd: root.clone() });
     runtime.gateway.env = runtime.env.clone();
     if with_launcher {
-        runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), super::vibe_client::LAUNCHER.to_string());
+        runtime.gateway.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
     }
     runtime.gateway.files = Box::new(Refusing(SystemFiles { cwd: root.clone() }));
     runtime.gateway.process = Box::new(Answering);
@@ -208,9 +208,9 @@ fn a_gateway_ledger_that_will_not_take_a_record_is_a_warning_in_the_result() {
 }
 
 #[test]
-fn a_launch_with_no_launcher_to_confine_it_is_an_unavailable_file_and_never_a_bare_run() {
+fn a_launch_with_no_sandbox_to_run_it_in_is_an_unavailable_file_and_never_a_bare_run() {
     let result = cold_read_result(false);
     let text = model_gateway::json::pretty(&result);
-    assert!(text.contains("the launch failed: vibe: agent-launcher is not on PATH"), "{text}");
+    assert!(text.contains("the launch failed: sbx is not usable"), "{text}");
 }
 

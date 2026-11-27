@@ -130,7 +130,7 @@ fn ledger_refusing_fan_out(extra: &[(&str, &str)]) {
     runtime.files = Box::new(SystemFiles { cwd: root.clone() });
     runtime.git = Box::new(Status(Mutex::new(Ok(Vec::new()))));
     runtime.gateway.env = runtime.env.clone();
-    runtime.gateway.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), super::vibe_client::LAUNCHER.to_string());
+    runtime.gateway.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
     runtime.gateway.files = Box::new(Refusing(SystemFiles { cwd: root.clone() }));
     runtime.gateway.process = Box::new(Reviewing(Mutex::new(Vec::new())));
     runtime.assets_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../skills/workstation/critique").to_string_lossy().into_owned();

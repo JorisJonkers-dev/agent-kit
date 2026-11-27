@@ -12,7 +12,7 @@
       "mkdir": [
         "tmp",
         "bin/claude",
-        "bin/agent-launcher"
+        "bin/sbx-plan"
       ],
       "shims": [
         "git",
