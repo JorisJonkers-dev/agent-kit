@@ -149,7 +149,7 @@ use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
 use crate::extras::RunExtras;
 use crate::launchers::{LaunchPaths, LaunchRequest};
 use crate::error::GatewayError;
-use crate::ports::{FileStamp, Files, FsError, LaunchWatch, Process, ProcessResult, Stream};
+use crate::ports::{Ending, FileStamp, Files, FsError, LaunchWatch, Launched, Process, ProcessResult, Stream};
 use crate::run::{RunClient, RunMode};
 use crate::sbx_launch::{self, SbxLaunch};
 use std::sync::Mutex;
@@ -166,6 +166,10 @@ struct Sbx {
     stdins: Mutex<Vec<String>>,
     exec: Answer,
     run: Answer,
+    /// How the client's launch ended when it did not exit by itself (a stop of the gateway, or the time limit), and whether it timed out.
+    end: Option<(Ending, bool)>,
+    /// The gateway pids that are still running.
+    alive: Vec<u32>,
 }
 
 fn answer(stdout: &str, stderr: &str, exit_code: i32) -> Result<ProcessResult, String> {
@@ -202,11 +206,12 @@ const GLOBAL_POLICY: &str = r#"{"rules":[
 
 /// The pinned image the chosen tag resolves to.
 const PI_IMAGE: &str = "docker.io/sbx/pi-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const VIBE_IMAGE: &str = "docker.io/sbx/vibe-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const OPENCODE_IMAGE: &str = "docker.io/sbx/opencode-image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 impl Sbx {
     fn new(exec: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
-        Sbx { calls: Mutex::new(Vec::new()), stdins: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)) }
+        Sbx { calls: Mutex::new(Vec::new()), stdins: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)), end: None, alive: Vec::new() }
     }
 
     fn calls(&self) -> Vec<String> {
@@ -219,6 +224,22 @@ impl Sbx {
 }
 
 impl Process for Sbx {
+    fn run_watched(&self, command: &ProcessCommand, watch: &dyn LaunchWatch) -> Result<Launched, String> {
+        let mut result = self.run(command)?;
+        watch.output(Stream::Stdout, result.stdout.as_bytes());
+        let ending = match &self.end {
+            Some((ending, timed_out)) => {
+                result.timed_out = *timed_out;
+                result.exit_code = 143;
+                ending.clone()
+            }
+            None => Ending::default(),
+        };
+        Ok(Launched { result, ending })
+    }
+    fn is_alive(&self, pid: u32) -> bool {
+        self.alive.contains(&pid)
+    }
     fn resolve(&self, _binary: &str) -> Option<String> {
         None
     }
@@ -289,6 +310,12 @@ impl Files for Disk {
     }
     fn write_text(&self, path: &str, content: &str) -> Result<(), FsError> {
         self.write_private(path, content)
+    }
+    fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
+        let mut files = self.files.lock().expect("files");
+        let copied: Vec<(String, String)> = files.iter().filter(|(path, _)| path.as_str() == from).map(|(_, text)| (to.to_string(), text.clone())).collect();
+        files.extend(copied);
+        Ok(())
     }
     fn temp_dir(&self, parent: &str, prefix: &str) -> Result<String, FsError> {
         Ok(format!("{parent}/{prefix}-tmp"))
@@ -364,14 +391,11 @@ fn every_refusal_before_a_launch_makes_nothing_and_names_its_reason() {
         let env = sbx_env();
         gateway_code(ClientRun { process, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(client, mode)).expect_err("refused"))
     };
-    // A client the backend does not run, and a write run, are refused before sbx is even asked.
+    // A client the backend does not run is refused before sbx is even asked.
     let healthy_sbx = Sbx::new(healthy);
     let (code, message) = run(&healthy_sbx, RunClient::Claude, Some(RunMode::ReadOnly));
     assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("runs only pi and opencode"), "{message}");
-    let (code, message) = run(&healthy_sbx, RunClient::Pi, Some(RunMode::Write));
-    assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("runs only read-only launches"), "{message}");
+    assert!(message.contains("runs only pi, opencode and vibe"), "{message}");
     assert!(healthy_sbx.calls().is_empty(), "nothing asked of sbx");
 
     // sbx missing, and sbx that does not answer, are refused with the install command and no create.
@@ -399,20 +423,21 @@ fn a_read_only_pi_run_creates_allows_execs_and_removes_its_sandbox_in_that_order
     let calls = sbx.calls();
     let name = sbx_name_in(&calls);
     assert!(name.starts_with("mg-"), "{name}");
-    assert_eq!(calls.len(), 9, "{calls:?}");
+    assert_eq!(calls.len(), 10, "{calls:?}");
     assert_eq!(calls[0], "sbx version");
     assert_eq!(calls[1], "sbx secret ls -g --json");
-    assert!(calls[2].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[2]);
-    assert_eq!(calls[3], "sbx policy ls --json");
-    assert_eq!(calls[4], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
-    assert_eq!(calls[5], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
-    assert!(calls[6].starts_with(&format!("sbx policy deny network --sandbox {name} ")), "{}", calls[6]);
+    assert_eq!(calls[2], "sbx ls -q");
+    assert!(calls[3].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[3]);
+    assert_eq!(calls[4], "sbx policy ls --json");
+    assert_eq!(calls[5], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
+    assert_eq!(calls[6], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
+    assert!(calls[7].starts_with(&format!("sbx policy deny network --sandbox {name} ")), "{}", calls[7]);
     // The client runs with its stdin open (the prompt), in the workdir; its two variables come from the env file, never the arguments.
     let exec = format!("sbx exec -i -w /run/work --env-file /run/export/pi-agent/sbx.env {name} pi -p --mode json ");
-    assert!(calls[7].starts_with(&exec), "{}", calls[7]);
-    assert!(calls[7].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[7]);
-    assert!(!calls[7].contains("HOME") && !calls[7].contains("PATH=") && !calls[7].contains("PI_CODING_AGENT_DIR"), "{}", calls[7]);
-    assert_eq!(calls[8], format!("sbx rm --force {name}"));
+    assert!(calls[8].starts_with(&exec), "{}", calls[8]);
+    assert!(calls[8].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[8]);
+    assert!(!calls[8].contains("HOME") && !calls[8].contains("PATH=") && !calls[8].contains("PI_CODING_AGENT_DIR"), "{}", calls[8]);
+    assert_eq!(calls[9], format!("sbx rm --force {name}"));
     let env_file = disk.files.lock().expect("files").get("/run/export/pi-agent/sbx.env").cloned().expect("the env file was written");
     // The client's own two variables come first, then the package managers' settings (no key on this machine).
     assert!(env_file.starts_with("PI_CODING_AGENT_DIR=/run/export/pi-agent\nTMPDIR=/run/export/pi-agent\nGOPROXY=https://packages.jorisjonkers.dev/go\n"), "{env_file}");
@@ -447,8 +472,8 @@ fn a_failed_create_names_its_reason_and_still_removes_what_it_named() {
     let ClientRunError::Spawn(message) = error else { panic!("a spawn error") };
     assert!(message.contains("sbx create exited 1: no room for a microVM"), "{message}");
     let calls = sbx.calls();
-    assert_eq!(calls.len(), 6, "{calls:?}");
-    assert!(calls[5].starts_with("sbx rm --force mg-"), "{calls:?}");
+    assert_eq!(calls.len(), 7, "{calls:?}");
+    assert!(calls[6].starts_with("sbx rm --force mg-"), "{calls:?}");
     assert!(!calls.iter().any(|call| call.starts_with("sbx exec")), "{calls:?}");
 }
 
@@ -582,9 +607,9 @@ fn a_loopback_route_allows_both_names_and_its_config_is_rewritten_to_the_one_the
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, local, &|_| Ok(String::new())).expect("a translation");
     assert_eq!(sbx.allow, ["host.docker.internal:4000", "localhost:4000"]);
     assert_eq!(sbx.policy_args().join(" "), "policy allow network --sandbox mg-test host.docker.internal:4000,localhost:4000");
-    assert_eq!(sbx_launch::rewritten_config(local).as_deref(), Some(r#"{"x":{"baseUrl":"http://host.docker.internal:4000/v1"}}"#));
-    assert_eq!(sbx_launch::rewritten_config(ROUTE_REMOTE), None, "a remote host needs no rewrite");
-    assert_eq!(sbx_launch::rewritten_config("not json"), None);
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Pi, local).as_deref(), Some(r#"{"x":{"baseUrl":"http://host.docker.internal:4000/v1"}}"#));
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Pi, ROUTE_REMOTE), None, "a remote host needs no rewrite");
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Pi, "not json"), None);
     let remote = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
     assert_eq!(remote.allow, ["litellm.example.com:443"]);
 }
@@ -694,7 +719,7 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
     let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
-    assert!(calls[5].ends_with(" litellm.example.com:443,packages.jorisjonkers.dev:443"), "{calls:?}");
+    assert!(calls[6].ends_with(" litellm.example.com:443,packages.jorisjonkers.dev:443"), "{calls:?}");
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("https://litellm.example.com/v1"));
 }
 
@@ -770,4 +795,189 @@ fn an_env_file_is_removed_even_when_the_exec_fails_and_one_that_cannot_be_writte
     let run = sbx_launch::run(&Sbx::new(healthy), &stuck, &keyed_launch(), &keyed_opencode(true), &Notes::default());
     assert!(run.ran.is_ok());
     assert_eq!(run.warnings, ["the sandbox's env file /run/export.client-home/sbx.env was not removed: EBUSY: /run/export.client-home/sbx.env"]);
+}
+
+/// A Pi write run's request: its worktree written, the git directories its writes need written, and the rest of
+/// its git read.
+fn write_request() -> ClientRunRequest {
+    let mut request = pi_request(RunClient::Pi, Some(RunMode::Write));
+    request.paths.work_dir = "/repo/.git/model-gateway/worktrees/r1".to_string();
+    request.paths.git_writable = Some(vec!["/repo/.git/worktrees/r1".to_string(), "/repo/.git/objects".to_string(), "/repo/.git/refs".to_string()]);
+    request.paths.git_view.reads = vec!["/repo/.git/HEAD".to_string(), "/repo/.git/packed-refs".to_string()];
+    request
+}
+
+#[test]
+fn a_write_run_mounts_its_worktree_and_git_directories_written_and_never_the_main_checkout() {
+    let disk = pi_disk("http://localhost:4000/v1");
+    let sbx = Sbx::new(healthy);
+    let env = sbx_env();
+    ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&write_request()).expect("a write run");
+    let calls = sbx.calls();
+    let create = calls.iter().find(|call| call.starts_with("sbx create ")).expect("a create call");
+    let mounts: Vec<&str> = create.split(" shell ").nth(1).expect("mounts").split_whitespace().collect();
+    let written: Vec<&str> = mounts.iter().copied().filter(|mount| !mount.ends_with(":ro")).collect();
+    assert_eq!(written[0], "/repo/.git/model-gateway/worktrees/r1", "the worktree is the primary workspace: {mounts:?}");
+    for dir in ["/repo/.git/worktrees/r1", "/repo/.git/objects", "/repo/.git/refs"] {
+        assert!(written.contains(&dir), "{dir} is written: {mounts:?}");
+    }
+    for read in ["/repo/.git/HEAD:ro", "/repo/.git/packed-refs:ro"] {
+        assert!(mounts.contains(&read), "{read} is read-only: {mounts:?}");
+    }
+    // Neither the repository's checkout nor its whole git directory is mounted, and the one written path outside the worktree is a git directory.
+    assert!(!mounts.iter().any(|mount| mount.trim_end_matches(":ro") == "/repo" || mount.trim_end_matches(":ro") == "/repo/.git"), "{mounts:?}");
+    assert!(written.iter().all(|mount| mount.starts_with("/repo/.git/") || mount.starts_with("/run/export")), "{written:?}");
+    assert!(calls.last().expect("calls").starts_with("sbx rm --force mg-"), "{calls:?}");
+}
+
+#[test]
+fn a_cancelled_run_and_a_stall_kill_remove_the_sandbox_and_the_env_file() {
+    for (ending, timed_out) in [(Ending { signal: None, cancelled_by: Some(15), pid: Some(7) }, false), (Ending { signal: Some(15), cancelled_by: None, pid: Some(7) }, true)] {
+        let process = Sbx { end: Some((ending, timed_out)), ..Sbx::new(healthy) };
+        let disk = Disk::default();
+        let run = sbx_launch::run(&process, &disk, &keyed_launch(), &keyed_opencode(true), &Notes::default());
+        assert!(run.ran.is_ok(), "{:?}", run.ran);
+        assert!(run.warnings.is_empty(), "{:?}", run.warnings);
+        assert_eq!(process.calls().last().map(String::as_str), Some("sbx rm --force mg-test"));
+        assert!(disk.removed.lock().expect("removed").contains(&"/run/export.client-home/sbx.env".to_string()), "the env file outlived the run");
+    }
+}
+
+#[test]
+fn recovery_removes_the_sandboxes_of_ended_gateways_and_keeps_live_and_foreign_ones() {
+    let own = std::process::id();
+    let listing = format!("mg-100-aa\nmg-200-bb\nmg-{own}-cc\nmg-stuck-dd\nother-box\nmg-300-ee\n");
+    let process = Sbx { alive: vec![200], ..Sbx::new(move |args| if args[0] == "ls" { answer(&listing, "", 0) } else if args.get(2) == Some(&"mg-300-ee") { answer("", "busy", 1) } else { healthy(args) }) };
+    let warnings = sbx_launch::prune_orphans(&process);
+    assert_eq!(process.calls(), ["sbx ls -q", "sbx rm --force mg-100-aa", "sbx rm --force mg-300-ee"]);
+    assert_eq!(warnings, ["the sandbox mg-300-ee of an ended run was not removed; remove it with sbx rm --force mg-300-ee"]);
+
+    // A listing that cannot be had prunes nothing and says nothing.
+    for listing in [answer("", "no daemon", 1), Err("sbx missing".to_string())] {
+        let process = Sbx::new(move |_| listing.clone());
+        assert!(sbx_launch::prune_orphans(&process).is_empty());
+        assert_eq!(process.calls(), ["sbx ls -q"]);
+    }
+}
+
+const VIBE_CONFIG: &str = r#"active_model = "mistral-medium"
+[[providers]]
+name = "mistral"
+api_base = "https://api.mistral.ai/v1"
+api_key_env_var = "MISTRAL_API_KEY"
+backend = "mistral"
+
+[[providers]]
+name = "litellm-vibe"
+api_base = "http://localhost:4000/v1"
+api_key_env_var = "LITELLM_VIBE_KEY"
+backend = "generic"
+
+[[models]]
+name = "devstral-small"
+provider = "mistral"
+alias = "devstral-small"
+
+[[models]]
+name = "glm-5.3"
+provider = "litellm-vibe"
+alias = "litellm-vibe/glm-5.3"
+"#;
+
+/// A Vibe launch as `launchers` builds it for a confined run: no wrapper, the key named by `--env`.
+fn confined_vibe(model: &str) -> ProcessCommand {
+    let words = ["confine", "--read", "/run/work", "--write", "/run/export", "--write", "/run/export.client-home", "--net-connect", "443", "--env", "MISTRAL_API_KEY", "--env", "VIBE_HOME", "--", "vibe", "--prompt-file", "/run/prompt.md", "--model", model, "--agent", "delegate"];
+    ProcessCommand {
+        cwd: Some("/run/work".to_string()),
+        env: [("MISTRAL_API_KEY".to_string(), "mistral-secret".to_string()), ("VIBE_HOME".to_string(), "/run/export.client-home/vibe".to_string())].into_iter().collect(),
+        ..ProcessCommand::new("/opt/agent-launcher", &words)
+    }
+}
+
+#[test]
+fn a_direct_mistral_vibe_launch_allows_api_mistral_ai_and_passes_its_key_by_name_only() {
+    let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("devstral-small"), VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation");
+    assert_eq!(sbx.program, "vibe");
+    assert_eq!(sbx.allow, ["api.mistral.ai:443"]);
+    assert_eq!(sbx.env, ["MISTRAL_API_KEY=mistral-secret", "VIBE_HOME=/run/export.client-home/vibe"]);
+    let pinned = SbxLaunch { image: VIBE_IMAGE.to_string(), env_file: "/run/export.client-home/sbx.env".to_string(), ..sbx };
+    assert_eq!(pinned.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "missing", "-t", VIBE_IMAGE, "shell", "/run/export", "/run/export.client-home", "/run/work:ro"]);
+    let exec = pinned.exec_args();
+    assert!(exec.windows(2).any(|pair| pair == ["--env-file", "/run/export.client-home/sbx.env"]), "{exec:?}");
+    assert!(exec.iter().all(|word| !word.contains("mistral-secret")), "no value in argv: {exec:?}");
+    assert_eq!(exec.iter().skip_while(|word| *word != "mg-test").nth(1).map(String::as_str), Some("vibe"));
+}
+
+#[test]
+fn a_litellm_routed_vibe_launch_allows_the_proxy_by_both_loopback_names_and_a_config_without_models_goes_direct() {
+    let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("litellm-vibe/glm-5.3"), VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation");
+    assert_eq!(sbx.allow, ["host.docker.internal:4000", "localhost:4000"]);
+    let rewritten = sbx_launch::rewritten_config(RunClient::Vibe, VIBE_CONFIG).expect("a rewrite");
+    assert!(rewritten.contains("api_base = \"http://host.docker.internal:4000/v1\"") && rewritten.contains("https://api.mistral.ai/v1"), "{rewritten}");
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Vibe, "[[providers]]\nname = \"m\"\nbase = 1\n[[providers]]\nname = \"r\"\napi_base = \"https://x.example/v1\"\n"), None);
+    assert_eq!(sbx_launch::rewritten_config(RunClient::Vibe, "= not toml"), None);
+    assert_eq!(sbx_launch::config_path(RunClient::Vibe, "/run/home"), "/run/home/vibe/config.toml");
+    // No config, an unknown model, a provider without a base and a model-less launch are all Mistral's own.
+    for config in ["", "models = 1\nproviders = 1", "[[models]]\nname = \"devstral-small\"\nprovider = \"gone\"\n"] {
+        let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("devstral-small"), config, &|_| Ok(String::new())).expect("a translation");
+        assert_eq!(sbx.allow, ["api.mistral.ai:443"], "{config}");
+    }
+    let agent_picks = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "vibe", "--agent", "a"]);
+    assert_eq!(sbx_launch::translate(RunClient::Vibe, "mg-test", &agent_picks, VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation").allow, ["api.mistral.ai:443"]);
+    let broken = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("x"), "[[models", &|_| Ok(String::new())).expect_err("refused");
+    assert_eq!(broken.code, "sandbox-unsupported");
+    assert!(broken.message.starts_with("vibe: the run home's config.toml does not parse"), "{}", broken.message);
+}
+
+#[test]
+fn a_vibe_login_only_in_the_keychain_is_refused_naming_the_keychain_and_a_key_read_outside_runs_in_the_vibe_image() {
+    let request = |provider: &str| {
+        let mut request = pi_request(RunClient::Vibe, Some(RunMode::ReadOnly));
+        request.launch.model = "devstral-small".to_string();
+        request.launch.provider = Some(provider.to_string());
+        request.paths.run_dir = Some("/run".to_string());
+        request
+    };
+    let owner_disk = || {
+        let disk = Disk::default();
+        disk.files.lock().expect("files").insert("/home/me/.vibe/config.toml".to_string(), VIBE_CONFIG.to_string());
+        disk
+    };
+    let (disk, kept) = (owner_disk(), owner_disk());
+    let env = sbx_env();
+    // The keychain holds nothing the gateway can read: the launch would need `--keychain`, which no sandbox reaches.
+    let none = Sbx::new(|args| if args.first() == Some(&"find-generic-password") { answer("", "", 44) } else { healthy(args) });
+    let (code, message) = gateway_code(ClientRun { process: &none, files: &disk, clock: &Fixed, env: &env }.launch(&request("mistral")).expect_err("refused"));
+    assert_eq!(code, "sandbox-unsupported");
+    assert!(message.starts_with("vibe: the sbx plan holds no way to give keychain:"), "{message}");
+    assert!(!none.calls().iter().any(|call| call.starts_with("sbx create")), "nothing was made");
+
+    // The key read outside goes in by name, and the sandbox starts from the Vibe image with Mistral allowed.
+    let keyed = Sbx::new(|args| if args.first() == Some(&"find-generic-password") { answer("mistral-secret\n", "", 0) } else { healthy(args) });
+    let outcome = ClientRun { process: &keyed, files: &kept, clock: &Fixed, env: &env }.launch(&request("mistral")).expect("a run");
+    assert_eq!(outcome.result.stdout, "ok\n");
+    let calls = keyed.calls();
+    assert!(calls.iter().any(|call| call.starts_with("sbx create ") && call.contains(&format!("-t {VIBE_IMAGE} "))), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" api.mistral.ai:443,packages.jorisjonkers.dev:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx exec ") && call.contains(" vibe ") && !call.contains("mistral-secret")), "{calls:?}");
+    assert!(calls.last().is_some_and(|call| call.starts_with("sbx rm --force mg-")), "{calls:?}");
+}
+
+#[test]
+fn a_litellm_routed_vibe_launch_gets_the_proxy_and_the_package_proxy_in_one_rule() {
+    let mut request = pi_request(RunClient::Vibe, Some(RunMode::ReadOnly));
+    request.launch.model = "litellm-vibe/glm-5.3".to_string();
+    request.launch.provider = Some("litellm-vibe".to_string());
+    request.paths.run_dir = Some("/run".to_string());
+    let disk = Disk::default();
+    disk.files.lock().expect("files").insert("/home/me/.vibe/config.toml".to_string(), VIBE_CONFIG.to_string());
+    let sbx = Sbx::new(|args| if args.first() == Some(&"find-generic-password") { answer("litellm-secret\n", "", 0) } else { healthy(args) });
+    let env = sbx_env();
+    ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&request).expect("a run");
+    let calls = sbx.calls();
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with("sbx policy deny network ")), "{calls:?}");
+    let ls = calls.iter().position(|call| call == "sbx ls -q").expect("orphans pruned");
+    let create = calls.iter().position(|call| call.starts_with("sbx create ")).expect("created");
+    assert!(ls < create, "{calls:?}");
 }

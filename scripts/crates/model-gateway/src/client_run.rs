@@ -143,12 +143,15 @@ impl ClientRun<'_> {
     /// `launch_scoped`, with what the client does reported to `watch` as it happens (a run's event log).
     pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
+        let mut image_warnings = Vec::new();
         let backend = SandboxBackend::select(self.env)?;
         if request.extras.network_allow.is_some() && backend != SandboxBackend::Sbx {
             return Err(GatewayError::new("extras-not-supported", "network_allow needs the sbx backend: only a Docker Sandbox holds per-run host rules").into());
         }
         if backend == SandboxBackend::Sbx {
-            sbx_launch::preflight(self.process, request.client, request.launch.mode, &request.extras.network.clone().unwrap_or_default())?;
+            sbx_launch::preflight(self.process, request.client, &request.extras.network.clone().unwrap_or_default())?;
+            // A sandbox an ended gateway left behind goes before this run makes its own.
+            image_warnings.extend(sbx_launch::prune_orphans(self.process));
         }
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
@@ -175,11 +178,10 @@ impl ClientRun<'_> {
             discard();
             return Err(dry_run(request.client.as_str(), &command).into());
         }
-        let mut image_warnings = Vec::new();
         let sandboxed = if backend == SandboxBackend::Sbx {
             match self.sandboxed(request, &command, confine.as_ref(), home.as_ref()) {
                 Ok((sandboxed, warnings)) => {
-                    image_warnings = warnings;
+                    image_warnings.extend(warnings);
                     Some(sandboxed)
                 }
                 Err(error) => {
@@ -231,7 +233,7 @@ impl ClientRun<'_> {
         sandboxed.image = reference;
         sandboxed.env_file = join(&[&dir, "sbx.env"]);
         sbx_launch::apply_network(&mut sandboxed, self.process, self.files, self.env, &request.extras.network.clone().unwrap_or_default(), request.extras.network_allow.as_deref().unwrap_or_default(), &join(&[&dir, "packages.npmrc"]))?;
-        if let Some(rewritten) = sbx_launch::rewritten_config(&text) {
+        if let Some(rewritten) = sbx_launch::rewritten_config(request.client, &text) {
             self.files.write_private(&path, &rewritten).map_err(GatewayError::from_fs)?;
         }
         Ok((sandboxed, warnings))

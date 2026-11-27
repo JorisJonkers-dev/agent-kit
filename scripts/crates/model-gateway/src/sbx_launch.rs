@@ -1,4 +1,4 @@
-//! The Docker Sandboxes (`sbx`) run of one read-only Pi or OpenCode launch, behind `AGENT_KIT_SANDBOX=sbx`.
+//! The Docker Sandboxes (`sbx`) run of one read-only Pi, OpenCode or Vibe launch, behind `AGENT_KIT_SANDBOX=sbx`.
 //!
 //! The confined command the launcher would have run is the source: its grants become one sandbox's mounts
 //! (`SbxPlan`), its variables pass by name with their values from the command, and its route's base URL decides the
@@ -14,7 +14,7 @@ use crate::launchers::{OPENCODE_KEYED, SECRET_TOOL};
 use crate::network::{self, Egress, NetworkScope, Reach};
 use crate::pi_launch::url_port;
 use crate::ports::{Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult};
-use crate::run::{RunClient, RunMode};
+use crate::run::RunClient;
 use crate::sandbox::{Mount, SbxPlan};
 use crate::text::join;
 use std::collections::{BTreeMap, HashMap};
@@ -30,27 +30,26 @@ const SBX_TIMEOUT_MS: u64 = 120_000;
 pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/sbx, then sign in with sbx login";
 
 /// The host name a sandbox reaches the host's loopback by.
-const HOST_FROM_SANDBOX: &str = "host.docker.internal";
+pub(crate) const HOST_FROM_SANDBOX: &str = "host.docker.internal";
 
-/// The client's program in its image, which is also the client's name: Pi and OpenCode are the only clients the
-/// sbx backend runs so far. A write run and every other client are refused before anything is made.
+/// The client's program in its image, which is also the client's name: Pi, OpenCode and Vibe are the only clients the
+/// sbx backend runs so far. Every other client is refused before anything is made.
 pub fn program_of(client: RunClient) -> Option<&'static str> {
     match client {
         RunClient::Pi => Some("pi"),
         RunClient::Opencode => Some("opencode"),
+        RunClient::Vibe => Some("vibe"),
         _ => None,
     }
 }
 
-/// What must hold before a launch makes anything: a client the backend runs, a read-only run, an `sbx` that
-/// answers, and no stored sbx service secret the run's profile does not name. Refused with the reason and the
+/// What must hold before a launch makes anything: a client the backend runs, an `sbx` that answers, and no stored
+/// sbx service secret the run's profile does not name. A writing run is the same launch as a read-only one: its
+/// worktree and the git directories it writes are the written mounts of its grants. Refused with the reason and the
 /// command that fixes it.
-pub fn preflight(process: &dyn Process, client: RunClient, mode: Option<RunMode>, scope: &NetworkScope) -> Result<(), GatewayError> {
+pub fn preflight(process: &dyn Process, client: RunClient, scope: &NetworkScope) -> Result<(), GatewayError> {
     if program_of(client).is_none() {
-        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only pi and opencode so far; use confine or sbx-dry-run for this client", client.as_str())));
-    }
-    if mode == Some(RunMode::Write) {
-        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only read-only launches so far; a write run needs the next slice", client.as_str())));
+        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only pi, opencode and vibe so far; use confine or sbx-dry-run for this client", client.as_str())));
     }
     match process.exec(SBX, &["version"], Some(SBX_TIMEOUT_MS)) {
         Ok(result) if result.exit_code == 0 && !result.timed_out => {}
@@ -78,6 +77,31 @@ fn unavailable(reason: &str) -> GatewayError {
 pub fn sandbox_name() -> String {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |time| time.as_nanos());
     format!("mg-{}-{:x}", std::process::id(), nanos)
+}
+
+/// Removes every `mg-*` sandbox whose gateway is gone: a gateway killed before it could remove its run's sandbox
+/// leaves it behind, and its name (`mg-<gateway pid>-<time>`) says which gateway made it. A sandbox of this very
+/// process or of a gateway still alive is another run's and is kept. Nothing here fails a launch: what cannot be
+/// listed or removed is returned as warnings.
+pub fn prune_orphans(process: &dyn Process) -> Vec<String> {
+    let listed = match process.exec(SBX, &["ls", "-q"], Some(SBX_TIMEOUT_MS)) {
+        Ok(result) if result.exit_code == 0 => result.stdout,
+        _ => return Vec::new(),
+    };
+    let own = std::process::id();
+    let mut warnings = Vec::new();
+    for name in listed.lines().map(str::trim) {
+        let Some(pid) = name.strip_prefix("mg-").and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<u32>().ok()) else {
+            continue;
+        };
+        if pid == own || process.is_alive(pid) {
+            continue;
+        }
+        if !matches!(process.exec(SBX, &["rm", "--force", name], Some(SBX_TIMEOUT_MS)), Ok(result) if result.exit_code == 0) {
+            warnings.push(format!("the sandbox {name} of an ended run was not removed; remove it with sbx rm --force {name}"));
+        }
+    }
+    warnings
 }
 
 /// The sandbox side of one launch, translated from its confined command and checked.
@@ -188,7 +212,7 @@ pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_
         values.insert(key.clone(), read_key(&key)?);
     }
     let env = plan.env.iter().filter_map(|name| values.get(name).map(|value| format!("{name}={value}"))).collect();
-    let allow = allowed_hosts(route_text)?;
+    let allow = if client == RunClient::Vibe { crate::sbx_vibe::allowed(route_text, &args)? } else { allowed_hosts(route_text)? };
     Ok(SbxLaunch { name: name.to_string(), program, image: String::new(), env_file: String::new(), plan, args, env, allow, deny: Vec::new(), credential: None, reach: String::new() })
 }
 
@@ -252,7 +276,12 @@ fn unwrapped(command: &ProcessCommand) -> (ProcessCommand, BTreeMap<String, Stri
 /// the rule against `localhost`). A route with no base URL is refused, since sbx allows only the proxy named there.
 fn allowed_hosts(route_text: &str) -> Result<Vec<String>, GatewayError> {
     let url = json::parse(route_text).ok().and_then(|value| base_url_in(&value)).ok_or_else(|| GatewayError::new("sandbox-unsupported", "the route names no base URL; the sbx backend allows only the LiteLLM proxy the route names"))?;
-    let (host, port) = split_host(&url).ok_or_else(|| GatewayError::new("sandbox-unsupported", "the route's base URL names no host the sbx policy can allow"))?;
+    host_rules(&url)
+}
+
+/// The rules for one base URL: the host and port, with a loopback host named both ways.
+pub(crate) fn host_rules(url: &str) -> Result<Vec<String>, GatewayError> {
+    let (host, port) = split_host(url).ok_or_else(|| GatewayError::new("sandbox-unsupported", "the route's base URL names no host the sbx policy can allow"))?;
     Ok(if host == "localhost" || host == "127.0.0.1" { vec![format!("{HOST_FROM_SANDBOX}:{port}"), format!("localhost:{port}")] } else { vec![format!("{host}:{port}")] })
 }
 
@@ -281,7 +310,10 @@ fn split_host(url: &str) -> Option<(String, u16)> {
 
 /// The route's config rewritten so a loopback proxy is reached through `host.docker.internal`, which the sandbox
 /// sees; `None` when no rewrite is needed. The text is the config's own, with only the base URL changed.
-pub fn rewritten_config(route_text: &str) -> Option<String> {
+pub fn rewritten_config(client: RunClient, route_text: &str) -> Option<String> {
+    if client == RunClient::Vibe {
+        return crate::sbx_vibe::rewritten(route_text);
+    }
     let url = json::parse(route_text).ok().and_then(|value| base_url_in(&value))?;
     let (host, _) = split_host(&url)?;
     if host != "localhost" && host != "127.0.0.1" {
@@ -295,6 +327,7 @@ pub fn rewritten_config(route_text: &str) -> Option<String> {
 pub fn config_path(client: RunClient, dir: &str) -> String {
     match client {
         RunClient::Pi => join(&[dir, "models.json"]),
+        RunClient::Vibe => join(&[dir, "vibe", "config.toml"]),
         _ => join(&[dir, "opencode.json"]),
     }
 }

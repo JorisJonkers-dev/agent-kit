@@ -130,7 +130,7 @@ secret are not service secrets; a listing that cannot be read refuses too.
 
 `AGENT_KIT_SANDBOX=sbx-dry-run` (first slice) prepares a launch, translates its grants into the sandbox plan,
 removes what it made and refuses with the plan, so the translation can be checked on any machine. The sbx
-backend then lands per client (Pi and OpenCode first), the default switches to sbx with the refusal above,
+backend then lands per client (Pi and OpenCode first, then Vibe), the default switches to sbx with the refusal above,
 and the gateway's `confine` path (client recipes, `PiConfinement`, the dry run) is removed. ADR-0016 is then
 marked superseded.
 
