@@ -757,12 +757,25 @@ fn hostname() -> String {
         .unwrap_or_default()
 }
 
+/// The environment as this crate reads it. A variable whose name or value is
+/// not UTF-8 is skipped: `std::env::vars()` panics on one, and the environment
+/// is whatever the shell that started setup passed on.
+fn utf8_env(vars: impl Iterator<Item = (OsString, OsString)>) -> HashMap<String, String> {
+    vars.filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+        .collect()
+}
+
+/// The process environment, read through `utf8_env`.
+fn process_env() -> HashMap<String, String> {
+    utf8_env(std::env::vars_os())
+}
+
 /// The command line: ensure, status, write-env, revoke NAME, all with `--table`.
 pub fn run(args: impl Iterator<Item = OsString>) -> i32 {
     use std::io::IsTerminal;
     let args: Vec<String> = args.map(|a| a.to_string_lossy().into_owned()).collect();
     let mut ctx = Ctx {
-        env: std::env::vars().collect(),
+        env: process_env(),
         home: std::env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_default(),
