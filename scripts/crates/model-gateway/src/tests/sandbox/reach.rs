@@ -445,3 +445,11 @@ fn a_profile_states_its_reach_and_secrets_in_the_defaults_and_a_malformed_one_is
     let scope = NetworkScope::of(config.profiles.values().find(|profile| profile.sbx_secrets.is_some()), true);
     assert_eq!(scope.secrets, ["github"]);
 }
+
+#[test]
+fn a_rule_the_route_and_the_task_both_name_is_allowed_once() {
+    let route = strs(&["host.docker.internal:4000", network::PROXY_RULE]);
+    let extras = strs(&["host.docker.internal:4000"]);
+    let egress = network::plan(Reach::ProxyOnly, &route, &extras, &[]).expect("a plan");
+    assert_eq!(egress.allow, ["host.docker.internal:4000", network::PROXY_RULE]);
+}
