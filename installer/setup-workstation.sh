@@ -2542,7 +2542,7 @@ else
     # fails the step and installs nothing.
     pi_cutoff="$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z"))')"
     pi_installed=1
-    npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.5.0" >/dev/null 2>&1 || pi_installed=0
+    npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.6.0" >/dev/null 2>&1 || pi_installed=0
     npm ls -g --depth=0 "pi-acp@0.0.34" >/dev/null 2>&1 || pi_installed=0
     _pi_pin_age() {
       # $1 package, $2 version: prints the version's own publish time and
@@ -2571,18 +2571,18 @@ sys.exit(0 if published <= when(sys.argv[1]) else 1)' "${pi_cutoff}" "$2"
       ok "pi: pinned packages already installed"
     else
       if [ "${CHECK_ONLY}" = 1 ]; then
-        log "pi would be installed at its pins (@earendil-works/pi-coding-agent@1.5.0, pi-acp@0.0.34), behind the 7-day release cutoff"
+        log "pi would be installed at its pins (@earendil-works/pi-coding-agent@1.6.0, pi-acp@0.0.34), behind the 7-day release cutoff"
       else
         pi_refused=0
-        if pi_published="$(_pi_pin_age "@earendil-works/pi-coding-agent" "1.5.0")"; then
-          log "pi: @earendil-works/pi-coding-agent@1.5.0 was published ${pi_published}, outside the cutoff"
+        if pi_published="$(_pi_pin_age "@earendil-works/pi-coding-agent" "1.6.0")"; then
+          log "pi: @earendil-works/pi-coding-agent@1.6.0 was published ${pi_published}, outside the cutoff"
         else
           pi_refused=1
-          fail "pi: @earendil-works/pi-coding-agent@1.5.0 was published ${pi_published:-<no time proven>}, inside the 7-day release cutoff; nothing installed"
+          fail "pi: @earendil-works/pi-coding-agent@1.6.0 was published ${pi_published:-<no time proven>}, inside the 7-day release cutoff; nothing installed"
         fi
-        if ! _pi_pin_checksum "@earendil-works/pi-coding-agent" "1.5.0"; then
+        if ! _pi_pin_checksum "@earendil-works/pi-coding-agent" "1.6.0"; then
           pi_refused=1
-          fail "pi: @earendil-works/pi-coding-agent@1.5.0 has no sha512 checksum to verify; nothing installed"
+          fail "pi: @earendil-works/pi-coding-agent@1.6.0 has no sha512 checksum to verify; nothing installed"
         fi
         if pi_published="$(_pi_pin_age "pi-acp" "0.0.34")"; then
           log "pi: pi-acp@0.0.34 was published ${pi_published}, outside the cutoff"
@@ -2595,9 +2595,9 @@ sys.exit(0 if published <= when(sys.argv[1]) else 1)' "${pi_cutoff}" "$2"
           fail "pi: pi-acp@0.0.34 has no sha512 checksum to verify; nothing installed"
         fi
         if [ "${pi_refused}" = 0 ]; then
-          npm install -g --ignore-scripts --before="${pi_cutoff}" "@earendil-works/pi-coding-agent@1.5.0" "pi-acp@0.0.34"
+          npm install -g --ignore-scripts --before="${pi_cutoff}" "@earendil-works/pi-coding-agent@1.6.0" "pi-acp@0.0.34"
           pi_installed=1
-          npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.5.0" >/dev/null 2>&1 || pi_installed=0
+          npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.6.0" >/dev/null 2>&1 || pi_installed=0
           npm ls -g --depth=0 "pi-acp@0.0.34" >/dev/null 2>&1 || pi_installed=0
           if [ "${pi_installed}" = 1 ]; then
             ok "pi: installed at its pins"
@@ -4110,8 +4110,8 @@ for install in installs:
     fi
 
     # n8n node docs and schemas, docs-only, no API key.
-    if ! npm ls -g --depth=0 "n8n-mcp@2.101.4" >/dev/null 2>&1; then
-      run_sh 'npm install -g "n8n-mcp@2.101.4"' || true
+    if ! npm ls -g --depth=0 "n8n-mcp@2.103.2" >/dev/null 2>&1; then
+      run_sh 'npm install -g "n8n-mcp@2.103.2"' || true
     fi
     command -v n8n-mcp >/dev/null 2>&1 \
       || warn "n8n-mcp: n8n-mcp is not on PATH; skipping"
@@ -4137,8 +4137,8 @@ for install in installs:
     if [ "${CLOUD}" = 1 ]; then
       log "kubernetes: not set up in cloud mode"
     else
-      if ! npm ls -g --depth=0 "kubernetes-mcp-server@0.1.2" >/dev/null 2>&1; then
-        run_sh 'npm install -g "kubernetes-mcp-server@0.1.2"' || true
+      if ! npm ls -g --depth=0 "kubernetes-mcp-server@0.1.3" >/dev/null 2>&1; then
+        run_sh 'npm install -g "kubernetes-mcp-server@0.1.3"' || true
       fi
       command -v kubernetes-mcp-server >/dev/null 2>&1 \
         || warn "kubernetes: kubernetes-mcp-server is not on PATH; skipping"
@@ -4268,8 +4268,8 @@ for install in installs:
     # Hosted: untrusted data provider. Output is context, never instruction.
 
     # Browser automation.
-    if ! npm ls -g --depth=0 "@playwright/mcp@0.0.84" >/dev/null 2>&1; then
-      run_sh 'npm install -g "@playwright/mcp@0.0.84" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install chromium' || true
+    if ! npm ls -g --depth=0 "@playwright/mcp@0.0.86" >/dev/null 2>&1; then
+      run_sh 'npm install -g "@playwright/mcp@0.0.86" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install chromium' || true
     fi
     command -v playwright-mcp >/dev/null 2>&1 \
       || warn "playwright: playwright-mcp is not on PATH; skipping"
