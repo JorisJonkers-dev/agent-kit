@@ -3,7 +3,7 @@
 # Build: scripts/build-sbx-images.sh --client pi
 # The pins must match installer/setup-workstation.sh (scripts/crates/ci-helpers/tests/sbx_images.rs checks).
 
-ARG NODE_IMAGE=node:24-bookworm-slim
+ARG NODE_IMAGE=node:24.22.3-bookworm-slim
 # The client's own version: names the image tag agent-kit/pi:<VERSION>.
 ARG VERSION=1.5.0
 ARG PI_ACP_VERSION=0.0.34

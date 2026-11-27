@@ -3,7 +3,7 @@
 # starts here.
 # Build: scripts/build-sbx-images.sh --client opencode
 
-ARG NODE_IMAGE=node:24-bookworm-slim
+ARG NODE_IMAGE=node:24.22.3-bookworm-slim
 # The client's own version: names the image tag agent-kit/opencode:<VERSION>.
 # npm `opencode-ai` is OpenCode 1.x (1.19.6 is its newest release); the host's
 # Homebrew OpenCode 2 is not published to npm.
