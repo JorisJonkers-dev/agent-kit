@@ -848,6 +848,31 @@ def test_a_refresh_with_two_clients_pre_pulls_each_image_then_removes_its_sandbo
     assert "sandboxes are the default and required for every model-gateway run" in run.stdout
 
 
+def test_an_uninitialised_network_policy_gets_one_policy_hint_and_no_more_pulls(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    sbx = (
+        f'echo "sbx $*" >> "{calls}"\n'
+        'case "$1" in\n'
+        f"  diagnose) echo '{SBX_SIGNED_IN}' ;;\n"
+        "  create) echo 'Error: global network policy has not been initialized' >&2; exit 1 ;;\n"
+        "esac"
+    )
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={**MAC_ARM, "sbx": sbx, "model-gateway": _gateway_stub(calls, _refresh_body())},
+    )
+    out = run.stdout + run.stderr
+    assert "run sbx policy init balanced yourself" in out
+    assert "did not pull" not in out
+    # Setup never chooses the policy, and stops after the first refused create.
+    assert not [c for c in run.calls if c.startswith("sbx policy")]
+    assert [c for c in run.calls if c.startswith("sbx create")] == [
+        f"sbx create --name agent-kit-prepull-pi --no-input --pull missing -t docker.io/sbx/pi-image@{PI_DIGEST} shell",
+    ]
+
+
 def test_a_dry_run_with_sbx_signed_in_refreshes_and_pulls_nothing(tmp_path: Path) -> None:
     root = _sbx_root(tmp_path)
     calls = root / "calls.log"
