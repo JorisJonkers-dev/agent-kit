@@ -55,6 +55,18 @@ Docker tags a build each day as `YYYYMMDD-<40-hex commit>` (and `latest`, which 
 
 A launch's variables reach the client through `sbx exec --env-file`: a file written 0600 into the launch's own directory, removed when the exec ends whether it succeeded or not, so no value appears in an argument list.
 
+## Cleanup
+
+A run's sandbox is removed by `sbx rm --force` however the run ended (success, failure, cancel, stall kill), and removing it frees everything the sandbox held: measured on sbx 0.54.1, `sbx df` reads the same before and after a run, with no containers and no volumes left. A gateway killed before it could remove its sandbox leaves an `mg-<pid>-<time>` sandbox, which the next launch removes when that pid is gone.
+
+What does accumulate is the images. Each client's pinned digest changes about daily, and the images of earlier digests stay in sbx's store at roughly 0.8 GB each (more once layers are counted: `sbx df` showed 15 GB for ten images). So the gateway removes them:
+
+- When a refresh (`sandbox refresh`, or the one a launch makes) records a digest, it runs `sbx template rm --force` on every image of the gateway's own repositories (`docker.io/sbx/<name>-image`, and the `sandbox-kit-assembled` copy sbx makes of the same image) whose digest no client pins. An image a running sandbox still mentions is kept. A failure is a warning, never a failed launch.
+- `model-gateway sandbox prune [--json] [--dry-run] [--all]` does the same on demand, and also removes the `mg-*` sandboxes of ended gateways. It reports `freed_bytes` as the fall in `sbx df`'s image total (the listed sizes on a dry run). `--all` also removes images that are not the gateway's (earlier test images, `sbx/shell`) but never a pinned image, an image a sandbox uses, or a sandbox. With no readable records file it removes no image.
+- Setup runs `model-gateway sandbox prune` after the image pre-pull.
+
+Docker Desktop's own volumes and images (the VM disk that grew to 145 GB) are not sbx's and are not touched here.
+
 ## Network reach
 
 Decided 2026-11-27 (#960). A sandbox's network reach is set per run from its delegation profile, not one allowlist for

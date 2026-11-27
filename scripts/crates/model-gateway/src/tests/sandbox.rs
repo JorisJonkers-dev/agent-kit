@@ -434,21 +434,22 @@ fn a_read_only_pi_run_creates_allows_execs_and_removes_its_sandbox_in_that_order
     let calls = sbx.calls();
     let name = sbx_name_in(&calls);
     assert!(name.starts_with("mg-"), "{name}");
-    assert_eq!(calls.len(), 10, "{calls:?}");
+    assert_eq!(calls.len(), 11, "{calls:?}");
     assert_eq!(calls[0], "sbx version");
     assert_eq!(calls[1], "sbx secret ls -g --json");
     assert_eq!(calls[2], "sbx ls -q");
     assert!(calls[3].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[3]);
-    assert_eq!(calls[4], "sbx policy ls --json");
-    assert_eq!(calls[5], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
-    assert_eq!(calls[6], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
-    assert!(calls[7].starts_with(&format!("sbx policy deny network --sandbox {name} ")), "{}", calls[7]);
+    assert_eq!(calls[4], "sbx template ls --all --digests --json");
+    assert_eq!(calls[5], "sbx policy ls --json");
+    assert_eq!(calls[6], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
+    assert_eq!(calls[7], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
+    assert!(calls[8].starts_with(&format!("sbx policy deny network --sandbox {name} ")), "{}", calls[8]);
     // The client runs with its stdin open (the prompt), in the workdir; its two variables come from the env file, never the arguments.
     let exec = format!("sbx exec -i -w /run/work --env-file /run/export/pi-agent/sbx.env {name} pi -p --mode json ");
-    assert!(calls[8].starts_with(&exec), "{}", calls[8]);
-    assert!(calls[8].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[8]);
-    assert!(!calls[8].contains("HOME") && !calls[8].contains("PATH=") && !calls[8].contains("PI_CODING_AGENT_DIR"), "{}", calls[8]);
-    assert_eq!(calls[9], format!("sbx rm --force {name}"));
+    assert!(calls[9].starts_with(&exec), "{}", calls[9]);
+    assert!(calls[9].contains("--provider litellm-vibe --model glm-5.3 --tools read,grep,find,ls"), "{}", calls[9]);
+    assert!(!calls[9].contains("HOME") && !calls[9].contains("PATH=") && !calls[9].contains("PI_CODING_AGENT_DIR"), "{}", calls[9]);
+    assert_eq!(calls[10], format!("sbx rm --force {name}"));
     let env_file = disk.files.lock().expect("files").get("/run/export/pi-agent/sbx.env").cloned().expect("the env file was written");
     // The client's own two variables come first, then the package managers' settings (no key on this machine).
     assert!(env_file.starts_with("PI_CODING_AGENT_DIR=/run/export/pi-agent\nTMPDIR=/run/export/pi-agent\nGOPROXY=https://packages.jorisjonkers.dev/go\n"), "{env_file}");
@@ -483,8 +484,8 @@ fn a_failed_create_names_its_reason_and_still_removes_what_it_named() {
     let ClientRunError::Spawn(message) = error else { panic!("a spawn error") };
     assert!(message.contains("sbx create exited 1: no room for a microVM"), "{message}");
     let calls = sbx.calls();
-    assert_eq!(calls.len(), 7, "{calls:?}");
-    assert!(calls[6].starts_with("sbx rm --force mg-"), "{calls:?}");
+    assert_eq!(calls.len(), 8, "{calls:?}");
+    assert!(calls[7].starts_with("sbx rm --force mg-"), "{calls:?}");
     assert!(!calls.iter().any(|call| call.starts_with("sbx exec")), "{calls:?}");
 }
 
@@ -730,7 +731,7 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
     let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
-    assert!(calls[6].ends_with(" litellm.example.com:443,packages.jorisjonkers.dev:443"), "{calls:?}");
+    assert!(calls[7].ends_with(" litellm.example.com:443,packages.jorisjonkers.dev:443"), "{calls:?}");
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("https://litellm.example.com/v1"));
 }
 
