@@ -49,7 +49,11 @@ both operating systems.
 
 ## Templates
 
-A sandbox starts from its client's template image, `agent-kit/<client>:<version>` (also tagged `:current`), built on this machine from `images/sbx/<client>/Dockerfile` by `scripts/build-sbx-images.sh`. The image holds the client's pinned install, git, ca-certificates, curl and ripgrep, and runs as a non-root `agent` user with no agent process started, so the gateway drives it with `sbx exec`. The Pi pins equal those in `installer/setup-workstation.sh`, which `scripts/crates/ci-helpers/tests/sbx_images.rs` checks; `--dry-run` prints the builds without running them. Each template installs its packages through the estate package proxy: every RUN that installs apt or npm packages carries its `packages-netrc` or `packages-npmrc` secret mount (apt also names the proxy's Debian URL), and the build passes those secrets from `AGENT_KIT_PACKAGES_NETRC` and `AGENT_KIT_PACKAGES_NPMRC` when the files exist, falling back to the default mirrors without them. Setup does not build the images yet.
+A sandbox starts from Docker's prebuilt image for its client, `docker.io/sbx/<name>-image` (`pi`, `opencode`, `claude`, `codex`, `vibe` and `hermes-agent`), pinned by digest: the launch's `sbx create` names `docker.io/sbx/<name>-image@sha256:...` and passes `--pull missing`. The gateway builds no image of its own, so there is no Dockerfile or build script here; the images hold the client's own install and an `agent` user, and the gateway drives them with `sbx exec`.
+
+Docker tags a build each day as `YYYYMMDD-<40-hex commit>` (and `latest`, which the gateway never uses). The gateway runs the newest dated tag at least two days old (`COOLDOWN_DAYS` in `sbx_images.rs`), so a build that is hours old never reaches a run, and the run pins that tag's digest. The choice is recorded per client in `sbx-images.json` under the gateway's state directory (`tag`, `digest`, `checked_at`). A launch refreshes a client's record before `sbx create` when the record is missing or older than a day, so a newer qualifying image reaches the machine without a setup run. A refresh that fails keeps the record with a warning; with no record at all the launch is refused (`sandbox-unavailable`) until `model-gateway sandbox refresh` succeeds. `model-gateway sandbox status` prints the records without the network.
+
+A launch's variables reach the client through `sbx exec --env-file`: a file written 0600 into the launch's own directory, removed when the exec ends whether it succeeded or not, so no value appears in an argument list.
 
 ## Migration
 

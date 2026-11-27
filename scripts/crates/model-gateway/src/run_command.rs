@@ -762,7 +762,7 @@ impl RunCommand<'_> {
         let client = RunClient::parse(&input.client);
         let go = |env: &std::collections::HashMap<String, String>| {
             client.ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
-                (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), env }).launch_watched(&ClientRunRequest {
+                (ClientRun { process: self.runtime.process.as_ref(), files: self.runtime.files.as_ref(), clock: self.runtime.clock.as_ref(), env }).launch_watched(&ClientRunRequest {
                     launch: LaunchRequest {
                         model: input.model.clone(),
                         time_limit_s: input.time_limit_s,

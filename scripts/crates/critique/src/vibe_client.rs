@@ -411,7 +411,7 @@ fn launch_run(
         paths: paths.clone(),
         extras: vibe_extras(&config.agent, search),
     };
-    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };
+    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env, clock: runtime.clock.as_ref() };
     let launched = gateway.launch(&request).map_err(launch_error)?;
     let exported = launched.exported;
     let vibe_cost_usd = exported.as_ref().and_then(Value::as_object).and_then(|export| export.get("cost_usd")).and_then(number_of);

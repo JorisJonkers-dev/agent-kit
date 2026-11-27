@@ -255,7 +255,7 @@ fn the_launch_removes_its_agent_directory_whether_or_not_pi_started() {
     let files = disk("literal");
     let mut programs = Programs::new(Err("never asked".into()));
     programs.launched = result("", "", 0, false);
-    let outcome = (ClientRun { process: &programs, files: &files, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect("launched");
+    let outcome = (ClientRun { process: &programs, files: &files, clock: &crate::adapters::clock::SystemClock, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect("launched");
     assert!(outcome.output.failure.is_some(), "an empty stream is a failed run");
     let command = programs.ran.lock().expect("ran")[0].clone();
     assert_eq!(command.command, "agent-launcher");
@@ -265,7 +265,7 @@ fn the_launch_removes_its_agent_directory_whether_or_not_pi_started() {
     let mut broken = Programs::new(Err("never asked".into()));
     broken.launched = Err("spawn failed".into());
     let files = disk("literal");
-    let error = (ClientRun { process: &broken, files: &files, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly)).expect_err("spawn");
+    let error = (ClientRun { process: &broken, files: &files, clock: &crate::adapters::clock::SystemClock, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly)).expect_err("spawn");
     assert_eq!(error, ClientRunError::Spawn("spawn failed".into()));
     assert_eq!(files.removed.lock().expect("removed").as_slice(), ["/run/export/pi-agent"]);
 }
@@ -274,7 +274,7 @@ fn the_launch_removes_its_agent_directory_whether_or_not_pi_started() {
 fn a_launch_that_names_no_provider_or_cannot_be_confined_never_starts() {
     let files = disk("literal");
     let programs = Programs::new(Err("never asked".into()));
-    let run = |provider: Option<&str>| (ClientRun { process: &programs, files: &files, env: &home() }).launch(&request(RunClient::Pi, provider, RunMode::ReadOnly)).expect_err("refused");
+    let run = |provider: Option<&str>| (ClientRun { process: &programs, files: &files, clock: &crate::adapters::clock::SystemClock, env: &home() }).launch(&request(RunClient::Pi, provider, RunMode::ReadOnly)).expect_err("refused");
     assert_eq!(run(None), ClientRunError::Gateway(GatewayError::new("unconfined", "a pi launch must name its provider")));
     assert!(matches!(run(Some("litellm-local")), ClientRunError::Gateway(GatewayError { code, .. }) if code == "unconfined"));
     assert!(programs.ran.lock().expect("ran").is_empty());
@@ -307,7 +307,7 @@ fn a_confined_pi_launch_names_the_variables_that_point_it_at_its_own_agent_direc
     let files = disk("literal");
     let mut programs = Programs::new(Err("never asked".into()));
     programs.launched = result("", "", 0, false);
-    (ClientRun { process: &programs, files: &files, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly)).expect("launched");
+    (ClientRun { process: &programs, files: &files, clock: &crate::adapters::clock::SystemClock, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly)).expect("launched");
     let command = programs.ran.lock().expect("ran")[0].clone();
     let before_pi: Vec<&str> = command.args.iter().map(String::as_str).take_while(|arg| *arg != "--").collect();
     let named: Vec<&str> = before_pi.windows(2).filter(|pair| pair[0] == "--env").map(|pair| pair[1]).collect();
@@ -511,7 +511,7 @@ fn a_pi_run_loads_only_the_skills_and_extensions_of_its_scope_and_still_switches
     let programs = Programs::new(result("k", "", 0, false));
     let seen = Mutex::new(Vec::new());
     let watching = Watching { programs: &programs, files: &files, seen: &seen };
-    let outcome = (ClientRun { process: &watching, files: &files, env: &home() })
+    let outcome = (ClientRun { process: &watching, files: &files, clock: &crate::adapters::clock::SystemClock, env: &home() })
         .launch_scoped(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly), Some(&scope(&["inside"], &["hello"])))
         .expect("launched");
     assert!(outcome.output.failure.is_some());
@@ -527,7 +527,7 @@ fn a_pi_run_loads_only_the_skills_and_extensions_of_its_scope_and_still_switches
     assert_eq!(files.removed.lock().expect("removed").as_slice(), ["/run/export/pi-agent"]);
     // Without a scope no skill or extension flag is added.
     let bare = Programs::new(result("", "", 0, false));
-    let _ = (ClientRun { process: &bare, files: &stocked(), env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly));
+    let _ = (ClientRun { process: &bare, files: &stocked(), clock: &crate::adapters::clock::SystemClock, env: &home() }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::ReadOnly));
     let bare_args = bare.ran.lock().expect("ran")[0].args.clone();
     assert!(!bare_args.contains(&"--skill".to_string()) && !bare_args.contains(&"-e".to_string()));
 }
@@ -658,16 +658,16 @@ fn a_dry_run_plans_the_pi_sandbox_removes_its_agent_directory_and_starts_nothing
     let programs = Programs::new(Err("never asked".into()));
     let mut machine = home();
     machine.insert("AGENT_KIT_SANDBOX".into(), "sbx-dry-run".into());
-    let error = (ClientRun { process: &programs, files: &files, env: &machine }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect_err("a dry run");
+    let error = (ClientRun { process: &programs, files: &files, clock: &crate::adapters::clock::SystemClock, env: &machine }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect_err("a dry run");
     let crate::client_run::ClientRunError::Gateway(error) = error else { panic!("a refusal") };
     assert_eq!(error.code, "sandbox-dry-run");
     assert!(error.message.contains(r#""mounts":["/run/work","/repo/.git""#), "{}", error.message);
-    assert!(error.message.contains(r#""template":"agent-kit/pi""#), "{}", error.message);
+    assert!(error.message.contains(r#""template":"docker.io/sbx/pi-image""#), "{}", error.message);
     assert!(programs.ran.lock().expect("ran").is_empty(), "nothing started");
     assert_eq!(files.removed.lock().expect("removed").as_slice(), ["/run/export/pi-agent"]);
 
     machine.insert("AGENT_KIT_SANDBOX".into(), "vm".into());
-    let error = (ClientRun { process: &programs, files: &files, env: &machine }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect_err("refused");
+    let error = (ClientRun { process: &programs, files: &files, clock: &crate::adapters::clock::SystemClock, env: &machine }).launch(&request(RunClient::Pi, Some("litellm-vibe"), RunMode::Write)).expect_err("refused");
     let crate::client_run::ClientRunError::Gateway(error) = error else { panic!("a refusal") };
     assert_eq!(error.code, "sandbox-unknown");
     assert_eq!(files.removed.lock().expect("removed").len(), 1, "refused before anything was made");

@@ -247,19 +247,19 @@ fn a_client_that_cannot_be_confined_is_refused_and_leaves_no_home_behind() {
     // No launcher: no run, and the home made for it goes at once (it may hold a link to the owner's login).
     let no_launcher = HashMap::from([("HOME".to_string(), "/home/me".to_string())]);
     let disk = owner();
-    let refused = (ClientRun { process: &programs, files: &disk, env: &no_launcher }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("refused");
+    let refused = (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &no_launcher }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("refused");
     assert!(matches!(&refused, ClientRunError::Gateway(error) if error.code == "unconfined" && error.message.starts_with("codex: agent-launcher is not on PATH")), "{refused:?}");
     assert!(programs.ran.lock().unwrap().is_empty());
     assert_eq!(disk.removed.lock().unwrap().as_slice(), ["/run/client-home"]);
     // A launcher found on `PATH`, and a login that is not there.
     let on_path = HashMap::from([("HOME".to_string(), "/home/me".to_string()), ("PATH".to_string(), "/usr/local/bin".to_string())]);
     let found = owner().with("/usr/local/bin/agent-launcher", "");
-    (ClientRun { process: &Programs::answering(), files: &found, env: &on_path }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect("launched");
-    let signed_out = (ClientRun { process: &programs, files: &Disk::default(), env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("signed out");
+    (ClientRun { process: &Programs::answering(), files: &found, clock: &crate::adapters::clock::SystemClock, env: &on_path }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect("launched");
+    let signed_out = (ClientRun { process: &programs, files: &Disk::default(), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("signed out");
     assert!(matches!(&signed_out, ClientRunError::Gateway(error) if error.message.contains("sign in with codex login")), "{signed_out:?}");
     // A home whose directory cannot be made.
     let broken = Programs::answering();
-    let unmakeable = (ClientRun { process: &broken, files: &Nowhere(owner()), env: &env() }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect_err("no directory");
+    let unmakeable = (ClientRun { process: &broken, files: &Nowhere(owner()), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect_err("no directory");
     assert!(matches!(&unmakeable, ClientRunError::Gateway(error) if error.message.starts_with("claude: cannot make the launch's home /run/client-home: EACCES")), "{unmakeable:?}");
 }
 
@@ -332,7 +332,7 @@ fn a_refreshed_login_is_put_back_after_the_launch_and_a_failure_is_a_warning() {
     let disk = owner().with("/home/me/.codex/auth.json", r#"{"tokens":{"a":1}}"#);
     let programs = Programs::answering();
     // The fake process refreshes nothing, so the owner's file is unchanged and no warning is made.
-    let outcome = (ClientRun { process: &programs, files: &disk, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect("launched");
+    let outcome = (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect("launched");
     assert!(outcome.warnings.is_empty());
     assert_eq!(disk.text("/home/me/.codex/auth.json").as_deref(), Some(r#"{"tokens":{"a":1}}"#));
 }
@@ -346,7 +346,7 @@ fn a_client_that_can_sign_in_from_a_variable_gets_the_credential_and_no_keychain
             environment.insert("USER".to_string(), "owner".to_string());
         }
         let disk = owner();
-        (ClientRun { process: &programs, files: &disk, env: &environment }).launch(&request(client, "m", None, RunMode::ReadOnly)).expect("launched");
+        (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &environment }).launch(&request(client, "m", None, RunMode::ReadOnly)).expect("launched");
         let command = programs.first();
         let grants = programs.grants.lock().unwrap()[0].clone();
         (command.env, grants)

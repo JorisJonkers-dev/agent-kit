@@ -331,7 +331,7 @@ fn request(client: RunClient, model: &str, provider: Option<&str>, mode: RunMode
 }
 
 fn run(disk: &Disk, programs: &Programs, request: &ClientRunRequest) -> Result<(), ClientRunError> {
-    (ClientRun { process: programs, files: disk, env: &env() }).launch(request).map(|_| ())
+    (ClientRun { process: programs, files: disk, clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(request).map(|_| ())
 }
 
 #[test]
@@ -562,10 +562,10 @@ impl Files for Stuck {
 fn a_run_home_that_cannot_be_removed_is_reported_and_one_that_already_exists_is_never_reused() {
     let stuck = Stuck(owner());
     let programs = Programs::answering();
-    let outcome = (ClientRun { process: &programs, files: &stuck, env: &env() }).launch(&request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect("launched");
+    let outcome = (ClientRun { process: &programs, files: &stuck, clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect("launched");
     assert_eq!(outcome.warnings, ["the launch's directory /run/client-home was not removed: EACCES: denied"]);
     let broken = Programs { launched: Err("spawn failed".into()), ..Programs::answering() };
-    let error = (ClientRun { process: &broken, files: &Stuck(owner()), env: &env() }).launch(&request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect_err("spawn");
+    let error = (ClientRun { process: &broken, files: &Stuck(owner()), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Opencode, "opencode-go/kimi", None, RunMode::ReadOnly)).expect_err("spawn");
     assert_eq!(error, ClientRunError::Spawn("spawn failed; the launch's directory /run/client-home was not removed: EACCES: denied".into()));
 
     let taken = owner().with("/run/client-home", "");

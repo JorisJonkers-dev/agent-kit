@@ -91,7 +91,7 @@ pub fn agy_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &AgyCrit
         paths: crate::paths::launch_paths(runtime, &launch.critic_dir, &launch.prompt_path, &launch.packet_dir)?,
         extras: RunExtras { sandbox: Some(SandboxProfile::ReadOnly), schema: Some(launch.schema_path.clone()), tools: Some(tool_names(&launch.toolset)), ..RunExtras::default() },
     };
-    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };
+    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env, clock: runtime.clock.as_ref() };
     let result = gateway.launch(&request).map_err(launch_error)?.result;
     let stream = read_stream(&result.stdout);
     let export_path = join(&[&launch.critic_dir, "result.json"]);
