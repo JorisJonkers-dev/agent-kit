@@ -722,3 +722,164 @@ def test_the_skill_carries_no_assistant_attribution() -> None:
     text = _skill_text().lower()
     for mark in ("co-authored-by", "generated with", "noreply@anthropic.com", "\U0001f916"):
         assert mark not in text, mark
+
+
+# ---------------------------------------------------------------------------
+# Docker Sandboxes (sbx) for the gateway: the setup step, run whole with sbx,
+# brew and model-gateway stubbed on PATH (tests/setup_harness.py).
+# ---------------------------------------------------------------------------
+
+SBX_SIGNED_IN = "  ✓ Authentication — authenticated"
+SBX_SIGNED_OUT = "  ✗ Authentication — not authenticated"
+PI_DIGEST = "sha256:" + "a" * 64
+OPENCODE_DIGEST = "sha256:" + "b" * 64
+REFRESH_JSON = json.dumps(
+    {
+        "clients": [
+            {"client": "pi", "image": "docker.io/sbx/pi-image", "tag": "20261125", "digest": PI_DIGEST},
+            {
+                "client": "opencode",
+                "image": "docker.io/sbx/opencode-image",
+                "tag": "20261125",
+                "digest": OPENCODE_DIGEST,
+            },
+        ]
+    }
+)
+MAC_ARM = {"uname": "case \"$1\" in\n  -m) echo arm64 ;;\n  *) echo Darwin ;;\nesac", "sw_vers": "echo 15.4"}
+
+
+def _sbx_root(tmp_path: Path) -> Path:
+    return tmp_path / "run"
+
+
+def _sbx_stub(calls: Path, auth: str) -> str:
+    return f"echo \"sbx $*\" >> \"{calls}\"\ncase \"$1\" in\n  diagnose) echo '{auth}' ;;\nesac"
+
+
+def _gateway_stub(calls: Path, body: str, rc: int = 0) -> str:
+    return f"echo \"model-gateway $*\" >> \"{calls}\"\n{body}\nexit {rc}"
+
+
+def _refresh_body() -> str:
+    return f"case \"$*\" in\n  'sandbox refresh --json') cat <<'JSON'\n{REFRESH_JSON}\nJSON\n    ;;\nesac"
+
+
+def _sbx_lines(run: Run) -> list[str]:
+    return [c for c in run.calls if c.startswith("sbx ") and not c.startswith("sbx diagnose")]
+
+
+def test_an_apple_silicon_mac_without_sbx_installs_it_with_homebrew(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    installed = tmp_path / "sbx-as-installed"
+    installed.write_text("#!/usr/bin/env bash\n" + _sbx_stub(calls, SBX_SIGNED_OUT) + "\n")
+    installed.chmod(0o755)
+    # What the cask does: `brew install` puts sbx on PATH, where the step's own check finds it.
+    brew = (
+        f'echo "brew $*" >> "{calls}"\n'
+        f'case "$*" in "install docker/tap/sbx") cp "{installed}" "{root}/bin/sbx" ;; esac'
+    )
+    run = setup_run(root, "Darwin", stubs={**MAC_ARM, "brew": brew})
+    assert "brew trust docker/tap" in run.calls
+    assert "brew install docker/tap/sbx" in run.calls
+    assert "setup:   ok    sbx installed" in run.stdout
+
+
+def test_a_dry_run_says_what_brew_would_run_and_runs_nothing(tmp_path: Path) -> None:
+    run = setup_run(_sbx_root(tmp_path), "Darwin", args=("--check",), stubs=MAC_ARM)
+    assert "would run: brew trust docker/tap && brew install docker/tap/sbx" in run.stdout
+    assert not [c for c in run.calls if c.startswith("brew trust") or c.startswith("brew install docker/tap")]
+
+
+def test_an_intel_mac_logs_that_sbx_is_unsupported_and_installs_nothing(tmp_path: Path) -> None:
+    intel = {"uname": "case \"$1\" in\n  -m) echo x86_64 ;;\n  *) echo Darwin ;;\nesac", "sw_vers": "echo 15.4"}
+    run = setup_run(_sbx_root(tmp_path), "Darwin", stubs=intel)
+    assert "sbx: Docker Sandboxes do not run on Intel Macs; skipped" in run.stdout
+    assert not [c for c in run.calls if "docker/tap" in c]
+
+
+def test_linux_without_sbx_prints_the_install_commands_and_runs_none_of_them(tmp_path: Path) -> None:
+    run = setup_run(_sbx_root(tmp_path), "Linux")
+    assert "curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh && sudo apt install docker-sbx" in run.stdout
+    assert "sudo usermod -aG kvm $USER" in run.stdout
+    assert not [c for c in run.calls if "get.docker.com" in c or "docker-sbx" in c or c.startswith("sbx ")]
+
+
+def test_a_signed_out_sbx_gets_a_login_hint_and_no_image_refresh(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_OUT),
+            "model-gateway": _gateway_stub(calls, _refresh_body()),
+        },
+    )
+    assert "not signed in; run sbx login yourself" in run.stdout + run.stderr
+    assert not [c for c in run.calls if c.startswith("model-gateway") or c.startswith("sbx create")]
+
+
+def test_a_refresh_with_two_clients_pre_pulls_each_image_then_removes_its_sandbox(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_IN),
+            "model-gateway": _gateway_stub(calls, _refresh_body()),
+        },
+    )
+    assert "model-gateway sandbox refresh --json" in run.calls
+    assert _sbx_lines(run) == [
+        f"sbx create --name agent-kit-prepull-pi --no-input --pull missing -t docker.io/sbx/pi-image@{PI_DIGEST} shell",
+        "sbx rm --force agent-kit-prepull-pi",
+        "sbx create --name agent-kit-prepull-opencode --no-input --pull missing "
+        f"-t docker.io/sbx/opencode-image@{OPENCODE_DIGEST} shell",
+        "sbx rm --force agent-kit-prepull-opencode",
+    ]
+    assert "setup:   ok    sbx: pi image docker.io/sbx/pi-image:20261125 ready" in run.stdout
+    assert "setup:   ok    sbx: opencode image docker.io/sbx/opencode-image:20261125 ready" in run.stdout
+    assert "AGENT_KIT_SANDBOX=sbx" in run.stdout
+
+
+def test_a_dry_run_with_sbx_signed_in_refreshes_and_pulls_nothing(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    run = setup_run(
+        root,
+        "Darwin",
+        args=("--check",),
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_IN),
+            "model-gateway": _gateway_stub(calls, _refresh_body()),
+        },
+    )
+    assert "would run: model-gateway sandbox refresh --json, then pre-pull each client's image" in run.stdout
+    assert not [c for c in run.calls if c.startswith("model-gateway") or c.startswith("sbx create")]
+
+
+def test_a_gateway_without_the_sandbox_subcommand_is_skipped_and_setup_goes_on(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    old_gateway = (
+        "echo 'model-gateway: unknown subcommand \"sandbox\"' >&2\n"
+        "echo '{\"status\":\"error\",\"code\":\"unknown-command\"}'"
+    )
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_IN),
+            "model-gateway": _gateway_stub(calls, old_gateway, rc=1),
+        },
+    )
+    assert "model-gateway has no sandbox subcommand; images not refreshed" in run.stdout
+    assert not _sbx_lines(run)
+    assert "AGENT_KIT_SANDBOX=sbx" not in run.stdout

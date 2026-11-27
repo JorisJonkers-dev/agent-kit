@@ -2456,6 +2456,136 @@ LAYOUT_POINTER_FILES = (
     '"${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"',
 )
 
+# Docker Sandboxes for the model gateway. Raw text: the python and the \$USER
+# in it are bash's, written as they are. Needs `model-gateway sandbox refresh
+# --json` to print {"clients": [{"client", "image", "tag", "digest"}]}; an
+# older gateway without that subcommand is skipped, not failed.
+_SANDBOX_STEP = r"""# -----------------------------------------------------------------
+# Docker Sandboxes (sbx) for the model gateway: installed where setup can (Homebrew
+# on Apple silicon), signed in to by hand, and each client's prebuilt image pulled so
+# the first sandboxed run does not wait for a ~3 GB download. AGENT_KIT_SANDBOX=sbx
+# turns sandboxed gateway runs on; setup never sets it or any other sbx policy.
+# -----------------------------------------------------------------
+sandbox_setup() {
+  if [ "${CLOUD}" = 1 ]; then
+    log "sbx: not set up in cloud mode"
+    return 0
+  fi
+  if ! command -v sbx >/dev/null 2>&1; then
+    case "$(uname -s)" in
+      Darwin)
+        if [ "$(uname -m)" != arm64 ]; then
+          log "sbx: Docker Sandboxes do not run on Intel Macs; skipped"
+          return 0
+        fi
+        if ! sw_vers -productVersion 2>/dev/null | awk -F. '{ exit !($1 >= 14) }'; then
+          log "sbx: Docker Sandboxes need macOS 14 or later; skipped"
+          return 0
+        fi
+        if ! command -v brew >/dev/null 2>&1; then
+          warn "sbx: Homebrew is not on PATH; install it, then re-run setup"
+          return 0
+        fi
+        run_sh 'brew trust docker/tap && brew install docker/tap/sbx'
+        if [ "${CHECK_ONLY}" = 1 ]; then
+          log "sbx would be installed; its sign-in and images follow once it is"
+          return 0
+        fi
+        if ! command -v sbx >/dev/null 2>&1; then
+          fail "sbx still not on PATH after brew install; open a new shell and re-run"
+          return 0
+        fi
+        ok "sbx installed"
+        ;;
+      Linux)
+        # Installing needs sudo, so setup prints the commands instead of running them.
+        log "sbx: not installed; run these, then re-run setup:"
+        log "  curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh && sudo apt install docker-sbx"
+        log "  sudo usermod -aG kvm \$USER"
+        warn "sbx: not installed (commands above)"
+        return 0
+        ;;
+      *)
+        log "sbx: not supported on $(uname -s); skipped"
+        return 0
+        ;;
+    esac
+  fi
+  # sbx diagnose prints "Authentication — authenticated" when signed in; "not authenticated" is not.
+  local auth_line signed_in=0
+  auth_line="$(sbx diagnose 2>/dev/null | grep 'Authentication' || true)"
+  case "${auth_line}" in
+    *'not authenticated'* | *unauthenticated* | '') ;;
+    *authenticated*) signed_in=1 ;;
+  esac
+  if [ "${signed_in}" != 1 ]; then
+    warn "sbx: not signed in; run sbx login yourself (setup never runs it), then re-run setup for the images"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would run: model-gateway sandbox refresh --json, then pre-pull each client's image"
+    return 0
+  fi
+  if ! command -v model-gateway >/dev/null 2>&1; then
+    warn "sbx: model-gateway is not on PATH; the images are not refreshed"
+    return 0
+  fi
+  local out rc=0 line_list status name ref shown sbx_name
+  out="$(model-gateway sandbox refresh --json 2>&1)" || rc=$?
+  if [ "${rc}" != 0 ]; then
+    case "${out}" in
+      *'unknown subcommand "sandbox"'* | *unknown-command*)
+        log "sbx: model-gateway has no sandbox subcommand; images not refreshed (update it, then re-run setup)"
+        return 0
+        ;;
+    esac
+    warn "sbx: model-gateway sandbox refresh failed (exit ${rc}); images not pulled"
+    return 0
+  fi
+  if ! line_list="$(printf '%s' "${out}" | python3 -c '
+import json, re, sys
+data = json.load(sys.stdin)
+for entry in (data.get("clients", []) if isinstance(data, dict) else data):
+    name = str(entry.get("client", ""))
+    image = str(entry.get("image", ""))
+    digest = str(entry.get("digest", ""))
+    tag = str(entry.get("tag", ""))
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or not image or not digest.startswith("sha256:"):
+        print("bad\t" + (name or "<unnamed>"))
+        continue
+    print("ok\t" + "\t".join((name, image + "@" + digest, image + (":" + tag if tag else ""))))
+' 2>/dev/null)"; then
+    warn "sbx: model-gateway sandbox refresh printed no client list; images not pulled"
+    return 0
+  fi
+  while IFS=$'\t' read -r status name ref shown; do
+    if [ "${status}" != ok ]; then
+      warn "sbx: a client in the gateway's image list has no usable name, image or digest (${name}); skipped"
+      continue
+    fi
+    # A pre-pull: a throwaway sandbox with no workspace, removed once its image is in sbx's store.
+    sbx_name="agent-kit-prepull-${name}"
+    if sbx create --name "${sbx_name}" --no-input --pull missing -t "${ref}" shell >/dev/null 2>&1; then
+      ok "sbx: ${name} image ${shown} ready"
+    else
+      warn "sbx: ${name} image ${shown} did not pull; its first sandboxed run downloads it"
+    fi
+    sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
+  done <<< "${line_list}"
+  log "sbx: AGENT_KIT_SANDBOX=sbx runs model-gateway delegations in sandboxes; the default stays confine for now"
+}
+sandbox_setup
+"""
+
+
+def _sandbox_step(w: Any, declared: bool) -> None:
+    """The sbx step: only where the model gateway is declared, since that is what sandboxes it."""
+    if not declared:
+        return
+    for line in _SANDBOX_STEP.splitlines():
+        w(line)
+    w("")
+
 
 def _layout_pointer_fn(w: Any) -> None:
     """The layout_pointer function: writes or removes the projects-layout block in one instruction file."""
@@ -5628,6 +5758,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
 
     _gateway_step(w, gateway_declared)
+    _sandbox_step(w, gateway_declared)
     _layout_step(w, layout_declared)
     _attribution_rule_step(w)
     # --- first-party skills ---
