@@ -1418,6 +1418,28 @@ run_sh() {
   bash -c "$1"
 }
 
+# uv's tool installer refuses to overwrite an executable already in its bin
+# directory, even a symlink whose tool environment is gone (a wiped or
+# migrated ~/.local/share/uv/tools). Only links that dangle and point into
+# uv's own tool directory are removed; anything else is left for uv to
+# refuse, so a binary another installer owns is never clobbered.
+clear_dangling_uv_links() {
+  [ "${CHECK_ONLY}" = 1 ] && return 0
+  command -v uv >/dev/null 2>&1 || return 0
+  local bin_dir tool_dir link target
+  bin_dir="$(uv tool dir --bin 2>/dev/null)" || return 0
+  tool_dir="$(uv tool dir 2>/dev/null)" || return 0
+  for link in "${bin_dir}"/*; do
+    [ -L "${link}" ] && [ ! -e "${link}" ] || continue
+    target="$(readlink "${link}")"
+    case "${target}" in
+      "${tool_dir}"/*)
+        rm -f "${link}" && log "removed dangling ${link} -> ${target}"
+        ;;
+    esac
+  done
+}
+
 # Cloud mode registers a ${VAR} that Claude Code expands per session, keeping tokens out of the snapshot.
 secret_ref() {
   if [ "${CLOUD}" = 1 ]; then
@@ -2469,7 +2491,7 @@ if command -v hermes >/dev/null 2>&1; then
   fi
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp,acp]'\'''
+  clear_dangling_uv_links; run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp,acp]'\'''
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
@@ -2488,7 +2510,7 @@ if command -v vibe >/dev/null 2>&1; then
   run_sh 'uv tool upgrade --exclude-newer "7 days" mistral-vibe'
   ok "vibe $(vibe --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.12'\'' mistral-vibe'
+  clear_dangling_uv_links; run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.12'\'' mistral-vibe'
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "vibe would be installed"
   elif command -v vibe >/dev/null 2>&1; then
@@ -4605,7 +4627,7 @@ sandbox_setup() {
     warn "sbx: model-gateway is not on PATH; the images are not refreshed"
     return 0
   fi
-  local out rc=0 line_list status name ref shown sbx_name
+  local out rc=0 line_list status name ref shown sbx_name create_out
   out="$(model-gateway sandbox refresh --json 2>&1)" || rc=$?
   if [ "${rc}" != 0 ]; then
     case "${out}" in
@@ -4640,10 +4662,21 @@ for entry in (data.get("clients", []) if isinstance(data, dict) else data):
     fi
     # A pre-pull: a throwaway sandbox with no workspace, removed once its image is in sbx's store.
     sbx_name="agent-kit-prepull-${name}"
-    if sbx create --name "${sbx_name}" --no-input --pull missing -t "${ref}" shell >/dev/null 2>&1; then
+    if create_out="$(sbx create --name "${sbx_name}" --no-input --pull missing -t "${ref}" shell 2>&1)"; then
       ok "sbx: ${name} image ${shown} ready"
     else
-      warn "sbx: ${name} image ${shown} did not pull; its first sandboxed run downloads it"
+      sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
+      case "${create_out}" in
+        # sbx creates no sandbox at all until its network policy is chosen, so
+        # every image fails the same way; one warning names the step.
+        *'network policy has not been initialized'*)
+          warn "sbx: its network policy is not chosen yet, so no sandbox can start;" \
+            "run sbx policy init balanced yourself (or allow-all / deny-all), then re-run setup for the images"
+          return 0
+          ;;
+      esac
+      warn "sbx: ${name} image ${shown} did not pull ($(printf '%s' "${create_out}" | head -1));" \
+        "its first sandboxed run downloads it"
     fi
     sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
   done <<< "${line_list}"
