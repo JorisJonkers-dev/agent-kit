@@ -568,6 +568,14 @@ asks Docker Hub for the newest image of each enabled client and records it; it e
 only when every client failed and holds no record. `model-gateway sandbox status [--json]`
 prints the records and makes no network call.
 
+Sandboxes do not stack up disk: each run's sandbox is removed with `sbx rm --force`
+when the run ends, however it ended. The images of superseded digests do, so a refresh
+removes the gateway's images that no client pins any more (never one a running sandbox
+uses). `model-gateway sandbox prune [--json] [--dry-run] [--all]` does it on demand and
+also removes the `mg-*` sandboxes of gateways that are gone; it reports `freed_bytes`
+(the fall in `sbx df`'s image total). `--all` also removes images that are not the
+gateway's, never a pinned or used one. Setup runs it after the image pre-pull.
+
 Codex runs non-interactively with its own sandbox: `-s read-only` for a
 read-only run and `-s workspace-write` for a writing one, so the sandbox is
 Codex's, not the gateway's. Its reasoning effort is the model id's last word

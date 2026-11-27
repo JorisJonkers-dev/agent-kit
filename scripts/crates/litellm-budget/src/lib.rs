@@ -83,7 +83,11 @@ fn home_secret(env: &BTreeMap<String, String>) -> PathBuf {
 /// The context for this process: the kit's files found from the executable,
 /// else the installed secret helper.
 pub fn real_ctx(exe: &Path) -> Ctx {
-    let env: BTreeMap<String, String> = std::env::vars().collect();
+    ctx_from(exe, std::env::vars().collect())
+}
+
+/// `real_ctx` with the environment supplied, so its outcome never depends on the host's.
+pub fn ctx_from(exe: &Path, env: BTreeMap<String, String>) -> Ctx {
     let secret = env
         .get("AGENT_KIT_SECRET_TOOL")
         .map(PathBuf::from)

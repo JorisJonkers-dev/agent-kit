@@ -43,3 +43,4 @@ mod sbx_clients;
 mod sbx_images;
 mod free_fallback;
 mod go_route;
+mod sbx_prune;

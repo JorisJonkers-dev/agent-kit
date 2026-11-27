@@ -152,7 +152,7 @@ fn a_launch_refreshes_a_missing_or_stale_record_and_only_those() {
         let hub = Hub::answering(Answer::Tags(HUB));
         let (reference, warnings) = sbx_images::ensure(&hub, &store, &FixedClock(NOW), &env, "pi").expect("refreshed");
         assert_eq!((reference.as_str(), warnings.len()), (PI_REFERENCE, 0));
-        assert_eq!(hub.calls().len(), 1);
+        assert_eq!(hub.calls().len(), 2, "the registry, then the store of images");
         assert!(store.text(RECORDS).contains(&format!("\"checked_at\": {NOW}")), "the new record is kept");
     }
 

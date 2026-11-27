@@ -60,6 +60,19 @@ llvm-cov report --instr-profile="$target/merged.profdata" \
 pct=$(llvm-cov export --instr-profile="$target/merged.profdata" --summary-only \
     --ignore-filename-regex="$ignore" "${args[@]}" \
     | jq -r '.data[0].totals.lines.percent')
+# Name the uncovered lines of every file below 100 percent, so a failure in the
+# log says where, not only how many.
+uncovered=$(llvm-cov export --instr-profile="$target/merged.profdata" --summary-only \
+    --ignore-filename-regex="$ignore" "${args[@]}" \
+    | jq -r '.data[0].files[] | select(.summary.lines.covered < .summary.lines.count) | .filename')
+if [ -n "$uncovered" ]; then
+    echo "coverage: uncovered lines (path:line: source)" >&2
+    while IFS= read -r file; do
+        llvm-cov show --instr-profile="$target/merged.profdata" --show-line-counts \
+            --ignore-filename-regex="$ignore" "${bins[0]}" "${args[@]:2}" "$file" 2>/dev/null \
+            | awk -F'|' -v f="$file" '$1 ~ /^ +[0-9]+$/ && $2 ~ /^ +0$/ { n = $1; gsub(/ /, "", n); src = $0; sub(/^[^|]*\|[^|]*\|/, "", src); print "  " f ":" n ": " src }' || true
+    done <<< "$uncovered" >&2
+fi
 echo "coverage: workspace line coverage ${pct}% (required ${min}%)"
 awk -v p="$pct" -v m="$min" 'BEGIN { exit !(p + 0 >= m + 0) }' \
     || { echo "coverage: below ${min}% line coverage" >&2; exit 1; }

@@ -41,6 +41,7 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
        model-gateway worktrees clean --json '{"workflow": "spec-293"}'
        model-gateway sandbox refresh [--json]
        model-gateway sandbox status [--json]
+       model-gateway sandbox prune [--all] [--dry-run] [--json]
        model-gateway <command> --input FILE
 
 matrix runs every delegation role on every harness once, on a trivial fixture
@@ -227,7 +228,7 @@ An error prints "status": "error" with its "code" and exits 1.
 "#;
 
 /// The subcommands the gateway has, and the command each one runs.
-const COMMANDS: [(&str, Command); 15] = [
+const COMMANDS: [(&str, Command); 16] = [
     ("batch", Command::Batch),
     ("catalog", Command::Catalog),
     ("grant list", Command::GrantList),
@@ -236,6 +237,7 @@ const COMMANDS: [(&str, Command); 15] = [
     ("matrix", Command::Matrix),
     ("models", Command::Models),
     ("run", Command::Run),
+    ("sandbox prune", Command::SandboxPrune),
     ("sandbox refresh", Command::SandboxRefresh),
     ("sandbox status", Command::SandboxStatus),
     ("usage", Command::Usage),
@@ -247,7 +249,7 @@ const COMMANDS: [(&str, Command); 15] = [
 
 /// The subcommands, as an error names them.
 const COMMAND_NAMES: &str =
-    "models, catalog, run, batch, matrix, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list, worktrees clean, sandbox refresh and sandbox status";
+    "models, catalog, run, batch, matrix, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list, worktrees clean, sandbox refresh, sandbox status and sandbox prune";
 
 /// What one run prints and how it exits.
 pub struct CliResult {
@@ -330,19 +332,30 @@ fn catalog_cli(named: &Named<'_>, runtime: &Runtime) -> CliResult {
 }
 
 /// `sandbox refresh` and `sandbox status` take only `--json`, which prints the answer as one JSON object; without it
-/// the answer is a table. `sandbox refresh` exits 1 only when every client failed and holds no record.
+/// the answer is a table. `sandbox prune` also takes `--all` and `--dry-run`. `sandbox refresh` exits 1 only when
+/// every client failed and holds no record.
 fn sandbox_cli(named: &Named<'_>, runtime: &Runtime) -> CliResult {
+    let prune = named.name == "sandbox prune";
     let mut json_output = false;
+    let mut input = Object::new();
     for flag in named.args {
-        if flag == "--json" {
-            json_output = true;
-        } else {
-            return failure("invalid-input", &format!("{} takes [--json]", named.name), Some(named.name), &[]);
+        match flag.as_str() {
+            "--json" => json_output = true,
+            "--all" if prune => input.set("all", Value::Bool(true)),
+            "--dry-run" if prune => input.set("dry_run", Value::Bool(true)),
+            _ => {
+                let takes = if prune { "[--all] [--dry-run] [--json]" } else { "[--json]" };
+                return failure("invalid-input", &format!("{} takes {takes}", named.name), Some(named.name), &[]);
+            }
         }
     }
-    match commands::run(named.command, named.name, &Object::new(), runtime) {
+    match commands::run(named.command, named.name, &input, runtime) {
         Ok(result) => {
-            let stdout = if json_output { format!("{}\n", json::pretty(&result)) } else { crate::sbx_images::table(&result) };
+            let stdout = match (json_output, prune) {
+                (true, _) => format!("{}\n", json::pretty(&result)),
+                (false, true) => crate::sbx_prune::table(&result),
+                (false, false) => crate::sbx_images::table(&result),
+            };
             let exit_code = i32::from(named.name == "sandbox refresh" && crate::sbx_images::all_failed(&result));
             CliResult { exit_code, stdout, stderr: String::new() }
         }

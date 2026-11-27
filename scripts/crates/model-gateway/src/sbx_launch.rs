@@ -21,10 +21,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The program that drives Docker Sandboxes.
-const SBX: &str = "sbx";
+pub(crate) const SBX: &str = "sbx";
 
 /// The longest one `sbx` call may take: a cold image pull is about 16 s, a warm create about 2.5 s.
-const SBX_TIMEOUT_MS: u64 = 120_000;
+pub(crate) const SBX_TIMEOUT_MS: u64 = 120_000;
 
 /// What the owner runs to get `sbx`, named in every refusal that is about its absence.
 pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/sbx, then sign in with sbx login";
@@ -92,24 +92,32 @@ pub fn sandbox_name() -> String {
 /// process or of a gateway still alive is another run's and is kept. Nothing here fails a launch: what cannot be
 /// listed or removed is returned as warnings.
 pub fn prune_orphans(process: &dyn Process) -> Vec<String> {
+    let mut warnings = Vec::new();
+    for name in orphans(process) {
+        if !matches!(process.exec(SBX, &["rm", "--force", &name], Some(SBX_TIMEOUT_MS)), Ok(result) if result.exit_code == 0) {
+            warnings.push(format!("the sandbox {name} of an ended run was not removed; remove it with sbx rm --force {name}"));
+        }
+    }
+    warnings
+}
+
+/// The `mg-*` sandboxes whose gateway is gone, in the order sbx lists them. None when sbx cannot list.
+pub fn orphans(process: &dyn Process) -> Vec<String> {
     let listed = match process.exec(SBX, &["ls", "-q"], Some(SBX_TIMEOUT_MS)) {
         Ok(result) if result.exit_code == 0 => result.stdout,
         _ => return Vec::new(),
     };
     let own = std::process::id();
-    let mut warnings = Vec::new();
+    let mut names = Vec::new();
     for name in listed.lines().map(str::trim) {
         let Some(pid) = name.strip_prefix("mg-").and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<u32>().ok()) else {
             continue;
         };
-        if pid == own || process.is_alive(pid) {
-            continue;
-        }
-        if !matches!(process.exec(SBX, &["rm", "--force", name], Some(SBX_TIMEOUT_MS)), Ok(result) if result.exit_code == 0) {
-            warnings.push(format!("the sandbox {name} of an ended run was not removed; remove it with sbx rm --force {name}"));
+        if pid != own && !process.is_alive(pid) {
+            names.push(name.to_string());
         }
     }
-    warnings
+    names
 }
 
 /// The sandbox side of one launch, translated from its plan command and checked.
