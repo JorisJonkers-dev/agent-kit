@@ -83,6 +83,8 @@ Split a task until each piece fits one fresh context window and one tier.
   it.
 - Make pieces independent, with disjoint files, so they run in parallel.
 - Name each dependency: a piece that needs another's output says so.
+- Claim a ticket with `claim acquire <repo> <key> --issue <n>` before starting it, and release it with
+  `claim release <repo> <key> --issue <n>` when done, so two agents never work the same ticket.
 - Rate the pieces again after the split. A split that leaves a piece at the same
   tier for the same reason did not help; split along a different line.
 
