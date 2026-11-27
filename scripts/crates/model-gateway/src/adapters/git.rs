@@ -25,6 +25,39 @@ struct Answer {
 }
 
 impl SystemGit {
+    /// Unlocks and prunes the entries an interrupted `worktree add` left: registered `locked initializing` with the
+    /// directory gone. They would fail every later `worktree add` of the repository.
+    fn clear_stale(&self, repo: &str) -> Result<(), String> {
+        let listing = self.run(repo, &["worktree", "list", "--porcelain"])?;
+        if listing.exit_code != 0 {
+            return Err(words(&listing));
+        }
+        for path in stale_locked(&listing.stdout) {
+            let unlocked = self.run(repo, &["worktree", "unlock", &path])?;
+            if unlocked.exit_code != 0 {
+                return Err(words(&unlocked));
+            }
+        }
+        let pruned = self.run(repo, &["worktree", "prune"])?;
+        if pruned.exit_code == 0 {
+            Ok(())
+        } else {
+            Err(words(&pruned))
+        }
+    }
+
+    /// The end of a `worktree add`: its answer, and on a failure the entry git may have registered is unlocked and
+    /// pruned away with its directory, so a failed creation leaves no worktree behind.
+    fn settle_add(&self, repo: &str, path: &str, answer: &Answer) -> Result<(), String> {
+        if answer.exit_code == 0 {
+            return Ok(());
+        }
+        let _ = self.run(repo, &["worktree", "unlock", path]);
+        let _ = remove_tree(path);
+        let _ = self.run(repo, &["worktree", "prune"]);
+        Err(words(answer))
+    }
+
     fn run(&self, path: &str, args: &[&str]) -> Result<Answer, String> {
         self.run_for(path, args, self.timeout_ms)
     }
@@ -151,12 +184,9 @@ impl Git for SystemGit {
     }
 
     fn add_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
+        self.clear_stale(repo)?;
         let answer = self.run_for(repo, &["worktree", "add", "--detach", path, "HEAD"], WORKTREE_TIMEOUT_MS)?;
-        if answer.exit_code == 0 {
-            Ok(())
-        } else {
-            Err(words(&answer))
-        }
+        self.settle_add(repo, path, &answer)
     }
 
     fn git_dir(&self, path: &str) -> Result<String, String> {
@@ -169,12 +199,9 @@ impl Git for SystemGit {
     }
 
     fn create_worktree(&self, repo: &str, path: &str, branch: &str, base: &str) -> Result<(), String> {
+        self.clear_stale(repo)?;
         let answer = self.run_for(repo, &["worktree", "add", "-b", branch, path, base], WORKTREE_TIMEOUT_MS)?;
-        if answer.exit_code == 0 {
-            Ok(())
-        } else {
-            Err(words(&answer))
-        }
+        self.settle_add(repo, path, &answer)
     }
 
     fn stage_all(&self, path: &str) -> Result<(), String> {
@@ -237,6 +264,22 @@ fn worktree_blocks(listing: &str) -> Vec<String> {
         listed.push(block);
     }
     listed.into_iter().filter(|(_, prunable)| !prunable).map(|(path, _)| path).collect()
+}
+
+/// The worktrees a porcelain listing shows locked whose directory is not there any more.
+fn stale_locked(listing: &str) -> Vec<String> {
+    let mut stale = Vec::new();
+    let mut current: Option<String> = None;
+    for line in listing.split('\n') {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            current = Some(path.trim().to_string());
+        } else if line == "locked" || line.starts_with("locked ") {
+            if let Some(path) = current.take().filter(|path| !std::path::Path::new(path).exists()) {
+                stale.push(path);
+            }
+        }
+    }
+    stale
 }
 
 /// `rm -rf`: a path that is not there is already gone.
