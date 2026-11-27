@@ -142,9 +142,12 @@ impl ClientRun<'_> {
     /// `launch_scoped`, with what the client does reported to `watch` as it happens (a run's event log).
     pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
+        let mut image_warnings = Vec::new();
         let backend = SandboxBackend::select(self.env)?;
         if backend == SandboxBackend::Sbx {
-            sbx_launch::preflight(self.process, request.client, request.launch.mode)?;
+            sbx_launch::preflight(self.process, request.client)?;
+            // A sandbox an ended gateway left behind goes before this run makes its own.
+            image_warnings.extend(sbx_launch::prune_orphans(self.process));
         }
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
@@ -171,11 +174,10 @@ impl ClientRun<'_> {
             discard();
             return Err(dry_run(request.client.as_str(), &command).into());
         }
-        let mut image_warnings = Vec::new();
         let sandboxed = if backend == SandboxBackend::Sbx {
             match self.sandboxed(request, &command, confine.as_ref(), home.as_ref()) {
                 Ok((sandboxed, warnings)) => {
-                    image_warnings = warnings;
+                    image_warnings.extend(warnings);
                     Some(sandboxed)
                 }
                 Err(error) => {

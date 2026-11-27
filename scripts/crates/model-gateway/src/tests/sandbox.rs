@@ -149,7 +149,7 @@ use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
 use crate::extras::RunExtras;
 use crate::launchers::{LaunchPaths, LaunchRequest};
 use crate::error::GatewayError;
-use crate::ports::{FileStamp, Files, FsError, LaunchWatch, Process, ProcessResult, Stream};
+use crate::ports::{Ending, FileStamp, Files, FsError, LaunchWatch, Launched, Process, ProcessResult, Stream};
 use crate::run::{RunClient, RunMode};
 use crate::sbx_launch::{self, SbxLaunch};
 use std::sync::Mutex;
@@ -162,6 +162,10 @@ struct Sbx {
     calls: Mutex<Vec<String>>,
     exec: Answer,
     run: Answer,
+    /// How the client's launch ended when it did not exit by itself (a stop of the gateway, or the time limit), and whether it timed out.
+    end: Option<(Ending, bool)>,
+    /// The gateway pids that are still running.
+    alive: Vec<u32>,
 }
 
 fn answer(stdout: &str, stderr: &str, exit_code: i32) -> Result<ProcessResult, String> {
@@ -188,7 +192,7 @@ const OPENCODE_IMAGE: &str = "docker.io/sbx/opencode-image@sha256:0123456789abcd
 
 impl Sbx {
     fn new(exec: impl Fn(&[&str]) -> Result<ProcessResult, String> + Send + Sync + 'static) -> Sbx {
-        Sbx { calls: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)) }
+        Sbx { calls: Mutex::new(Vec::new()), exec: Box::new(exec), run: Box::new(|_| answer("ok\n", "", 0)), end: None, alive: Vec::new() }
     }
 
     fn calls(&self) -> Vec<String> {
@@ -197,6 +201,22 @@ impl Sbx {
 }
 
 impl Process for Sbx {
+    fn run_watched(&self, command: &ProcessCommand, watch: &dyn LaunchWatch) -> Result<Launched, String> {
+        let mut result = self.run(command)?;
+        watch.output(Stream::Stdout, result.stdout.as_bytes());
+        let ending = match &self.end {
+            Some((ending, timed_out)) => {
+                result.timed_out = *timed_out;
+                result.exit_code = 143;
+                ending.clone()
+            }
+            None => Ending::default(),
+        };
+        Ok(Launched { result, ending })
+    }
+    fn is_alive(&self, pid: u32) -> bool {
+        self.alive.contains(&pid)
+    }
     fn resolve(&self, _binary: &str) -> Option<String> {
         None
     }
@@ -347,14 +367,11 @@ fn every_refusal_before_a_launch_makes_nothing_and_names_its_reason() {
         let env = sbx_env();
         gateway_code(ClientRun { process, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(client, mode)).expect_err("refused"))
     };
-    // A client the backend does not run, and a write run, are refused before sbx is even asked.
+    // A client the backend does not run is refused before sbx is even asked.
     let healthy_sbx = Sbx::new(healthy);
     let (code, message) = run(&healthy_sbx, RunClient::Claude, Some(RunMode::ReadOnly));
     assert_eq!(code, "sandbox-unsupported");
     assert!(message.contains("runs only pi, opencode and vibe"), "{message}");
-    let (code, message) = run(&healthy_sbx, RunClient::Pi, Some(RunMode::Write));
-    assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("runs only read-only launches"), "{message}");
     assert!(healthy_sbx.calls().is_empty(), "nothing asked of sbx");
 
     // sbx missing, and sbx that does not answer, are refused with the install command and no create.
@@ -382,8 +399,10 @@ fn a_read_only_pi_run_creates_allows_execs_and_removes_its_sandbox_in_that_order
     let calls = sbx.calls();
     let name = sbx_name_in(&calls);
     assert!(name.starts_with("mg-"), "{name}");
-    assert_eq!(calls.len(), 6, "{calls:?}");
+    assert_eq!(calls.len(), 7, "{calls:?}");
     assert_eq!(calls[0], "sbx version");
+    assert_eq!(calls[1], "sbx ls -q");
+    let calls: Vec<String> = calls.into_iter().skip(1).collect();
     assert!(calls[1].starts_with("curl -fsS https://hub.docker.com/v2/repositories/sbx/pi-image/tags"), "{}", calls[1]);
     assert_eq!(calls[2], format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro"));
     assert_eq!(calls[3], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000"));
@@ -426,8 +445,8 @@ fn a_failed_create_names_its_reason_and_still_removes_what_it_named() {
     let ClientRunError::Spawn(message) = error else { panic!("a spawn error") };
     assert!(message.contains("sbx create exited 1: no room for a microVM"), "{message}");
     let calls = sbx.calls();
-    assert_eq!(calls.len(), 4, "{calls:?}");
-    assert!(calls[3].starts_with("sbx rm --force mg-"), "{calls:?}");
+    assert_eq!(calls.len(), 5, "{calls:?}");
+    assert!(calls[4].starts_with("sbx rm --force mg-"), "{calls:?}");
     assert!(!calls.iter().any(|call| call.starts_with("sbx exec")), "{calls:?}");
 }
 
@@ -673,7 +692,7 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
     let outcome = ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Pi, Some(RunMode::ReadOnly))).expect("a run");
     assert_eq!(outcome.result.stdout, "ok\n");
     let calls = sbx.calls();
-    assert!(calls[3].ends_with(" litellm.example.com:443"), "{calls:?}");
+    assert!(calls[4].ends_with(" litellm.example.com:443"), "{calls:?}");
     assert!(disk.files.lock().expect("files").get("/run/export/pi-agent/models.json").expect("the agent directory's models").contains("https://litellm.example.com/v1"));
 }
 
@@ -749,6 +768,69 @@ fn an_env_file_is_removed_even_when_the_exec_fails_and_one_that_cannot_be_writte
     let run = sbx_launch::run(&Sbx::new(healthy), &stuck, &keyed_launch(), &keyed_opencode(true), &Notes::default());
     assert!(run.ran.is_ok());
     assert_eq!(run.warnings, ["the sandbox's env file /run/export.client-home/sbx.env was not removed: EBUSY: /run/export.client-home/sbx.env"]);
+}
+
+/// A Pi write run's request: its worktree written, the git directories its writes need written, and the rest of
+/// its git read.
+fn write_request() -> ClientRunRequest {
+    let mut request = pi_request(RunClient::Pi, Some(RunMode::Write));
+    request.paths.work_dir = "/repo/.git/model-gateway/worktrees/r1".to_string();
+    request.paths.git_writable = Some(vec!["/repo/.git/worktrees/r1".to_string(), "/repo/.git/objects".to_string(), "/repo/.git/refs".to_string()]);
+    request.paths.git_view.reads = vec!["/repo/.git/HEAD".to_string(), "/repo/.git/packed-refs".to_string()];
+    request
+}
+
+#[test]
+fn a_write_run_mounts_its_worktree_and_git_directories_written_and_never_the_main_checkout() {
+    let disk = pi_disk("http://localhost:4000/v1");
+    let sbx = Sbx::new(healthy);
+    let env = sbx_env();
+    ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&write_request()).expect("a write run");
+    let calls = sbx.calls();
+    let create = calls.iter().find(|call| call.starts_with("sbx create ")).expect("a create call");
+    let mounts: Vec<&str> = create.split(" shell ").nth(1).expect("mounts").split_whitespace().collect();
+    let written: Vec<&str> = mounts.iter().copied().filter(|mount| !mount.ends_with(":ro")).collect();
+    assert_eq!(written[0], "/repo/.git/model-gateway/worktrees/r1", "the worktree is the primary workspace: {mounts:?}");
+    for dir in ["/repo/.git/worktrees/r1", "/repo/.git/objects", "/repo/.git/refs"] {
+        assert!(written.contains(&dir), "{dir} is written: {mounts:?}");
+    }
+    for read in ["/repo/.git/HEAD:ro", "/repo/.git/packed-refs:ro"] {
+        assert!(mounts.contains(&read), "{read} is read-only: {mounts:?}");
+    }
+    // Neither the repository's checkout nor its whole git directory is mounted, and the one written path outside the worktree is a git directory.
+    assert!(!mounts.iter().any(|mount| mount.trim_end_matches(":ro") == "/repo" || mount.trim_end_matches(":ro") == "/repo/.git"), "{mounts:?}");
+    assert!(written.iter().all(|mount| mount.starts_with("/repo/.git/") || mount.starts_with("/run/export")), "{written:?}");
+    assert!(calls.last().expect("calls").starts_with("sbx rm --force mg-"), "{calls:?}");
+}
+
+#[test]
+fn a_cancelled_run_and_a_stall_kill_remove_the_sandbox_and_the_env_file() {
+    for (ending, timed_out) in [(Ending { signal: None, cancelled_by: Some(15), pid: Some(7) }, false), (Ending { signal: Some(15), cancelled_by: None, pid: Some(7) }, true)] {
+        let process = Sbx { end: Some((ending, timed_out)), ..Sbx::new(healthy) };
+        let disk = Disk::default();
+        let run = sbx_launch::run(&process, &disk, &keyed_launch(), &keyed_opencode(true), &Notes::default());
+        assert!(run.ran.is_ok(), "{:?}", run.ran);
+        assert!(run.warnings.is_empty(), "{:?}", run.warnings);
+        assert_eq!(process.calls().last().map(String::as_str), Some("sbx rm --force mg-test"));
+        assert!(disk.removed.lock().expect("removed").contains(&"/run/export.client-home/sbx.env".to_string()), "the env file outlived the run");
+    }
+}
+
+#[test]
+fn recovery_removes_the_sandboxes_of_ended_gateways_and_keeps_live_and_foreign_ones() {
+    let own = std::process::id();
+    let listing = format!("mg-100-aa\nmg-200-bb\nmg-{own}-cc\nmg-stuck-dd\nother-box\nmg-300-ee\n");
+    let process = Sbx { alive: vec![200], ..Sbx::new(move |args| if args[0] == "ls" { answer(&listing, "", 0) } else if args.get(2) == Some(&"mg-300-ee") { answer("", "busy", 1) } else { healthy(args) }) };
+    let warnings = sbx_launch::prune_orphans(&process);
+    assert_eq!(process.calls(), ["sbx ls -q", "sbx rm --force mg-100-aa", "sbx rm --force mg-300-ee"]);
+    assert_eq!(warnings, ["the sandbox mg-300-ee of an ended run was not removed; remove it with sbx rm --force mg-300-ee"]);
+
+    // A listing that cannot be had prunes nothing and says nothing.
+    for listing in [answer("", "no daemon", 1), Err("sbx missing".to_string())] {
+        let process = Sbx::new(move |_| listing.clone());
+        assert!(sbx_launch::prune_orphans(&process).is_empty());
+        assert_eq!(process.calls(), ["sbx ls -q"]);
+    }
 }
 
 const VIBE_CONFIG: &str = r#"active_model = "mistral-medium"
