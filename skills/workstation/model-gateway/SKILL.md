@@ -355,7 +355,11 @@ The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
 `provider` (which a Hermes run must name, and which this machine must allow),
 `escalate` (default `true`; `false` turns off the retry, the climb and the
-fall-through below), `family_binding` (default `true`; see below),
+fall-through below), `family_binding` (default `true`; see below), `free_fallback` (default `true`:
+a `free/<model>` run that finds no free copy falls back once to OpenCode's
+`opencode/<model>-free`, reported in `fallback`, `available_again_in_s` /
+`available_at` and `recommendation`; never for `client_pinned: true`, never
+for a repository that is not public, independent of `escalate`),
 `max_attempts` (default 3), `headless` (a boolean that
 changes nothing else: a run marked headless is refused and launched exactly
 like any other), `tier` (see below) and `free_only` (a boolean; see below).
@@ -409,7 +413,11 @@ Everything that can refuse the run happens before anything is launched:
   refused whatever the configuration says, and so is a model id that starts
   with `openrouter/`, on every client: free models run only as `free/<model>`
   on `pi-free`.
-  An OpenCode model is named
+  OpenCode's own `opencode-go/<id>` provider names no LiteLLM proxy address,
+  which the sandbox requires, so a run that names it is run as
+  `litellm-opencode-go/<id>` when this machine lists that model (the result's
+  `rewritten` and a `route.rewritten` event say so, and `models` lists only the
+  LiteLLM name), and is refused naming it when it does not. An OpenCode model is named
   `<provider>/<model>`, and only the providers `clients.opencode.providers`
   names (default `["opencode-go", "litellm-opencode-go"]`, the second being the
   provider setup writes for the LiteLLM OpenCode Go route) are allowed; every
@@ -1236,7 +1244,7 @@ so it is refused until one is configured. `harness` needs `profile`, and cannot
 be given with `client` or `model`.
 
 `opencode` runs every role too. It takes the first of the profile's models that
-OpenCode can run: an `opencode-go/<id>` model as it is, or a Pi route's model
+OpenCode can run: a `litellm-opencode-go/<id>` model, or a Pi route's model
 on OpenCode's own LiteLLM provider of that route
 (`pi-vibe:glm-5.3` runs as `opencode:litellm-vibe/glm-5.3`), for the routes that
 take any data. The route's key is read from the secret store into OpenCode's

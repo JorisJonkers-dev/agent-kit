@@ -5,8 +5,10 @@
 use super::machine::{Machine, DEFAULTS};
 use crate::error::GatewayError;
 use crate::escalation::{AttemptLink, EscalationEnd, UnavailableResult};
+use crate::free_fallback::FallbackReport;
 use crate::escalation_run::{AttemptError, AttemptedRun, Delegation, Escalated, EscalatedRun};
 use crate::json::parse;
+use crate::ports::ProcessResult;
 use crate::run::{read_run_input, RunInput};
 use std::collections::VecDeque;
 
@@ -19,6 +21,7 @@ struct FakeRun {
     model: String,
     ok: bool,
     reason: Option<String>,
+    refusal: Option<String>,
 }
 
 impl AttemptedRun for FakeRun {
@@ -56,6 +59,9 @@ impl AttemptedRun for FakeRun {
     fn check_output_path(&self) -> Option<&str> {
         Some(Box::leak(format!("{}/runs/{}/check.txt", self.root, self.number).into_boxed_str()))
     }
+    fn free_refusal(&self) -> Option<String> {
+        self.refusal.clone()
+    }
 }
 
 /// What an attempt of a script comes to.
@@ -63,6 +69,8 @@ enum Step {
     Fail(&'static str),
     /// A failed run that names no reason.
     FailSilently,
+    /// A failed run whose client said no free copy of its model is available.
+    Refused(&'static str),
     Pass,
     Error(AttemptError),
 }
@@ -72,6 +80,7 @@ struct Seen {
     input: RunInput,
     link: Option<AttemptLink>,
     had_check: bool,
+    fallback: Option<FallbackReport>,
 }
 
 fn input(extra: &str) -> RunInput {
@@ -84,15 +93,20 @@ fn drive(machine: &Machine, run: &RunInput, steps: Vec<Step>) -> (Result<Delegat
     let mut seen = Vec::new();
     let root = machine.sandbox.text();
     let result = (EscalatedRun { runtime: &machine.runtime }).run(run, &mut |attempt, options| {
-        seen.push(Seen { input: attempt.clone(), link: options.link.clone(), had_check: options.start_check.is_some() });
+        seen.push(Seen { input: attempt.clone(), link: options.link.clone(), had_check: options.start_check.is_some(), fallback: options.fallback.clone() });
         let number = seen.len();
+        let mut refusal = None;
         let (ok, reason) = match steps.pop_front().expect("a scripted step") {
             Step::Fail(reason) => (false, Some(reason.to_string())),
             Step::FailSilently => (false, None),
+            Step::Refused(text) => {
+                refusal = Some(text.to_string());
+                (false, Some("rate-limited".to_string()))
+            }
             Step::Pass => (true, None),
             Step::Error(error) => return Err(error),
         };
-        Ok(FakeRun { number, root: root.clone(), client: attempt.client.clone(), model: attempt.model.clone(), ok, reason })
+        Ok(FakeRun { number, root: root.clone(), client: attempt.client.clone(), model: attempt.model.clone(), ok, reason, refusal })
     });
     (result, seen)
 }
@@ -388,6 +402,7 @@ fn the_attempt_can_ask_whether_its_client_can_start() {
             model: attempt.model.clone(),
             ok: true,
             reason: None,
+            refusal: None,
         })
     });
     assert!(result.is_ok());
@@ -401,7 +416,109 @@ fn the_check_fails_with_the_error_when_the_catalogue_cannot_be_read() {
     let result = (EscalatedRun { runtime: &machine.runtime }).run(&run, &mut |attempt, options| {
         let check = options.start_check.expect("the escalation hands the check over");
         assert_eq!(check(attempt).expect_err("no catalogue").code, "invalid-config");
-        Ok::<FakeRun, AttemptError>(FakeRun { number: 1, root: String::new(), client: attempt.client.clone(), model: attempt.model.clone(), ok: true, reason: None })
+        Ok::<FakeRun, AttemptError>(FakeRun { number: 1, root: String::new(), client: attempt.client.clone(), model: attempt.model.clone(), ok: true, reason: None, refusal: None })
     });
     assert!(result.is_ok());
+}
+
+
+// The free fallback: a run on a free LiteLLM model that finds no free copy is answered once by OpenCode's own
+// free copy of the same model, whatever the escalation does.
+
+const FREE_DEFAULTS: &str = r#"{
+  "version": 1,
+  "clients": {
+    "pi-free": {"binary": "pi", "cost_class": "subsidised", "model_source": "declared", "data_scope": "public"},
+    "opencode": {"binary": "opencode", "cost_class": "subsidised", "model_source": "declared"}
+  },
+  "models": [
+    {"client": "pi-free", "family": "deepseek", "model": "free/deepseek-v4.1-flash", "notes": "n", "tier": "routine"}
+  ],
+  "settings": {
+    "availability_window_minutes": 60,
+    "max_batch_delegations": 50,
+    "max_parallel_per_client": 3,
+    "metered_personal_caps": {"per_day_usd": 5, "per_workflow_usd": 2},
+    "output_allowance_tokens": {"frontier": 16000, "hard": 6000, "routine": 2000, "trivial": 500},
+    "plan_warning_ratio": 0.8,
+    "summary_max_chars": 1500
+  }
+}"#;
+
+const NO_FREE_COPY: &str = "No deployments available for selected model, Try again in a moment: free limits [limiter refusal, no provider was called]: every free deployment of deepseek-v4.1-flash is limited; the first is back in 90s";
+
+fn free_machine() -> Machine {
+    let machine = Machine::new(FREE_DEFAULTS);
+    machine.process.answer("opencode", Ok(ProcessResult { stdout: "opencode/deepseek-v4.1-flash-free\nopencode/other-free\n".to_string(), stderr: String::new(), exit_code: 0, timed_out: false }));
+    machine
+}
+
+fn free_input(extra: &str) -> RunInput {
+    let text = format!(r#"{{"client":"pi-free","mode":"read-only","model":"free/deepseek-v4.1-flash","prompt":"p","workflow":"w"{extra}}}"#);
+    read_run_input(&parse(&text).expect("JSON")).expect("a run input")
+}
+
+#[test]
+fn a_free_model_with_no_free_copy_is_answered_once_by_opencodes_own_free_copy_of_it() {
+    let machine = free_machine();
+    let (result, seen) = drive(&machine, &free_input(""), vec![Step::Refused(NO_FREE_COPY), Step::Pass]);
+    let escalated = ran(result);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+    assert_eq!(seen[1].input.client, "opencode");
+    assert!(seen[0].fallback.is_none());
+    let fallback = seen[1].fallback.as_ref().expect("the fallback is handed to the attempt");
+    assert_eq!(fallback.from, "pi-free free/deepseek-v4.1-flash");
+    assert_eq!(fallback.to, "opencode opencode/deepseek-v4.1-flash-free");
+    assert_eq!(fallback.reason, NO_FREE_COPY);
+    assert_eq!(fallback.from_run_id, "run-1");
+    assert_eq!(fallback.available_again_in_s, Some(90));
+    assert_eq!(statuses(&escalated), [(true, None)]);
+}
+
+#[test]
+fn the_fallback_does_not_depend_on_escalate_and_is_tried_only_once() {
+    let machine = free_machine();
+    let (result, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Refused(NO_FREE_COPY), Step::Refused(NO_FREE_COPY)]);
+    let escalated = ran(result);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+    assert_eq!(statuses(&escalated), [(false, Some("rate-limited"))]);
+}
+
+#[test]
+fn a_fallback_that_cannot_run_leaves_the_refused_run_as_the_answer() {
+    let machine = free_machine();
+    let refused = GatewayError::new("policy-refused", "no");
+    let (result, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Refused(NO_FREE_COPY), Step::Error(AttemptError::Refused(refused))]);
+    let escalated = ran(result);
+    assert_eq!(seen.len(), 2);
+    assert_eq!(statuses(&escalated), [(false, Some("rate-limited"))]);
+}
+
+#[test]
+fn a_run_that_failed_any_other_way_falls_back_to_nothing() {
+    let machine = free_machine();
+    let (_, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Fail("exit-1")]);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash"]);
+}
+
+#[test]
+fn a_run_that_named_its_client_or_turned_the_fallback_off_never_falls_back() {
+    let machine = free_machine();
+    for extra in [r#","escalate":false,"client_pinned":true"#, r#","escalate":false,"free_fallback":false"#] {
+        let (_, seen) = drive(&machine, &free_input(extra), vec![Step::Refused(NO_FREE_COPY)]);
+        assert_eq!(models(&seen), ["free/deepseek-v4.1-flash"]);
+    }
+}
+
+#[test]
+fn a_fallback_the_catalogue_or_the_policy_cannot_place_leaves_the_run_failed() {
+    let machine = free_machine();
+    // No Zen copy of the model: OpenCode's listing does not name it.
+    machine.process.answer("opencode", Ok(ProcessResult { stdout: "opencode/other-free\n".to_string(), stderr: String::new(), exit_code: 0, timed_out: false }));
+    let (_, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Refused(NO_FREE_COPY)]);
+    assert_eq!(seen.len(), 1);
+    // A configuration that cannot be read ends the plan quietly.
+    let broken = Machine::new("this is not json");
+    let (_, seen) = drive(&broken, &free_input(r#","escalate":false"#), vec![Step::Refused(NO_FREE_COPY)]);
+    assert_eq!(seen.len(), 1);
 }

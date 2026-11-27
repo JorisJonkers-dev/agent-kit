@@ -287,7 +287,7 @@ pub fn candidate_pool(config: &GatewayConfig, input: &RunInput, permissions: &[M
 }
 
 /// Whether the policy lets a delegation with this run's contents reach the model: what the run reads and what the caller marks.
-fn carries(permission: &ModelPermission, input: &RunInput) -> bool {
+pub(crate) fn carries(permission: &ModelPermission, input: &RunInput) -> bool {
     if !permission.permitted {
         return false;
     }

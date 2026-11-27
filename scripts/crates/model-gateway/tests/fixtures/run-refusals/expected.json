@@ -284,8 +284,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"model-not-usable\",\"message\":\"opencode:opencode-go/kimi-k2.7-code cannot run: the LiteLLM catalogue marks it error on route opencode-go\"}\n",
-      "stderr": "model-gateway run: opencode:opencode-go/kimi-k2.7-code cannot run: the LiteLLM catalogue marks it error on route opencode-go\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"opencode-go/kimi-k2.7-code: OpenCode's own opencode-go provider names no LiteLLM proxy address, which the gateway's sandbox requires, and this machine's OpenCode lists no litellm-opencode-go/kimi-k2.7-code; name litellm-opencode-go/kimi-k2.7-code once LiteLLM serves it, or another model `models` lists on litellm-opencode-go\"}\n",
+      "stderr": "model-gateway run: opencode-go/kimi-k2.7-code: OpenCode's own opencode-go provider names no LiteLLM proxy address, which the gateway's sandbox requires, and this machine's OpenCode lists no litellm-opencode-go/kimi-k2.7-code; name litellm-opencode-go/kimi-k2.7-code once LiteLLM serves it, or another model `models` lists on litellm-opencode-go\n",
       "files": {
         "state/": null,
         "state/agent-kit/": null,

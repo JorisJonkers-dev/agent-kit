@@ -154,6 +154,12 @@ pub struct RunInput {
     /// Refuse before anything runs unless the model is `free` (the catalogue marks it free, else its Pi entry prices every field at zero);
     /// no retry, climb or fall-through moves the run to another model.
     pub free_only: Option<bool>,
+    /// `false` keeps a run on a free LiteLLM model from falling through to OpenCode's own free copy of it when
+    /// no free copy is available; on unless the caller says so, and independent of `escalate`.
+    pub free_fallback: Option<bool>,
+    /// `true` says the caller named the client itself (a `<harness>:` address): the client is never swapped
+    /// for another, the free fallback included (ADR-0018).
+    pub client_pinned: Option<bool>,
     /// The members that sit last in the object the node runner holds, in order: an attempt on a candidate moves
     /// `provider` there, and a reservation adds `max_price_usd` there when the caller named none.
     pub tail: Vec<&'static str>,
@@ -221,6 +227,8 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         return Err(GatewayError::invalid_input("narrow needs a profile to narrow"));
     }
     let free_only = read_flag(raw.get("free_only"), "free_only")?;
+    let free_fallback = read_flag(raw.get("free_fallback"), "free_fallback")?;
+    let client_pinned = read_flag(raw.get("client_pinned"), "client_pinned")?;
     Ok(RunInput {
         workflow,
         client,
@@ -241,6 +249,8 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         profile,
         narrow,
         free_only,
+        free_fallback,
+        client_pinned,
         tail: Vec::new(),
     })
 }
@@ -273,6 +283,8 @@ pub fn input_json(input: &RunInput) -> Value {
             optional("profile", input.profile.as_deref().map(Value::str)),
             optional("narrow", input.narrow.as_ref().map(Narrowing::to_json)),
             optional("free_only", input.free_only.map(Value::Bool)),
+            optional("free_fallback", input.free_fallback.map(Value::Bool)),
+            optional("client_pinned", input.client_pinned.map(Value::Bool)),
         ]
         .into_iter()
         .flatten(),

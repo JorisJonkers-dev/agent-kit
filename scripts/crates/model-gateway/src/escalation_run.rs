@@ -17,6 +17,7 @@ use crate::escalation::{
     requested_candidate, retry_prompt, AttemptLink, AttemptSummary, Candidate, EscalationEnd, EscalationReport, UnavailableResult, Unstartable,
     DEFAULT_MAX_ATTEMPTS,
 };
+use crate::free_fallback::{self, FallbackReport};
 use crate::grant_guard::GrantGuard;
 use crate::models::family_of_model_id;
 use crate::policy::{decide_policy, resolve_scope, PolicySubject};
@@ -41,6 +42,9 @@ pub trait AttemptedRun: Clone {
     fn output_path(&self) -> &str;
     /// The output of the check a writing run ran, when it ran one.
     fn check_output_path(&self) -> Option<&str>;
+    /// What a failed run said when no free copy of its model was available (the proxy's limiter refusal, a daily
+    /// limit, every copy blocked); `None` for a run that failed any other way.
+    fn free_refusal(&self) -> Option<String>;
 }
 
 /// The check that a client can start: the reason it cannot, or `None` when it can.
@@ -54,6 +58,9 @@ pub struct AttemptOptions<'a> {
     /// Called once everything that can refuse the run has passed and before anything is launched; a reason says
     /// the client cannot start, and the attempt then ends with `AttemptError::CannotStart` instead of a run.
     pub start_check: Option<StartCheck<'a>>,
+    /// Set on the attempt that is the free fallback of one that found no free copy; the attempt records it in its
+    /// events and result.
+    pub fallback: Option<FallbackReport>,
 }
 
 /// Why an attempt ended without a run.
@@ -148,8 +155,20 @@ impl<'a> EscalatedRun<'a> {
     pub fn run<R: AttemptedRun>(
         &self,
         input: &RunInput,
-        attempt: &mut dyn FnMut(&RunInput, &AttemptOptions) -> Result<R, AttemptError>,
+        launch: &mut dyn FnMut(&RunInput, &AttemptOptions) -> Result<R, AttemptError>,
     ) -> Result<Delegation<R>, GatewayError> {
+        // An attempt that finds no free copy of its free model is answered by OpenCode's own free copy of it,
+        // once, whatever the escalation does: the fallback stays in the free cost class.
+        let mut fell_back = false;
+        let mut attempt = |next: &RunInput, options: &AttemptOptions| -> Result<R, AttemptError> {
+            let run = launch(next, options)?;
+            let refusal = if fell_back || run.is_ok() { None } else { run.free_refusal() };
+            let Some((fallen, report)) = refusal.and_then(|text| free_fallback::plan(self.runtime, next, run.run_id(), &text).ok().flatten()) else {
+                return Ok(run);
+            };
+            fell_back = true;
+            launch(&fallen, &AttemptOptions { link: options.link.clone(), start_check: options.start_check, fallback: Some(report) }).or(Ok(run))
+        };
         if input.escalate == Some(false) || input.free_only == Some(true) {
             let only = attempt(input, &AttemptOptions::default()).map_err(AttemptError::into_gateway)?;
             let attempts = vec![summary_of(&only)];
@@ -187,7 +206,7 @@ impl<'a> EscalatedRun<'a> {
                 None => input.clone(),
                 Some(candidate) => attempt_input(input, candidate, &prompt),
             };
-            let run = match attempt(&next, &AttemptOptions { link, start_check: Some(&start_check) }) {
+            let run = match attempt(&next, &AttemptOptions { link, start_check: Some(&start_check), fallback: None }) {
                 Ok(run) => run,
                 Err(AttemptError::CannotStart(message)) => {
                     match walk.cannot_start(&current, &real, &message)? {

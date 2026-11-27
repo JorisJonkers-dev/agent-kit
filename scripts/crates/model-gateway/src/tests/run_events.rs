@@ -336,6 +336,8 @@ fn result(ok: bool) -> RunResult {
         failure: (!ok).then(|| Failure { kind: FailureKind::Signalled, reason: "the client was ended by SIGKILL".into(), output_tail: None }),
         cleanup_warning: None,
         warnings: Vec::new(),
+        fallback: None,
+        rewrite: None,
         routing: crate::routing::Routing::unseen("opencode"),
     }
 }

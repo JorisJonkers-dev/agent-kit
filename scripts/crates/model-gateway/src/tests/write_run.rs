@@ -905,6 +905,8 @@ fn a_writing_run_result_prints_its_members_in_the_order_the_node_runner_writes_t
         failure: Some(crate::run_failure::Failure { kind: crate::run_failure::FailureKind::Signalled, reason: "the client was ended by SIGKILL".into(), output_tail: None }),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
+        fallback: None,
+        rewrite: None,
         routing: crate::routing::Routing::unseen("claude"),
     };
     assert_eq!(result.check_output_path(), Some("/run/check-output.txt"));
