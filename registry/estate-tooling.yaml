@@ -324,6 +324,14 @@ package_proxy:
     go_private: "github.com/JorisJonkers-dev/*"
   vault_path: "packages-system/keys"
   vault_field: "workstation"
+  # After the vault and before the stored token file: the first kube context
+  # whose name ends in context_suffix that can read the secret's `key` data
+  # item in `namespace` supplies the key. Skipped in a run that does not
+  # prompt (--no-prompt, --check, --cloud); kubectl may ask for a password.
+  cluster_secret:
+    namespace: "packages-system"
+    key: "workstation"
+    context_suffix: "-admin"
   # Relative to XDG_CONFIG_HOME, mode 0600.
   token_file: "jorisjonkers/packages-token"
   verify_url: "https://packages.jorisjonkers.dev/npm/typescript"
@@ -1047,7 +1055,7 @@ marketplaces:
   - name: claude-plugins-official
     repo: anthropics/claude-plugins-official
     ref: main
-    commit: b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6
+    commit: 0fbfda5a91f4adc311daca25acc99132f40f0b6e
     # Claude Code reserves this name for GitHub sources, so the pinned folder is
     # declared under another name and its plugins install as <plugin>@agent-kit-official.
     declare_as: agent-kit-official
@@ -1058,7 +1066,7 @@ marketplaces:
   - name: drawio
     repo: jgraph/drawio-mcp
     ref: main
-    commit: 9bd19b362038593bc8611d426c92cd62dc222302
+    commit: b7941af5541ba45edb72d6db164302294bf6cb40
   - name: kubernetes-skill
     repo: LukasNiessen/kubernetes-skill
     ref: main
@@ -2217,7 +2225,7 @@ skill_sources:
   - name: drawio
     repo: https://github.com/jgraph/drawio-mcp
     ref: main
-    commit: 9bd19b362038593bc8611d426c92cd62dc222302
+    commit: b7941af5541ba45edb72d6db164302294bf6cb40
     license: Apache-2.0
     # Published three times, once per host CLI. The explicit path is what
     # keeps the duplicate-name refusal from rejecting two of them.

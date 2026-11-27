@@ -198,8 +198,42 @@ tokens_and_keys() {
 # The packages proxy
 # -----------------------------------------------------------------
 
+# pp_cluster_key prints the key the cluster holds for the workstation, or
+# nothing. The first kube context ending in the admin suffix that can read
+# the secret's data item supplies it; a context that fails is skipped. Only
+# a run that may prompt looks: kubectl may ask for a password. The key is
+# captured, never printed or logged, and a failed read returns 1.
+pp_cluster_key() {
+  local ctx="" key="" secrets=""
+  if [ "${PROMPT}" != 1 ] || [ "${CHECK_ONLY}" = 1 ] || [ "${CLOUD}" = 1 ]; then
+    return 1
+  fi
+  command -v kubectl >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+  while IFS= read -r ctx; do
+    case "${ctx}" in *-admin) ;; *) continue ;; esac
+    secrets="$(kubectl --context "${ctx}" -n packages-system get secrets -o json 2>/dev/null)" || continue
+    key="$(printf '%s' "${secrets}" | python3 -c 'import base64, json, sys
+try:
+    for item in json.load(sys.stdin).get('\''items'\'') or []:
+        value = (item.get('\''data'\'') or {}).get(sys.argv[1])
+        if value:
+            sys.stdout.write(base64.b64decode(value).decode('\''utf-8'\''))
+            break
+except Exception:
+    pass
+' workstation 2>/dev/null)" || continue
+    if [ -n "${key}" ]; then
+      printf '%s' "${key}"
+      return 0
+    fi
+  done < <(kubectl config get-contexts -o name 2>/dev/null)
+  return 1
+}
+
 # pp_resolve_key prints the proxy key (always captured, never logged),
-# in order: PACKAGES_PROXY_TOKEN, the vault secret, the stored token file.
+# in order: PACKAGES_PROXY_TOKEN, the vault secret, the cluster secret, the
+# stored token file.
 # The last resort is a prompt, and only in an interactive run.
 pp_resolve_key() {
   local root="$1"
@@ -215,6 +249,10 @@ pp_resolve_key() {
       printf '%s' "${key}"
       return 0
     fi
+  fi
+  if key="$(pp_cluster_key)" && [ -n "${key}" ]; then
+    printf '%s' "${key}"
+    return 0
   fi
   if [ -s "${token}" ]; then
     printf '%s' "$(cat "${token}" 2>/dev/null)"
@@ -684,7 +722,7 @@ package_proxy_setup() {
     return 0
   fi
   if ! key="$(pp_resolve_key "${root}")"; then
-    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault or the prompt), skipped"
+    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault, the cluster or the prompt), skipped"
     return 0
   fi
   if ! printf 'header = "Authorization: Bearer %s"\n' "${key}" \
@@ -3079,9 +3117,9 @@ if ! command -v claude >/dev/null 2>&1; then
   fail "claude is not on PATH; skipping plugins, language servers and MCP"
 else
   log "plugin marketplaces"
-  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6 agent-kit-official
+  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official 0fbfda5a91f4adc311daca25acc99132f40f0b6e agent-kit-official
   ensure_marketplace caveman JuliusBrussee/caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0
-  ensure_marketplace drawio jgraph/drawio-mcp 9bd19b362038593bc8611d426c92cd62dc222302
+  ensure_marketplace drawio jgraph/drawio-mcp b7941af5541ba45edb72d6db164302294bf6cb40
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
@@ -3292,7 +3330,7 @@ for install in installs:
         plugin_drift+=("caveman: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 9bd19b362038593bc8611d426c92cd62dc222302)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio b7941af5541ba45edb72d6db164302294bf6cb40)"
     installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
     if [ -z "${expected_commit}" ]; then
       warn "drawio: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3310,7 +3348,7 @@ for install in installs:
         plugin_drift+=("drawio: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "frontend-design: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3328,7 +3366,7 @@ for install in installs:
         plugin_drift+=("frontend-design: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "mattpocock-skills: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3346,7 +3384,7 @@ for install in installs:
         plugin_drift+=("mattpocock-skills: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "security-guidance: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3382,7 +3420,7 @@ for install in installs:
         plugin_drift+=("kubernetes-skill: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "github@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "github: its marketplace entry pins no commit, so it cannot be pinned"
