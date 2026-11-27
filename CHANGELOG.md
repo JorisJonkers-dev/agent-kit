@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.7.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.6.0...v6.7.0) (2026-11-27)
+
+
+### Features
+
+* **keys:** a dedicated paid key, and the go-cheap and vibe tiers reach paid/&lt;model&gt; ([#966](https://github.com/JorisJonkers-dev/agent-kit/issues/966)) ([22a0714](https://github.com/JorisJonkers-dev/agent-kit/commit/22a0714199d7232fa848ea6f2d625d642138fd0d)), closes [#965](https://github.com/JorisJonkers-dev/agent-kit/issues/965)
+* **model-gateway:** plan each launch for Docker Sandboxes behind AGENT_KIT_SANDBOX=sbx-dry-run ([#951](https://github.com/JorisJonkers-dev/agent-kit/issues/951)) ([8707cda](https://github.com/JorisJonkers-dev/agent-kit/commit/8707cda1b505ff534bb064ae1e211d107f3d1442))
+* **model-gateway:** run read-only Pi and OpenCode launches in Docker Sandboxes behind AGENT_KIT_SANDBOX=sbx ([#954](https://github.com/JorisJonkers-dev/agent-kit/issues/954)) ([d6c1a92](https://github.com/JorisJonkers-dev/agent-kit/commit/d6c1a926d709d1b8ced28af007ab1007dfb06c0c))
+* **model-gateway:** run sbx sandboxes from Docker's prebuilt images pinned by digest ([#955](https://github.com/JorisJonkers-dev/agent-kit/issues/955)) ([e13702f](https://github.com/JorisJonkers-dev/agent-kit/commit/e13702f9f8349533b780b63f79cf06d6c86533c2))
+* **sbx:** pinned pi and OpenCode sandbox images and their build script ([#953](https://github.com/JorisJonkers-dev/agent-kit/issues/953)) ([b322b56](https://github.com/JorisJonkers-dev/agent-kit/commit/b322b569c8d39dab459ac346a477fd764c3e916a))
+* **sbx:** set up Docker Sandboxes and pre-pull gateway images in workstation setup ([#956](https://github.com/JorisJonkers-dev/agent-kit/issues/956)) ([f8d3d70](https://github.com/JorisJonkers-dev/agent-kit/commit/f8d3d70d8489d90c349b9946c893e71c752b5957))
+
 ## [6.6.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.5.0...v6.6.0) (2026-11-26)
 
 
