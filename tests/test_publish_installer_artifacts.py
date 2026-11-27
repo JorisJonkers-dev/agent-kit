@@ -34,7 +34,7 @@ KIT_FILES = (
     "registry/estate-tooling.yaml",
     "registry/generated/hermes/mcp-servers.local.yaml",
     "registry/generated/vibe/mcp-servers.toml",
-    "registry/generated/vibe/agents/critic-glm.toml",
+    "registry/generated/vibe/agents/critic-glm-flash.toml",
     "registry/generated/vibe-private/mcp-servers.toml",
     "installer/git-hooks/no-agent-attribution",
     "installer/git-hooks/allowed-identities",

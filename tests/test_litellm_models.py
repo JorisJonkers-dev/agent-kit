@@ -23,12 +23,11 @@ ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 
 # Clients whose models are not served through the LiteLLM routes: Claude (anthropic key only,
 # not probed by the catalogue yet), Codex (employer account) and agy (Google's own CLI).
-# opencode-free runs OpenCode's own free models through the OpenCode CLI: no LiteLLM route serves them.
 # Free-only routes the litellm repository adds in its wave 1 (litellm#66) whose groups the snapshot does not
 # list until the catalogue sync has run and the snapshot is refreshed. Their defaults are declared ahead of
 # the refresh; once the snapshot lists a route as a provider, its defaults must resolve like any other.
-AWAITING_SYNC = {"groq", "zai", "nvidia", "kilo", "requesty", "naga", "routeway", "ovh"}
-NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes", "opencode-free"}
+AWAITING_SYNC: set[str] = set()
+NOT_VIA_LITELLM = {"claude", "codex", "agy", "hermes"}
 
 
 _spec = importlib.util.spec_from_file_location("litellm_catalogue", KIT_ROOT / "scripts" / "litellm_catalogue.py")
@@ -65,10 +64,11 @@ def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
         elif model.startswith("tier-"):
             # A tier is a model name the proxy serves, stated by litellm's tier policy.
             ok = model in delegation_profiles.tier_groups()
-        elif client == "pi":
-            # Pi's models are canonical groups, which the catalogue lists by name.
+        elif client == "pi" or client.startswith("pi-"):
+            # Pi's models are canonical groups, which the catalogue lists by name; pi-free's are free/<model>.
             route = model.partition("/")[0]
             ok = model in GROUPS or (route in AWAITING_SYNC and route not in providers)
+            ok = ok and (client != "pi-free" or route == "free")
         else:
             assert client in NOT_VIA_LITELLM, f"{client} has no LiteLLM route check"
             continue
@@ -134,11 +134,25 @@ def test_no_critique_gateway_entry_sends_a_vibe_served_model_to_opencode() -> No
 
 def test_a_default_on_a_route_the_snapshot_lists_must_resolve_and_one_awaiting_sync_may_not() -> None:
     models = [
-        {"client": "pi", "model": "groq/gpt-oss-120b"},
-        {"client": "pi", "model": "openrouter/no-such-model"},
+        {"client": "pi-free", "model": "free/gpt-oss-120b"},
+        {"client": "pi-free", "model": "free/no-such-model"},
         {"client": "pi", "model": "cloudflare/no-such-model"},
     ]
-    assert unresolved(models, _routes()) == ["pi:openrouter/no-such-model", "pi:cloudflare/no-such-model"]
+    assert unresolved(models, _routes()) == ["pi-free:free/no-such-model", "pi:cloudflare/no-such-model"]
+
+
+def test_a_free_model_is_named_only_as_free_model() -> None:
+    """Every free default is pi-free's `free/<model>`: no provider path, no free suffix, no other client."""
+    models = json.loads(DEFAULTS.read_text())["models"]
+    clients = json.loads(DEFAULTS.read_text())["clients"]
+    free = [m for m in models if m["client"] == "pi-free"]
+    assert free and all(m["model"].startswith("free/") or m["model"] == "tier-free" for m in free)
+    assert not [m for m in models if m["model"].endswith(("-free", ":free")) and not m["model"].startswith("tier-")]
+    old = ("openrouter/", "public/", "google-free/", "opencode-go-free/", "opencode/")
+    assert not [m for m in models if m["model"].startswith(old)]
+    assert not [m for m in models if m["model"].startswith("free/") and m["client"] != "pi-free"]
+    assert {"pi-public", "pi-openrouter", "opencode-free"}.isdisjoint(clients)
+    assert clients["pi-free"]["data_scope"] == "public"
 
 
 def test_the_awaiting_routes_are_not_in_the_snapshot_yet() -> None:

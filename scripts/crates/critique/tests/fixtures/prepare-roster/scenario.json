@@ -66,8 +66,8 @@
         "bin/agy": "#!/bin/sh\nprintf 'Fetching available models...\\ngemini-3.8-flash-high\\tGemini\\n'\n",
         "bin/vibe": "#!/bin/sh\nexit 0\n",
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\nZAI_API_KEY=sk-z\n",
-        "home/.vibe/agents/critic-mistral-large.toml": "# agent\n",
-        "home/.vibe/agents/critic-glm.toml": "# agent\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "home/.vibe/agents/critic-glm-flash.toml": "# agent\n",
         "home/.vibe/agents/critic-mistral-small.toml": "# agent\n"
       },
       "exec": [
@@ -138,7 +138,7 @@
       "write": {
         "home/.config/agent-kit/model-gateway.json": "{\"clients\":{\"vibe\":{\"plan_limits\":[{\"window\":\"day\",\"limit_usd\":0.00033}]}}}\n",
         "state/agent-kit/model-gateway/ledger.jsonl": "{\"at\":\"2026-11-03T09:00:00.000Z\",\"client\":\"vibe\",\"model\":\"m\",\"cost_usd\":0.0003,\"outcome\":\"ok\",\"run_id\":\"r1\",\"workflow\":\"w\"}\n",
-        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":[{\"client\":\"vibe-mistral-large\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\",\"testability\"],\"max_price_usd\":1.5,\"time_limit_s\":900}],\"deep\":[]}}}\n"
+        "home/.config/agent-kit/critique-routing.json": "{\"stages\":{\"spec\":{\"base\":[{\"client\":\"vibe-mistral-small\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\",\"testability\"],\"max_price_usd\":1.5,\"time_limit_s\":900}],\"deep\":[]}}}\n"
       },
       "roots": [
         "repos/k1/.git/critique"

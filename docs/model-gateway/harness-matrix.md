@@ -113,7 +113,7 @@ refused with `launch-failed` and the reason. The grants of each recipe are in AD
 |---|---|---|---|---|
 | pi | yes (as before) | pass | pass | |
 | opencode (LiteLLM route) | yes: run home, 443 and loopback | `litellm-opencode-go/ministral-3b` ok | pass | any host on 443 |
-| opencode-free (own providers) | yes: run home, owner's `~/.local/share/opencode` writable | `opencode/nemotron-3.5-lightning-free` ok | pass | the owner's OpenCode database is writable by the run |
+| opencode-free (own providers; the client is removed since, as free models run only as `free/<model>` on Pi) | yes: run home, owner's `~/.local/share/opencode` writable | `opencode/nemotron-3.5-lightning-free` ok | pass | the owner's OpenCode database is writable by the run |
 | hermes (LiteLLM route) | yes: run home, port 443 | `ministral-3b` ok | pass | any host on 443 |
 | claude | yes: `CLAUDE_CODE_OAUTH_TOKEN` read by the gateway, no keychain, nothing of `~/.claude` | `claude-haiku-5-5` ok | pass | any host on 443 |
 | agy | yes: keychain (residual risk: any item whose ACL allows any app is readable), `~/.gemini/antigravity-cli` and `~/.gemini/config` writable, 443 and loopback | `gemini-3.8-flash-low` ok | pass | any host on 443; its skills dir is readable |
@@ -128,8 +128,8 @@ baseline says. An earlier run of the same command had Hermes fail its probe on a
 guessed from the path of its run home (`.local`, `.hermes`, `.ssh`: the probe now ignores the directories a run home
 holds), and OpenCode's probe answer with a transient `ECONNRESET`, which passed on the run after.
 
-Which clients the profiles still name in `unenforced_clients`: `agy` and `codex`. `claude`, `hermes`, `opencode`
-and `opencode-free` are out of it, since their probe cell passes live and their home holds no MCP server, skill or
+Which clients the profiles still name in `unenforced_clients`: `agy` and `codex`. `claude`, `hermes` and `opencode`
+are out of it, since their probe cell passes live and their home holds no MCP server, skill or
 plugin, so a deny-all scope holds (`profiles::CONFINED_CLIENTS`). Antigravity reads the owner's `~/.gemini/config`,
 where its skills are; Codex's probe cell cannot run on this machine.
 
@@ -138,7 +138,7 @@ where its skills are; Codex's probe cell cannot run on this machine.
 | client | per-run home | MCP |
 |---|---|---|
 | opencode (LiteLLM route) | yes: `HOME`, `XDG_*`, `TMPDIR`, `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR` in `<run dir>/client-home`, one provider, project config and `.claude` skills off | none declared; `*` denied |
-| opencode, opencode-free (OpenCode's own providers) | yes, with `OPENCODE_DB` at the owner's database: the sign-in is in `opencode.db` and a fresh one signs in as nobody (the free models answer 429 or no route), so the confinement lets the run write the owner's `opencode` data directory and nothing else | none declared; `*` denied |
+| opencode (OpenCode's own provider `opencode-go`) | yes, with `OPENCODE_DB` at the owner's database: the sign-in is in `opencode.db` and a fresh one signs in as nobody (its models answer 429 or no route), so the confinement lets the run write the owner's `opencode` data directory and nothing else | none declared; `*` denied |
 | hermes (LiteLLM route) | yes: `HERMES_HOME`, `HOME`, `XDG_*` in the run home, one provider (no literal key copied), `-t web` read-only | `mcp_servers: {}` |
 | hermes (other provider) | yes, with a copy of the owner's `.env` (its key) and nothing else of `~/.hermes` | `mcp_servers: {}`, `--safe-mode`, `-t web` read-only |
 | claude | a `tmp` directory only (`CLAUDE_CODE_TMPDIR`); the real `HOME`, because the subscription login is in the keychain, which is found through it. Nothing of `~/.claude` is readable | `--strict-mcp-config`, no `--mcp-config`; `--disable-slash-commands`; auto-memory off |

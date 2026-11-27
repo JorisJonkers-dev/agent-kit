@@ -205,7 +205,7 @@ pub fn plain_name(name: &str) -> bool {
 /// load and the confinement reads nothing of the owner's beyond the client's own sign-in. Antigravity is not
 /// here (its confinement grants the owner's `~/.gemini/config`, where its skills are), nor are Codex and Vibe
 /// (their probe cells cannot run on this machine's profiles).
-pub const CONFINED_CLIENTS: [&str; 4] = ["claude", "hermes", "opencode", "opencode-free"];
+pub const CONFINED_CLIENTS: [&str; 3] = ["claude", "hermes", "opencode"];
 
 /// The limit the chosen client cannot enforce, as a reason, or `None` when it can hold the scope. Pi enforces: its
 /// per-run home is built from the scope, so it holds a list of skills and plugins (extensions) by name, and holds

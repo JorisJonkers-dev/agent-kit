@@ -114,22 +114,27 @@ impl Files for Plain {
 #[test]
 fn the_grants_of_a_launch_read_the_work_directory_or_write_it_and_write_the_run_directory() {
     let input = LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: Some(RunMode::ReadOnly), provider: None };
-    let mut paths = LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g1".into(), "/g2".into()]) };
+    let mut paths = LaunchPaths { export_dir: "/run/export".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g1".into(), "/g2".into()]), git_view: GitView::default() };
     let confinement = Confinement { launcher: LAUNCHER.into(), reads: vec!["/r".into()], run_from: vec!["node".into()], writes: vec!["/own".into()], ports: vec![443, 8443], loopback: true, keychain: true, preferences: true, env: vec!["USER".into()] };
     let names = ["B".to_string(), "A".to_string(), "USER".to_string()];
     // A read-only run reads the work directory, never its git directories, and writes the export directory when it has no run directory.
     assert_eq!(
         confinement.args(&input, &paths, "claude", &names),
         strings(&[
-            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
+            "confine", "--read", "/w", "--run-from", "claude", "--write", "/run/export", "--read", "/p", "--run-from", "node", "--read", "/r", "--write", "/own", "--net-connect", "443", "--net-connect", "8443", "--net-loopback", "--keychain", "--preferences", "--env", "A", "--env",
             "B", "--env", "USER", "--"
         ])
     );
     // A writing run writes the work directory and the git directories it names, and the run directory.
+    // A prompt inside the run directory is readable already and is not granted again.
     paths.run_dir = Some("/run/own".into());
+    paths.prompt_path = "/run/own/prompt.md".into();
     let writing = LaunchRequest { mode: Some(RunMode::Write), ..input };
     let bare = Confinement { launcher: LAUNCHER.into(), ..Confinement::default() };
     assert_eq!(bare.args(&writing, &paths, "codex", &[]), strings(&["confine", "--write", "/w", "--write", "/g1", "--write", "/g2", "--run-from", "codex", "--write", "/run/own", "--"]));
+    // No prompt file, no read of one.
+    let unnamed = LaunchPaths { prompt_path: String::new(), ..paths.clone() };
+    assert_eq!(bare.args(&writing, &unnamed, "codex", &[]), bare.args(&writing, &paths, "codex", &[]));
     assert_eq!(no_launcher("opencode"), "opencode: agent-launcher is not on PATH, and a delegate only runs confined to its working directory; re-run agent-kit setup, which installs it");
 }
 
@@ -184,6 +189,14 @@ fn vibe_runs_in_a_copy_of_its_config_and_agents_and_reads_the_skills_directory_i
     for copied in ["/run/client-home/vibe/config.toml", "/run/client-home/vibe/agents"] {
         assert!(disk.files.lock().unwrap().contains_key(copied), "{copied}");
     }
+    // The owner's own `~/.vibe/config.toml` is above the work directory: Vibe's project-config walk stats it, so it
+    // is granted as that one file, as is any other project config above; one that is not there is not granted.
+    let walked = owner().with("/home/me/.vibe/config.toml", "x").with("/.vibe/config.toml", "x");
+    let above = grants_of(&walked, &ClientRunRequest { paths: LaunchPaths { work_dir: "/home/me/repo/w".into(), ..request(RunClient::Vibe, "m", None, RunMode::ReadOnly).paths }, ..request(RunClient::Vibe, "m", None, RunMode::ReadOnly) });
+    assert_eq!(grant_values(&above, "--read"), ["/home/me/repo/w", "/home/me/.vibe/config.toml", "/.vibe/config.toml"]);
+    // Another client walks nothing of the kind.
+    let other = grants_of(&walked, &ClientRunRequest { paths: LaunchPaths { work_dir: "/home/me/repo/w".into(), ..request(RunClient::Claude, "m", None, RunMode::ReadOnly).paths }, ..request(RunClient::Claude, "m", None, RunMode::ReadOnly) });
+    assert!(!grant_values(&other, "--read").iter().any(|read| read.ends_with("config.toml")));
     // An owner with no config, agents or skills directory gets a home with none of them, and no extra read.
     let bare = grants_of(&owner(), &request(RunClient::Vibe, "m", None, RunMode::ReadOnly));
     assert_eq!(grant_values(&bare, "--read"), ["/run/work"]);
@@ -234,19 +247,19 @@ fn a_client_that_cannot_be_confined_is_refused_and_leaves_no_home_behind() {
     // No launcher: no run, and the home made for it goes at once (it may hold a link to the owner's login).
     let no_launcher = HashMap::from([("HOME".to_string(), "/home/me".to_string())]);
     let disk = owner();
-    let refused = (ClientRun { process: &programs, files: &disk, env: &no_launcher }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("refused");
+    let refused = (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &no_launcher }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("refused");
     assert!(matches!(&refused, ClientRunError::Gateway(error) if error.code == "unconfined" && error.message.starts_with("codex: agent-launcher is not on PATH")), "{refused:?}");
     assert!(programs.ran.lock().unwrap().is_empty());
     assert_eq!(disk.removed.lock().unwrap().as_slice(), ["/run/client-home"]);
     // A launcher found on `PATH`, and a login that is not there.
     let on_path = HashMap::from([("HOME".to_string(), "/home/me".to_string()), ("PATH".to_string(), "/usr/local/bin".to_string())]);
     let found = owner().with("/usr/local/bin/agent-launcher", "");
-    (ClientRun { process: &Programs::answering(), files: &found, env: &on_path }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect("launched");
-    let signed_out = (ClientRun { process: &programs, files: &Disk::default(), env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("signed out");
+    (ClientRun { process: &Programs::answering(), files: &found, clock: &crate::adapters::clock::SystemClock, env: &on_path }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect("launched");
+    let signed_out = (ClientRun { process: &programs, files: &Disk::default(), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect_err("signed out");
     assert!(matches!(&signed_out, ClientRunError::Gateway(error) if error.message.contains("sign in with codex login")), "{signed_out:?}");
     // A home whose directory cannot be made.
     let broken = Programs::answering();
-    let unmakeable = (ClientRun { process: &broken, files: &Nowhere(owner()), env: &env() }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect_err("no directory");
+    let unmakeable = (ClientRun { process: &broken, files: &Nowhere(owner()), clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Claude, "m", None, RunMode::ReadOnly)).expect_err("no directory");
     assert!(matches!(&unmakeable, ClientRunError::Gateway(error) if error.message.starts_with("claude: cannot make the launch's home /run/client-home: EACCES")), "{unmakeable:?}");
 }
 
@@ -254,7 +267,7 @@ fn a_client_that_cannot_be_confined_is_refused_and_leaves_no_home_behind() {
 fn a_launch_built_without_a_confinement_is_the_clients_own_command() {
     use crate::extras::SandboxProfile;
     use crate::launchers::{launcher, LaunchExtras};
-    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g".into()]) };
+    let paths = LaunchPaths { export_dir: "/e".into(), prompt_path: "/p".into(), run_dir: None, work_dir: "/w".into(), git_writable: Some(vec!["/g".into()]), git_view: GitView::default() };
     let input = |mode| LaunchRequest { model: "m".into(), time_limit_s: 30.0, max_price_usd: None, mode: Some(mode), provider: None };
     let build = |client, mode, extras: Option<&LaunchExtras>| (launcher(client).command)("bin", &input(mode), &paths, "ask", extras);
     // Vibe unsets the variables a Study or private session would carry, since the launcher is not there to clear them.
@@ -319,7 +332,7 @@ fn a_refreshed_login_is_put_back_after_the_launch_and_a_failure_is_a_warning() {
     let disk = owner().with("/home/me/.codex/auth.json", r#"{"tokens":{"a":1}}"#);
     let programs = Programs::answering();
     // The fake process refreshes nothing, so the owner's file is unchanged and no warning is made.
-    let outcome = (ClientRun { process: &programs, files: &disk, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect("launched");
+    let outcome = (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &env() }).launch(&request(RunClient::Codex, "gpt", None, RunMode::ReadOnly)).expect("launched");
     assert!(outcome.warnings.is_empty());
     assert_eq!(disk.text("/home/me/.codex/auth.json").as_deref(), Some(r#"{"tokens":{"a":1}}"#));
 }
@@ -333,7 +346,7 @@ fn a_client_that_can_sign_in_from_a_variable_gets_the_credential_and_no_keychain
             environment.insert("USER".to_string(), "owner".to_string());
         }
         let disk = owner();
-        (ClientRun { process: &programs, files: &disk, env: &environment }).launch(&request(client, "m", None, RunMode::ReadOnly)).expect("launched");
+        (ClientRun { process: &programs, files: &disk, clock: &crate::adapters::clock::SystemClock, env: &environment }).launch(&request(client, "m", None, RunMode::ReadOnly)).expect("launched");
         let command = programs.first();
         let grants = programs.grants.lock().unwrap()[0].clone();
         (command.env, grants)

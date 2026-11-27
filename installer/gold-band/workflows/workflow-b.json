@@ -54,7 +54,7 @@
         "id": "test-critic-1",
         "executionSlotId": "slot-test-critic-1",
         "provider": "pi",
-        "model": "litellm-vibe/glm-5.3",
+        "model": "litellm-vibe/glm-5.3-flash",
         "profile": "pf-diff-reviewer",
         "goal": "You are the test critic for slice 1, from another family than the test author and the writer. Read the ticket's requirement document, slice-plan.json, the spec's Testing Decisions and the test the test author wrote for slice 1 (the git diff against the base branch). Look for tests coupled to the implementation (an assertion on a private function, a call count or an internal field, a mock of the unit's own collaborators, anything a refactor that keeps behaviour would break), for tautological tests (no assertion, a value copied from the output of the code under test, a mock that returns what it asserts, a test that cannot fail) and for tests outside the seams the spec lists. Write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the test or the ticket, and a no_findings_reason when the array is empty; an empty slice 1 has none), to findings/test-critic-1.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -199,7 +199,7 @@
         "id": "test-critic-2",
         "executionSlotId": "slot-test-critic-2",
         "provider": "pi",
-        "model": "litellm-vibe/glm-5.3",
+        "model": "litellm-vibe/glm-5.3-flash",
         "profile": "pf-diff-reviewer",
         "goal": "You are the test critic for slice 2, from another family than the test author and the writer. Read the ticket's requirement document, slice-plan.json, the spec's Testing Decisions and the test the test author wrote for slice 2 (the git diff against the base branch). Look for tests coupled to the implementation (an assertion on a private function, a call count or an internal field, a mock of the unit's own collaborators, anything a refactor that keeps behaviour would break), for tautological tests (no assertion, a value copied from the output of the code under test, a mock that returns what it asserts, a test that cannot fail) and for tests outside the seams the spec lists. Write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the test or the ticket, and a no_findings_reason when the array is empty; an empty slice 2 has none), to findings/test-critic-2.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -344,7 +344,7 @@
         "id": "test-critic-3",
         "executionSlotId": "slot-test-critic-3",
         "provider": "pi",
-        "model": "litellm-vibe/glm-5.3",
+        "model": "litellm-vibe/glm-5.3-flash",
         "profile": "pf-diff-reviewer",
         "goal": "You are the test critic for slice 3, from another family than the test author and the writer. Read the ticket's requirement document, slice-plan.json, the spec's Testing Decisions and the test the test author wrote for slice 3 (the git diff against the base branch). Look for tests coupled to the implementation (an assertion on a private function, a call count or an internal field, a mock of the unit's own collaborators, anything a refactor that keeps behaviour would break), for tautological tests (no assertion, a value copied from the output of the code under test, a mock that returns what it asserts, a test that cannot fail) and for tests outside the seams the spec lists. Write your whole answer, one findings document in the critic finding schema (a findings array, each finding with at least one quote evidence item that is copied verbatim from the test or the ticket, and a no_findings_reason when the array is empty; an empty slice 3 has none), to findings/test-critic-3.json in your own worktree, committed. Change no other file. Answer with one fenced json block holding ok and nothing else.",
         "output": {
@@ -2388,7 +2388,7 @@
       {
         "executionSlotId": "slot-test-critic-1",
         "agentId": "pi",
-        "modelId": "litellm-vibe/glm-5.3"
+        "modelId": "litellm-vibe/glm-5.3-flash"
       },
       {
         "executionSlotId": "slot-gate-findings-1",
@@ -2423,7 +2423,7 @@
       {
         "executionSlotId": "slot-test-critic-2",
         "agentId": "pi",
-        "modelId": "litellm-vibe/glm-5.3"
+        "modelId": "litellm-vibe/glm-5.3-flash"
       },
       {
         "executionSlotId": "slot-gate-findings-2",
@@ -2458,7 +2458,7 @@
       {
         "executionSlotId": "slot-test-critic-3",
         "agentId": "pi",
-        "modelId": "litellm-vibe/glm-5.3"
+        "modelId": "litellm-vibe/glm-5.3-flash"
       },
       {
         "executionSlotId": "slot-gate-findings-3",

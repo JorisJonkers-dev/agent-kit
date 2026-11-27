@@ -65,8 +65,9 @@ holds one record per reviewer with `tier`, `litellm_model_id`, `served_model`,
 - **Refused**: the result's `message` says why (`not-opted-in` and the other
   prepare refusals, `too-few-families` with what was passed over, or
   `tier-not-ready` when Pi, its key or the confinement is missing). Give the
-  line as it stands and stop. Free steps are for a repository the allowlist
-  records as `public`; a private one starts at Vibe Flash.
+  line as it stands and stop. Free steps are for a repository GitHub says is
+  public; a private one, or one whose visibility cannot be read, starts at
+  Vibe Flash.
 - **`status: failed`**: fewer than three families reviewed (a reviewer LiteLLM
   served from another model counts as no review, and is retried through a family
   not yet in the review). Say so; the synthesis still lists what was found.

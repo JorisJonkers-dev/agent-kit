@@ -169,10 +169,10 @@ fn a_run_with_a_routing_prints_it_and_reads_it_back() {
 #[test]
 fn a_refusal_names_each_dropped_critic_then_each_step_with_no_family() {
     let all: Vec<String> = ["deepseek", "zhipu"].iter().map(|f| f.to_string()).collect();
-    let steps = [step("free/beam-free", "free"), step("vibe-tier/deepseek-v4-1-flash-1017", "vibe")];
+    let steps = [step("free/beam-1.0-501b-a23b", "free"), step("vibe-tier/deepseek-v4-1-flash-1017", "vibe")];
     let (roster, _) = resolve_roster(&steps, &slots(), &request(&all, &[], true));
     let passed = passed_over(&roster, &["x/unplaced".to_string()]);
-    assert_eq!(passed.first().map(String::as_str), Some("free-beam-free (family-not-allowed)"), "{passed:?}");
+    assert_eq!(passed.first().map(String::as_str), Some("free-beam-1.0-501b-a23b (family-not-allowed)"), "{passed:?}");
     assert_eq!(passed.last().map(String::as_str), Some("x/unplaced (no known family)"), "{passed:?}");
     assert!(passed_over(&roster, &[]).iter().all(|line| !line.contains("no known family")));
 }

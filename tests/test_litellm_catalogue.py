@@ -234,7 +234,9 @@ def test_the_public_only_access_groups_come_from_routes_json(tmp_path: Path) -> 
     )
     assert cat.public_access_groups(routes) == frozenset({"google-free-public", "openrouter-free"})
     assert cat.public_access_groups(tmp_path / "missing.json") == frozenset()
-    assert "google-free-public" in cat.public_access_groups()
+    # The shipped routes: the one public-only group is `free`, held by the free and tier-review keys.
+    assert "free" in cat.public_access_groups()
+    assert not {g for g in cat.public_access_groups() if g.endswith("-free-public")}
 
 
 def _runner(code: int, stdout: str = "", stderr: str = ""):
@@ -347,3 +349,29 @@ def test_usable_group_names_needs_one_usable_probe() -> None:
         "live",
     )
     assert cat.usable_group_names(catalogue) == {"a"}
+
+
+def test_a_free_group_is_free_even_when_its_provider_marks_the_model_billed() -> None:
+    """A free/<model> group (access group `free` alone) costs nothing: the litellm sync allows no priced copy in it."""
+    catalogue = cat.Catalogue(
+        {
+            "updated_at": "2026-11-26T12:00:00Z",
+            "providers": {"google": {"models": [_model("google/gemini-3.6-flash", "usable", free=False)]}},
+            "groups": {
+                "free/gemini-3.6-flash": {
+                    "modality": "chat",
+                    "public": True,
+                    "access_groups": ["free"],
+                    "deployments": [{"route": "google", "upstream_id": "gemini-3.6-flash", "order": 1}],
+                },
+                "gemini-3.6-flash": {
+                    "modality": "chat",
+                    "public": False,
+                    "deployments": [{"route": "google", "upstream_id": "gemini-3.6-flash", "order": 1}],
+                },
+            },
+        },
+        "live",
+    )
+    reached = {g.name: g.free for g in cat.canonical_groups(catalogue, ["free", "canonical"], [])}
+    assert reached == {"free/gemini-3.6-flash": True, "gemini-3.6-flash": False}

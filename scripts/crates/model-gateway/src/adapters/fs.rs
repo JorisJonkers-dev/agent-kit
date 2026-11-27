@@ -89,6 +89,11 @@ impl Files for SystemFiles {
         std::fs::create_dir_all(resolve(&self.cwd, path)).map_err(|error| fail(&error, "mkdir", Some(path)))
     }
 
+    fn mkdir_private(&self, path: &str) -> Result<(), FsError> {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().recursive(true).mode(0o700).create(resolve(&self.cwd, path)).map_err(|error| fail(&error, "mkdir", Some(path)))
+    }
+
     fn create_exclusive(&self, path: &str) -> Result<bool, FsError> {
         match std::fs::OpenOptions::new().write(true).create_new(true).open(resolve(&self.cwd, path)) {
             Ok(_) => Ok(true),
@@ -190,6 +195,13 @@ impl Files for SystemFiles {
 
     fn copy_tree(&self, from: &str, to: &str) -> Result<(), FsError> {
         copy_into(std::path::Path::new(&resolve(&self.cwd, from)), std::path::Path::new(&resolve(&self.cwd, to)), 0).map_err(|error| fail(&error, "cp", Some(from)))
+    }
+
+    fn list_dir(&self, path: &str) -> Result<Vec<String>, FsError> {
+        let entries = std::fs::read_dir(resolve(&self.cwd, path)).map_err(|error| fail(&error, "scandir", Some(path)))?;
+        let mut names: Vec<String> = entries.flatten().map(|entry| entry.file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        Ok(names)
     }
 }
 

@@ -27,9 +27,9 @@ use crate::plan_packet::{read_plan_packet, PlanRequest};
 use crate::prepared_json::{critic_value, depth_choice_value, dropped_value, identity_value, limits_value};
 use crate::quota::quota_reached;
 use crate::recovery_packet::{read_recovery_packet, RecoveryRequest};
-use crate::repository::{read_allowlist, refusal, resolve_for_roster, work_entry, Resolved, RosterResolution};
+use crate::repository::{permission, refusal, resolve, Permission, Resolution, Resolved};
 use crate::roster_resolve::{
-    candidate_clients, resolve_roster, resolve_work_roster, work_candidate_clients, work_grant_client, Availability, Roster, RosterRequest, WorkGrant, WorkRosterRequest,
+    candidate_clients, resolve_roster, Availability, Roster, RosterRequest,
 };
 use crate::routing::{stage_routing, CriticClient, RosterSlot, Routing, StageRouting};
 use crate::routing_source::load_routing;
@@ -40,7 +40,6 @@ use crate::staged_change::{snapshot, staged_input, StagedInputError};
 use crate::tickets::{size_report, summarise_check, TicketSize};
 use crate::tracker_resolver::{resolve_tracker, ArtifactRead, TrackedArtifact, Tracker, TrackerResolution};
 use crate::triage::{risk_path_hits, CodeChange};
-use model_gateway::grant_guard::GrantGuard;
 use model_gateway::json::{self, Object, Value};
 use model_gateway::run::compact_timestamp;
 use model_gateway::sha256::sha256_hex;
@@ -56,8 +55,6 @@ struct PrepareInput {
     repo: String,
     /// The artifact as its tracker names it: an issue reference for GitHub, a path for local markdown.
     spec: Option<String>,
-    /// The model-gateway workflow whose grant lets Codex critique a `nedap` repository; the run's flow when not named.
-    workflow: Option<String>,
     /// The decisions stage's feature statement, and its decision summary after `/grill-me`.
     feature: Option<String>,
     decision_summary: Option<String>,
@@ -116,8 +113,7 @@ fn read_input(raw: &Value) -> Result<PrepareInput, CritiqueError> {
         StagedInputError::Refused(error) => error,
     })?;
     let ticket = fields.optional_string("ticket").map_err(shape)?;
-    let workflow = fields.optional_string("workflow").map_err(shape)?;
-    Ok(PrepareInput { stage, orchestrator_family, repo, spec, workflow, feature, decision_summary, comments, references, adrs, flow, previous_run_dir, depth, base, head, staged, ticket, plan, free, tier_review })
+    Ok(PrepareInput { stage, orchestrator_family, repo, spec, feature, decision_summary, comments, references, adrs, flow, previous_run_dir, depth, base, head, staged, ticket, plan, free, tier_review })
 }
 
 /// What the stage critiques, whose labels and text its depth signals read.
@@ -234,26 +230,19 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     if flow_key(&stage) == FlowKey::Run && input.flow.is_some() {
         return Err(CritiqueError::new("invalid-input", format!("{stage} is a review stage: each run is a flow of its own, so it takes no flow")));
     }
-    let (repository, work) = match resolve_for_roster(runtime, &input.repo)? {
-        RosterResolution::Refused(refusal) => return Ok(refusal),
-        RosterResolution::Resolved(repository, work) => (repository, work),
+    // A nedap repository, and one with no remote, are refused here: nothing of theirs is sent to any critic.
+    let repository = match resolve(runtime, &input.repo)? {
+        Resolution::Refused(refusal) => return Ok(refusal),
+        Resolution::Resolved(repository) => repository,
     };
-    if work && input.tier_review {
-        return Ok(refusal("work-repository", "the tier-review roster is for open repositories; a nedap repository's critics are its work roster, so leave roster out"));
-    }
-    // A nedap repository has the work-only roster whatever the allowlist says, so it needs no entry.
-    let entry: Entry = if work {
-        work_entry()
-    } else {
-        match read_allowlist(runtime)?.get(&repository.key) {
-            Some(entry) => entry.clone(),
-            None => return Ok(refusal("not-opted-in", &format!("{} has no family allowlist entry on this machine; record one with allow", repository.key))),
-        }
+    // A repository GitHub says is public is not held to the allowlist; any other needs an entry.
+    let Some(Permission { entry, public }) = permission(runtime, &repository)? else {
+        return Ok(refusal("not-opted-in", &format!("{} has no family allowlist entry on this machine; record one with allow", repository.key)));
     };
-    if input.free && !entry.public {
+    if input.free && !public {
         return Ok(refusal(
             "not-public",
-            &format!("the free-only roster is for public material only, and {} is not recorded as public; record it with allow and \"public\": true, or leave roster out", repository.key),
+            &format!("the free-only roster is for public material only, and GitHub does not say {} is public; leave roster out", repository.key),
         ));
     }
     if needs_code_permission(&stage) && !entry.code {
@@ -302,15 +291,14 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
         },
     };
     let (depth, choice) = choose_depth(&stage, &stage_routes.depth_signals, &evidence, input.depth.as_deref());
-    let grant = if work { Some(work_grant(runtime, &input, &work_grant_client(&routing, &stage)?)) } else { None };
     let allowed: Vec<String> = entry.families.clone();
-    let roster = match &grant {
-        Some(grant) => work_roster(runtime, &routing, &input, &stage, grant)?,
-        None if input.tier_review => match tier_roster(runtime, stage_routes, &entry, &input.orchestrator_family)? {
+    let roster = if input.tier_review {
+        match tier_roster(runtime, stage_routes, &entry, public, &input.orchestrator_family)? {
             Ok(roster) => roster,
             Err(refused) => return Ok(refused),
-        },
-        None => open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr, public_repository: entry.public, free: input.free })?,
+        }
+    } else {
+        open_roster(runtime, &routing, &RosterRequest { stage: &stage, depth: &depth, allowed_families: &allowed, orchestrator_family: &input.orchestrator_family, adr: contents.holds_adr, public_repository: public, free: input.free })?
     };
     let plan_warnings = if roster.critics.iter().any(|critic| matches!(critic.client_config, CriticClient::Vibe(_))) { plan_limit(runtime, "vibe")?.warnings } else { Vec::new() };
     let run_id = fresh_run_id(runtime, &repository, &stage);
@@ -348,7 +336,7 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     manifest.set("orchestrator_family", Value::str(&input.orchestrator_family));
     manifest.set("packet_dir", Value::str(&packet_dir));
     manifest.set("packet_files", Value::Arr(packet_files.iter().map(|file| file.value.clone()).collect()));
-    if entry.public {
+    if public {
         manifest.set("public_repository", Value::Bool(true));
     }
     if input.free {
@@ -362,13 +350,6 @@ pub fn run(raw: &Value, runtime: &Runtime) -> Result<Value, CritiqueError> {
     }
     manifest.set("repo_root", Value::str(&repository.root));
     manifest.set("repository", Value::str(&repository.key));
-    if let Some(grant) = &grant {
-        let work = match grant {
-            WorkGrant::Live { workflow } => json::object(vec![("grant_workflow", Value::str(workflow))]),
-            WorkGrant::Missing { .. } => json::object(Vec::new()),
-        };
-        manifest.set("work", work);
-    }
     if let Some(previous) = &round.previous_run_id {
         manifest.set("previous_run_id", Value::str(previous));
     }
@@ -621,30 +602,6 @@ fn round(runtime: &Runtime, input: &PrepareInput, repository: &Resolved, stage: 
     Ok(Round::Taken(RoundOf { round: 2.0, previous_run_id: Some(previous.run_id), previous_flow: Some(previous.flow) }))
 }
 
-/// Whether a live grant covers the run's workflow for the stage's Codex client (named by routing), or what is missing.
-fn work_grant(runtime: &Runtime, input: &PrepareInput, client: &str) -> WorkGrant {
-    let Some(workflow) = input.workflow.as_ref().or(input.flow.as_ref()) else {
-        return WorkGrant::Missing { detail: "name the model-gateway workflow with workflow so a grant for it can be found".to_string() };
-    };
-    match (GrantGuard { runtime: &runtime.gateway }).live(workflow, client, runtime.clock.now_ms()) {
-        Ok(Some(_)) => WorkGrant::Live { workflow: workflow.clone() },
-        Ok(None) => WorkGrant::Missing { detail: format!("no live grant covers workflow {workflow} for {client}: ask the owner, then write one with model-gateway grant write") },
-        Err(error) => WorkGrant::Missing { detail: format!("the grants could not be read, so {client} is left out: {}", error.message) },
-    }
-}
-
-/// A `nedap` repository's roster: only the work clients, each asked whether it can run here once the family and grant
-/// rules let it.
-fn work_roster(runtime: &Runtime, routing: &Routing, input: &PrepareInput, stage: &str, grant: &WorkGrant) -> Result<Roster, CritiqueError> {
-    let request = WorkRosterRequest { stage, orchestrator_family: &input.orchestrator_family, grant };
-    let mut readiness: HashMap<String, Availability> = HashMap::new();
-    for (name, client) in work_candidate_clients(routing, &request)? {
-        let ready = client_readiness(runtime, client)?;
-        readiness.insert(name, Availability { ready: ready.ready, detail: ready.detail.unwrap_or_default(), reason: None });
-    }
-    resolve_work_roster(routing, &request, &readiness)
-}
-
 /// Asks each client the stage could run, and that the family rules permit, whether it can run here, holds an agy
 /// client that can to the day's Antigravity quota, and holds a Vibe client that can to Vibe's plan limit: at 100% of
 /// any window it counts as unable to start, so it is dropped the way an agy past its quota is.
@@ -671,14 +628,14 @@ fn open_roster(runtime: &Runtime, routing: &Routing, request: &RosterRequest) ->
 /// The tier-review roster: reviewers of at least three families, one step model each from the chain of the `tier-review`
 /// alias in ladder order, none of the writer's family. A run that cannot have them is refused with what was passed over,
 /// and so is one whose key or confinement is not ready here: a launch that would only be turned away is never frozen.
-fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, writer_family: &str) -> Result<Result<Roster, Value>, CritiqueError> {
+fn tier_roster(runtime: &Runtime, stage: &StageRouting, entry: &Entry, public: bool, writer_family: &str) -> Result<Result<Roster, Value>, CritiqueError> {
     use crate::tier_review::{cooled_models, passed_over, resolve_roster, review_ladder, Request, MIN_FAMILIES, TIER};
     let slots: Vec<RosterSlot> = stage.base.iter().chain(&stage.deep).cloned().collect();
     if slots.is_empty() {
         return Ok(Err(refusal("no-roster", "routing names no critics for this stage to give the tier-review reviewers their roles")));
     }
     let cooled = cooled_models(runtime)?;
-    let request = Request { allowed_families: &entry.families, writer_family, public_repository: entry.public, cooled: &cooled, want: MIN_FAMILIES };
+    let request = Request { allowed_families: &entry.families, writer_family, public_repository: public, cooled: &cooled, want: MIN_FAMILIES };
     let (roster, unplaced) = resolve_roster(&review_ladder()?, &slots, &request);
     if roster.critics.len() < MIN_FAMILIES {
         let passed = passed_over(&roster, &unplaced);

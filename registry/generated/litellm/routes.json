@@ -33,17 +33,6 @@
       ]
     },
     {
-      "agent": "openrouter",
-      "key_env": "LITELLM_OPENROUTER_KEY",
-      "budget_eur": null,
-      "budget_duration": null,
-      "data_scope": "public",
-      "models": [
-        "openrouter-free-public",
-        "opencode-go-free-public"
-      ]
-    },
-    {
       "agent": "local",
       "key_env": "LITELLM_LOCAL_KEY",
       "budget_eur": null,
@@ -52,17 +41,6 @@
       "models": [
         "canonical",
         "local/*"
-      ]
-    },
-    {
-      "agent": "public",
-      "key_env": "LITELLM_PUBLIC_KEY",
-      "budget_eur": 5,
-      "budget_duration": "30d",
-      "data_scope": "public",
-      "models": [
-        "google-free-public",
-        "canonical"
       ]
     },
     {
@@ -85,7 +63,8 @@
       "models": [
         "tier-vibe",
         "vibe-tier",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ]
     },
     {
@@ -96,7 +75,8 @@
       "data_scope": "any",
       "models": [
         "tier-go-cheap",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ]
     },
     {
@@ -110,6 +90,16 @@
         "tier-review",
         "vibe-tier",
         "opencode-go-tier"
+      ]
+    },
+    {
+      "agent": "paid",
+      "key_env": "LITELLM_PAID_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "any",
+      "models": [
+        "paid"
       ]
     }
   ]

@@ -337,13 +337,7 @@ pub fn vibe_sign_in(runtime: &Runtime, config: &VibeCriticClient) -> Result<Clie
 /// Puts one question to the agent's model, launched exactly as a critic is (the same isolation, the same checks of the
 /// effective config), and returns its final message as plain text.
 pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCriticClient) -> Result<ModelAnswerReport, CritiqueError> {
-    let paths = LaunchPaths {
-        export_dir: crate::paths::join(&[&question.output_dir, "export"]),
-        prompt_path: question.prompt_path.clone(),
-        run_dir: None,
-        work_dir: question.work_dir.clone(),
-        git_writable: None,
-    };
+    let paths = crate::paths::launch_paths(runtime, &question.output_dir, &question.prompt_path, &question.work_dir)?;
     let (result, run) = launch_run(runtime, question.time_limit_s, question.max_price_usd, config, &paths, None)?;
     Ok(ModelAnswerReport {
         exit_code: result.exit_code,
@@ -359,9 +353,8 @@ pub fn vibe_ask(runtime: &Runtime, question: &ModelQuestion, config: &VibeCritic
 /// Runs one Vibe critic in its packet and reads its review from stdout and the export file, launched exactly as a
 /// question is, with the runner's search server in its packet copy when its toolset has one (ADR-0006).
 pub fn vibe_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &VibeCriticClient) -> Result<CriticReport, CritiqueError> {
-    let export_dir = crate::paths::join(&[&launch.critic_dir, "export"]);
-    let export_path = crate::paths::join(&[&export_dir, "export.json"]);
-    let paths = LaunchPaths { export_dir, prompt_path: launch.prompt_path.clone(), run_dir: None, work_dir: launch.packet_dir.clone(), git_writable: None };
+    let paths = crate::paths::launch_paths(runtime, &launch.critic_dir, &launch.prompt_path, &launch.packet_dir)?;
+    let export_path = crate::paths::join(&[&paths.export_dir, "export.json"]);
     let search = match &launch.toolset {
         CriticToolset::VibeSearch { search, server, .. } => Some((search.as_slice(), server)),
         _ => None,
@@ -418,7 +411,7 @@ fn launch_run(
         paths: paths.clone(),
         extras: vibe_extras(&config.agent, search),
     };
-    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env };
+    let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), env: &runtime.gateway.env, clock: runtime.clock.as_ref() };
     let launched = gateway.launch(&request).map_err(launch_error)?;
     let exported = launched.exported;
     let vibe_cost_usd = exported.as_ref().and_then(Value::as_object).and_then(|export| export.get("cost_usd")).and_then(number_of);

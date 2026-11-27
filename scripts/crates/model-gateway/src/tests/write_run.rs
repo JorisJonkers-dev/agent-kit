@@ -48,8 +48,8 @@ struct GitState {
     calls: Vec<String>,
 }
 
-/// A git whose answers the test chooses; the repository it finds belongs to nedap, which permits Codex and
-/// Claude Code. A worktree it creates is a real directory, as git's own would be.
+/// A git whose answers the test chooses; the repository it finds is a private one whose allowlist entry permits
+/// every family. A worktree it creates is a real directory, as git's own would be.
 #[derive(Clone, Default)]
 struct FakeGit {
     state: Arc<Mutex<GitState>>,
@@ -84,7 +84,7 @@ impl Git for FakeGit {
     }
 
     fn remotes(&self, _path: &str) -> Result<Vec<GitRemote>, String> {
-        Ok(vec![GitRemote { name: "origin".to_string(), url: "git@github.com:nedap/x.git".to_string() }])
+        Ok(vec![GitRemote { name: "origin".to_string(), url: "git@github.com:acme/x.git".to_string() }])
     }
 
     fn remove_worktree(&self, repo: &str, path: &str) -> Result<(), String> {
@@ -288,6 +288,7 @@ fn machine() -> WriteMachine {
     // A confined Codex run links its home to the owner's login, which the owner has.
     std::fs::create_dir_all(format!("{root}/home/.codex")).expect("codex home");
     std::fs::write(format!("{root}/home/.codex/auth.json"), "{}").expect("codex login");
+    machine.allow_everything("github.com/acme/x");
     WriteMachine { machine, git, process }
 }
 
@@ -865,6 +866,10 @@ fn a_writing_run_result_prints_its_members_in_the_order_the_node_runner_writes_t
         }),
         attempt: Some(2),
         attempt_of: Some("r0".into()),
+        exit_code: None,
+        signal: Some(9),
+        stderr_tail: Some("killed".into()),
+        failure: Some(crate::run_failure::Failure { kind: crate::run_failure::FailureKind::Signalled, reason: "the client was ended by SIGKILL".into(), output_tail: None }),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
         routing: crate::routing::Routing::unseen("claude"),
@@ -876,7 +881,7 @@ fn a_writing_run_result_prints_its_members_in_the_order_the_node_runner_writes_t
     };
     assert_eq!(
         keys.join(","),
-        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,branch,worktree,foreign_worktree,check,staged_files,worktree_error,attempt,attempt_of,cleanup_warning,warnings"
+        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,exit_code,signal,stderr_tail,failure,branch,worktree,foreign_worktree,check,staged_files,worktree_error,attempt,attempt_of,cleanup_warning,warnings"
     );
     // A report with no foreign change, no check and no error prints only what it has.
     result.write = Some(WriteReport {
@@ -894,6 +899,6 @@ fn a_writing_run_result_prints_its_members_in_the_order_the_node_runner_writes_t
     };
     assert_eq!(
         keys.join(","),
-        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,branch,worktree,staged_files,attempt,attempt_of,cleanup_warning,warnings"
+        "client,cost_usd,family,mode,model,output_path,run_id,status,summary,tokens,workflow,reason,unavailable_until,exit_code,signal,stderr_tail,failure,branch,worktree,staged_files,attempt,attempt_of,cleanup_warning,warnings"
     );
 }

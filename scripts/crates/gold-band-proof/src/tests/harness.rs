@@ -225,7 +225,7 @@ fn inspect_reads_the_spec_stage_template() {
     let agents: Vec<String> = info.agent_ids.iter().cloned().collect();
     assert_eq!(agents, vec!["agy".to_string(), "vibe".to_string()]);
     let vibe: Vec<String> = info.models["vibe"].iter().cloned().collect();
-    assert_eq!(vibe, vec!["mistral-large-4-0".to_string()]);
+    assert_eq!(vibe, vec!["mistral-large-4-0".to_string(), "mistral-small-latest".to_string()]);
     let agy: Vec<String> = info.models["agy"].iter().cloned().collect();
     assert_eq!(agy, vec!["gemini-3.8-flash-high".to_string()]);
     let profiles: Vec<String> = info.profiles.iter().cloned().collect();

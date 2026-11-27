@@ -198,8 +198,42 @@ tokens_and_keys() {
 # The packages proxy
 # -----------------------------------------------------------------
 
+# pp_cluster_key prints the key the cluster holds for the workstation, or
+# nothing. The first kube context ending in the admin suffix that can read
+# the secret's data item supplies it; a context that fails is skipped. Only
+# a run that may prompt looks: kubectl may ask for a password. The key is
+# captured, never printed or logged, and a failed read returns 1.
+pp_cluster_key() {
+  local ctx="" key="" secrets=""
+  if [ "${PROMPT}" != 1 ] || [ "${CHECK_ONLY}" = 1 ] || [ "${CLOUD}" = 1 ]; then
+    return 1
+  fi
+  command -v kubectl >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+  while IFS= read -r ctx; do
+    case "${ctx}" in *-admin) ;; *) continue ;; esac
+    secrets="$(kubectl --context "${ctx}" -n packages-system get secrets -o json 2>/dev/null)" || continue
+    key="$(printf '%s' "${secrets}" | python3 -c 'import base64, json, sys
+try:
+    for item in json.load(sys.stdin).get('\''items'\'') or []:
+        value = (item.get('\''data'\'') or {}).get(sys.argv[1])
+        if value:
+            sys.stdout.write(base64.b64decode(value).decode('\''utf-8'\''))
+            break
+except Exception:
+    pass
+' workstation 2>/dev/null)" || continue
+    if [ -n "${key}" ]; then
+      printf '%s' "${key}"
+      return 0
+    fi
+  done < <(kubectl config get-contexts -o name 2>/dev/null)
+  return 1
+}
+
 # pp_resolve_key prints the proxy key (always captured, never logged),
-# in order: PACKAGES_PROXY_TOKEN, the vault secret, the stored token file.
+# in order: PACKAGES_PROXY_TOKEN, the vault secret, the cluster secret, the
+# stored token file.
 # The last resort is a prompt, and only in an interactive run.
 pp_resolve_key() {
   local root="$1"
@@ -215,6 +249,10 @@ pp_resolve_key() {
       printf '%s' "${key}"
       return 0
     fi
+  fi
+  if key="$(pp_cluster_key)" && [ -n "${key}" ]; then
+    printf '%s' "${key}"
+    return 0
   fi
   if [ -s "${token}" ]; then
     printf '%s' "$(cat "${token}" 2>/dev/null)"
@@ -684,7 +722,7 @@ package_proxy_setup() {
     return 0
   fi
   if ! key="$(pp_resolve_key "${root}")"; then
-    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault or the prompt), skipped"
+    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault, the cluster or the prompt), skipped"
     return 0
   fi
   if ! printf 'header = "Authorization: Bearer %s"\n' "${key}" \
@@ -1296,15 +1334,6 @@ _vibe_private_home() {
 # no critic becomes the default agent.
 _vibe_critic_agents() {
   local home="$1" src dest
-  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-mistral-large.toml"
-  dest="${home}/agents/critic-mistral-large.toml"
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "would write ${dest}"
-  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
-    ok "Vibe critic agent critic-mistral-large -> ${dest}"
-  else
-    fail "Vibe critic agent critic-mistral-large: ${dest} does not match ${src}"
-  fi
   src="${KIT_ROOT}/registry/generated/vibe/agents/critic-mistral-small.toml"
   dest="${home}/agents/critic-mistral-small.toml"
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -1314,14 +1343,14 @@ _vibe_critic_agents() {
   else
     fail "Vibe critic agent critic-mistral-small: ${dest} does not match ${src}"
   fi
-  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-glm.toml"
-  dest="${home}/agents/critic-glm.toml"
+  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-glm-flash.toml"
+  dest="${home}/agents/critic-glm-flash.toml"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would write ${dest}"
   elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
-    ok "Vibe critic agent critic-glm -> ${dest}"
+    ok "Vibe critic agent critic-glm-flash -> ${dest}"
   else
-    fail "Vibe critic agent critic-glm: ${dest} does not match ${src}"
+    fail "Vibe critic agent critic-glm-flash: ${dest} does not match ${src}"
   fi
   src="${KIT_ROOT}/registry/generated/vibe/agents/critic-deepseek-flash.toml"
   dest="${home}/agents/critic-deepseek-flash.toml"
@@ -1331,6 +1360,24 @@ _vibe_critic_agents() {
     ok "Vibe critic agent critic-deepseek-flash -> ${dest}"
   else
     fail "Vibe critic agent critic-deepseek-flash: ${dest} does not match ${src}"
+  fi
+  dest="${home}/agents/critic-mistral-large.toml"
+  if [ ! -e "${dest}" ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove ${dest}"
+  else
+    rm -f "${dest}"
+    ok "removed retired Vibe critic agent critic-mistral-large"
+  fi
+  dest="${home}/agents/critic-glm.toml"
+  if [ ! -e "${dest}" ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove ${dest}"
+  else
+    rm -f "${dest}"
+    ok "removed retired Vibe critic agent critic-glm"
   fi
   return 0
 }
@@ -3048,9 +3095,9 @@ if ! command -v claude >/dev/null 2>&1; then
   fail "claude is not on PATH; skipping plugins, language servers and MCP"
 else
   log "plugin marketplaces"
-  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6 agent-kit-official
+  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official 0fbfda5a91f4adc311daca25acc99132f40f0b6e agent-kit-official
   ensure_marketplace caveman JuliusBrussee/caveman 8b0c1d3699b8d83e87fe4605b378da20c41555e0
-  ensure_marketplace drawio jgraph/drawio-mcp 9bd19b362038593bc8611d426c92cd62dc222302
+  ensure_marketplace drawio jgraph/drawio-mcp b7941af5541ba45edb72d6db164302294bf6cb40
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
@@ -3261,7 +3308,7 @@ for install in installs:
         plugin_drift+=("caveman: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 9bd19b362038593bc8611d426c92cd62dc222302)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio b7941af5541ba45edb72d6db164302294bf6cb40)"
     installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
     if [ -z "${expected_commit}" ]; then
       warn "drawio: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3279,7 +3326,7 @@ for install in installs:
         plugin_drift+=("drawio: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "frontend-design: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3297,7 +3344,7 @@ for install in installs:
         plugin_drift+=("frontend-design: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "mattpocock-skills: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3315,7 +3362,7 @@ for install in installs:
         plugin_drift+=("mattpocock-skills: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "security-guidance: its marketplace entry pins no commit, so it cannot be pinned"
@@ -3351,7 +3398,7 @@ for install in installs:
         plugin_drift+=("kubernetes-skill: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github 0fbfda5a91f4adc311daca25acc99132f40f0b6e)"
     installed_commit="$(installed_plugin_commit "${manifest}" "github@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "github: its marketplace entry pins no commit, so it cannot be pinned"
@@ -4487,6 +4534,122 @@ if [ "${CLOUD}" != 1 ]; then
   gateway_pointer "${HOME}/.hermes/SOUL.md"
   gateway_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"
 fi
+
+# -----------------------------------------------------------------
+# Docker Sandboxes (sbx) for the model gateway: installed where setup can (Homebrew
+# on Apple silicon), signed in to by hand, and each client's prebuilt image pulled so
+# the first sandboxed run does not wait for a ~3 GB download. AGENT_KIT_SANDBOX=sbx
+# turns sandboxed gateway runs on; setup never sets it or any other sbx policy.
+# -----------------------------------------------------------------
+sandbox_setup() {
+  if [ "${CLOUD}" = 1 ]; then
+    log "sbx: not set up in cloud mode"
+    return 0
+  fi
+  if ! command -v sbx >/dev/null 2>&1; then
+    case "$(uname -s)" in
+      Darwin)
+        if [ "$(uname -m)" != arm64 ]; then
+          log "sbx: Docker Sandboxes do not run on Intel Macs; skipped"
+          return 0
+        fi
+        if ! sw_vers -productVersion 2>/dev/null | awk -F. '{ exit !($1 >= 14) }'; then
+          log "sbx: Docker Sandboxes need macOS 14 or later; skipped"
+          return 0
+        fi
+        if ! command -v brew >/dev/null 2>&1; then
+          warn "sbx: Homebrew is not on PATH; install it, then re-run setup"
+          return 0
+        fi
+        run_sh 'brew trust docker/tap && brew install docker/tap/sbx'
+        if [ "${CHECK_ONLY}" = 1 ]; then
+          log "sbx would be installed; its sign-in and images follow once it is"
+          return 0
+        fi
+        if ! command -v sbx >/dev/null 2>&1; then
+          fail "sbx still not on PATH after brew install; open a new shell and re-run"
+          return 0
+        fi
+        ok "sbx installed"
+        ;;
+      Linux)
+        # Installing needs sudo, so setup prints the commands instead of running them.
+        log "sbx: not installed; run these, then re-run setup:"
+        log "  curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh && sudo apt install docker-sbx"
+        log "  sudo usermod -aG kvm \$USER"
+        warn "sbx: not installed (commands above)"
+        return 0
+        ;;
+      *)
+        log "sbx: not supported on $(uname -s); skipped"
+        return 0
+        ;;
+    esac
+  fi
+  # sbx diagnose prints "Authentication — authenticated" when signed in; "not authenticated" is not.
+  local auth_line signed_in=0
+  auth_line="$(sbx diagnose 2>/dev/null | grep 'Authentication' || true)"
+  case "${auth_line}" in
+    *'not authenticated'* | *unauthenticated* | '') ;;
+    *authenticated*) signed_in=1 ;;
+  esac
+  if [ "${signed_in}" != 1 ]; then
+    warn "sbx: not signed in; run sbx login yourself (setup never runs it), then re-run setup for the images"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would run: model-gateway sandbox refresh --json, then pre-pull each client's image"
+    return 0
+  fi
+  if ! command -v model-gateway >/dev/null 2>&1; then
+    warn "sbx: model-gateway is not on PATH; the images are not refreshed"
+    return 0
+  fi
+  local out rc=0 line_list status name ref shown sbx_name
+  out="$(model-gateway sandbox refresh --json 2>&1)" || rc=$?
+  if [ "${rc}" != 0 ]; then
+    case "${out}" in
+      *'unknown subcommand "sandbox"'* | *unknown-command*)
+        log "sbx: model-gateway has no sandbox subcommand; images not refreshed (update it, then re-run setup)"
+        return 0
+        ;;
+    esac
+    warn "sbx: model-gateway sandbox refresh failed (exit ${rc}); images not pulled"
+    return 0
+  fi
+  if ! line_list="$(printf '%s' "${out}" | python3 -c '
+import json, re, sys
+data = json.load(sys.stdin)
+for entry in (data.get("clients", []) if isinstance(data, dict) else data):
+    name = str(entry.get("client", ""))
+    image = str(entry.get("image", ""))
+    digest = str(entry.get("digest", ""))
+    tag = str(entry.get("tag", ""))
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or not image or not digest.startswith("sha256:"):
+        print("bad\t" + (name or "<unnamed>"))
+        continue
+    print("ok\t" + "\t".join((name, image + "@" + digest, image + (":" + tag if tag else ""))))
+' 2>/dev/null)"; then
+    warn "sbx: model-gateway sandbox refresh printed no client list; images not pulled"
+    return 0
+  fi
+  while IFS=$'\t' read -r status name ref shown; do
+    if [ "${status}" != ok ]; then
+      warn "sbx: a client in the gateway's image list has no usable name, image or digest (${name}); skipped"
+      continue
+    fi
+    # A pre-pull: a throwaway sandbox with no workspace, removed once its image is in sbx's store.
+    sbx_name="agent-kit-prepull-${name}"
+    if sbx create --name "${sbx_name}" --no-input --pull missing -t "${ref}" shell >/dev/null 2>&1; then
+      ok "sbx: ${name} image ${shown} ready"
+    else
+      warn "sbx: ${name} image ${shown} did not pull; its first sandboxed run downloads it"
+    fi
+    sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
+  done <<< "${line_list}"
+  log "sbx: AGENT_KIT_SANDBOX=sbx runs model-gateway delegations in sandboxes; the default stays confine for now"
+}
+sandbox_setup
 
 # -----------------------------------------------------------------
 # The projects layout: its rule in each client's global instruction file.

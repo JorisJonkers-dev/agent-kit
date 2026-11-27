@@ -561,8 +561,21 @@ fn invalid(message: impl Into<String>) -> GatewayError {
 }
 
 /// The fields a profile has; one it does not is refused, not quietly ignored.
-const PROFILE_FIELDS: [&str; 11] =
-    ["description", "models", "pin", "ladder", "distinct_families", "exclude_writer_family", "tier", "key_models", "tools", "max_spend_usd", "unenforced_clients"];
+const PROFILE_FIELDS: [&str; 13] = [
+    "description",
+    "models",
+    "pin",
+    "ladder",
+    "distinct_families",
+    "exclude_writer_family",
+    "tier",
+    "key_models",
+    "tools",
+    "max_spend_usd",
+    "unenforced_clients",
+    "network",
+    "sbx_secrets",
+];
 
 /// Reads the profiles of the shipped defaults; `known` holds the `<client>:<model>` keys of the catalogue.
 fn parse_profiles(raw: Option<&Value>, known: &BTreeSet<String>) -> Result<BTreeMap<String, DelegationProfile>, GatewayError> {
@@ -665,7 +678,16 @@ fn parse_profile(name: &str, raw: &Object, known: &BTreeSet<String>) -> Result<D
             Some(clients)
         }
     };
-    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients, tier, key_models })
+    let network = match raw.get("network") {
+        None => None,
+        Some(Value::Str(text)) => Some(crate::network::Reach::parse(text).ok_or_else(|| invalid(format!("{where_}.network must be one of {}", crate::network::Reach::NAMES.join(", "))))?),
+        Some(_) => return Err(invalid(format!("{where_}.network must be one of {}", crate::network::Reach::NAMES.join(", ")))),
+    };
+    let sbx_secrets = match raw.get("sbx_secrets") {
+        None => None,
+        value => Some(profile_strings(value, &format!("{where_}.sbx_secrets"), false)?),
+    };
+    Ok(DelegationProfile { name: name.to_string(), description, models, pin, ladder, distinct_families, exclude_writer_family, tools, max_spend_usd, unenforced_clients, tier, key_models, network, sbx_secrets })
 }
 
 /// The tool scope: every kind is deny-all unless the profile lists it (or says `any`).

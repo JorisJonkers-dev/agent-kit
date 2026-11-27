@@ -107,7 +107,7 @@ the critics' findings its verdict.
 
 **Critic client**:
 A client model pinned for critique, through which a critic runs (for example
-Vibe with Mistral Large, or Antigravity with Gemini Flash).
+Vibe with Mistral Small, or Antigravity with Gemini Flash).
 _Avoid_: preset, provider, engine
 
 **Model family**:
@@ -210,18 +210,21 @@ _Avoid_: perspective, persona
 **Family allowlist**:
 The per-repository list of model families a critique or a delegation may
 send content to, kept per machine outside the repository, so nothing about it
-is committed.
-It is keyed by the repository's remote. A repository with no entry, or with
-no remote, sends nothing. A repository owned by the `nedap` GitHub
-organisation has a work-only critic roster, whatever its entry says: its
-critics may be Codex on the nedap account (under a grant) and the work Claude
-agent, and nothing else, and never the orchestrator's own family. An entry allows
-documents only unless its code permission is on; the code stages refuse
-while it is off. Its history permission, also off by default, separately
-lets a stage send the repository's commit messages and issue text; while it
-is off, a stage leaves history out. For delegation, a `nedap` repository is
-the one exception: it may delegate to Codex on the nedap account (under a
-grant) and to Claude Code, and to nothing else, whatever its entry says.
+is committed. It applies only to a repository that is neither `nedap` nor
+public. A repository owned by the `nedap` GitHub organisation sends nothing to
+any model, whatever its visibility or entry. A repository GitHub says is
+public (its `visibility` from the GitHub API) is not held to the allowlist at
+all: every family and client, the public-only routes among them, may read its
+documents, code and history. Every other repository, including one whose
+visibility cannot be read, is held to its entry, and no client on a
+public-only route reaches it.
+The allowlist is keyed by the repository's remote. A repository with no
+entry, or with no remote, sends nothing. An entry allows documents only
+unless its code permission is on; the code stages refuse while it is off. Its
+history permission, also off by default, separately lets a stage send the
+repository's commit messages and issue text; while it is off, a stage leaves
+history out. An entry records no visibility: whether a repository is public
+is GitHub's to say.
 _Avoid_: data policy, provider list
 
 **Flow state**:
@@ -289,6 +292,24 @@ caps and grants are counted per workflow. It ends when the orchestrator ends
 it, or after 24 hours. One Workflow tool script usually runs as one workflow,
 but the two are not the same thing.
 _Avoid_: job, session, run (a run is one critique pass or one delegation)
+
+**Run event log**:
+The `events.jsonl` the model gateway writes in a run's directory while the run
+goes: one line per event, the same shape for every client, ending in exactly
+one `run.finished`. It reports a run. `result.json` stays the record of it, and
+the ledger stays the record of every run.
+_Avoid_: trace, transcript, stream (the client's own output is the stream)
+
+**Lost run**:
+A run whose gateway died before it wrote `run.finished`. The next gateway that
+starts a run in the same runs directory finishes its log as `lost`.
+_Avoid_: orphan run, crashed run
+
+**Failure kind**:
+What ended a failed run, as the result's `failure` names it: `spawn-failed`,
+`signalled`, `timed-out`, `sandbox-denied`, `harness-error` or `gateway-error`.
+It sits beside the run's reason slug, which the retry and the climb read.
+_Avoid_: error type, failure reason (the reason is the slug)
 
 **Batch plan**:
 A set of delegations, with the dependencies between them, that the model

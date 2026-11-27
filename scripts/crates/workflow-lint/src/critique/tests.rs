@@ -251,7 +251,7 @@ fn the_runner_fan_out_is_a_critic_with_the_stages_roster() {
     let found = run(&nodes, &edges, Instance::Personal);
     assert_eq!(rules(&found), ["gate-critique-spec-fan-out: critic-family"]);
     assert!(
-        found[0].contains("routing client pi-vibe-mistral-large is of family mistral"),
+        found[0].contains("routing client pi-vibe-mistral-small is of family mistral"),
         "{}",
         found[0]
     );
@@ -383,14 +383,14 @@ fn a_machine_override_changes_the_roster_the_check_runs_over() {
     let (nodes, edges) = spec_review(("vibe", "glm-5-3"), Some(("vibe", "glm-5-3")));
     assert!(run(&nodes, &edges, Instance::Personal).is_empty());
     // The override adds a writer-family critic to the base spec roster.
-    let patch = json!({"stages":{"spec":{"base":[{"client":"pi-vibe-glm","role":"spec-redteam","lenses":["fidelity"]}]}}});
+    let patch = json!({"stages":{"spec":{"base":[{"client":"pi-vibe-glm-flash","role":"spec-redteam","lenses":["fidelity"]}]}}});
     // The orchestrator's own family is still dropped, so the writer meets no critic of it.
     assert!(critique(&nodes, &edges, &[], Instance::Personal, Some(&patch)).is_empty());
     let (nodes, edges) = spec_review(("vibe", "glm-5-3"), Some(("vibe-study", "deepseek-v4-1-flash-1017")));
     let found = critique(&nodes, &edges, &[], Instance::Personal, Some(&patch));
     // The patched base slot and the shipped deep slot are both of the writer's family.
     assert_eq!(rules(&found), ["gate-critique-spec-fan-out: critic-family"; 2]);
-    assert!(found[0].contains("routing client pi-vibe-glm is of family zhipu"), "{}", found[0]);
+    assert!(found[0].contains("routing client pi-vibe-glm-flash is of family zhipu"), "{}", found[0]);
     // A patch that removes every client leaves nothing to compare.
     let none = json!({"clients":null});
     assert!(critique(&nodes, &edges, &[], Instance::Personal, Some(&none)).is_empty());

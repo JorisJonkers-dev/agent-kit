@@ -1,11 +1,11 @@
 # GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
 # A read-only critic of the critique pipeline, launched by its runner as
-# `vibe --agent critic-glm`. Installed into the shared Vibe home only.
+# `vibe --agent critic-glm-flash`. Installed into the shared Vibe home only.
 
-display_name = "Critic Glm"
-description = "Read-only critic pinned to zai-glm-5-3"
+display_name = "Critic Glm Flash"
+description = "Read-only critic pinned to zai-glm-5-3-flash"
 safety = "safe"
-active_model = "critic-glm"
+active_model = "critic-glm-flash"
 enabled_tools = ["read_file", "packet_grep", "packet_list", "packet_symbol"]
 enabled_skills = ["re:^$"]
 outside_workdir = "deny"
@@ -25,9 +25,9 @@ permission = "always"
 enabled = false
 
 [[models]]
-name = "zai-glm-5-3"
+name = "zai-glm-5-3-flash"
 provider = "mistral"
-alias = "critic-glm"
-input_price = 1.4
-output_price = 4.4
-cached_input_price = 0.14
+alias = "critic-glm-flash"
+input_price = 0.15
+output_price = 0.5
+cached_input_price = 0.015

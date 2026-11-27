@@ -91,14 +91,11 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "pi-vibe-study": ("pi", "subsidised", "live"),
         "pi-opencode-go": ("pi", "subsidised", "live"),
         "pi-local": ("pi", "subsidised", "live"),
-        "pi-public": ("pi", "subsidised", "live"),
-        "pi-openrouter": ("pi", "subsidised", "live"),
         "pi-free": ("pi", "subsidised", "live"),
         "pi-tier-vibe": ("pi", "subsidised", "live"),
         "pi-tier-go-cheap": ("pi", "subsidised", "live"),
         "pi-tier-strong-open": ("pi", "subsidised", "live"),
         "pi-tier-review": ("pi", "subsidised", "live"),
-        "opencode-free": ("opencode", "subsidised", "live"),
     }
     assert clients["agy"]["families"] == ["google"]
     assert clients["opencode"]["provider_cost_classes"] == {
@@ -127,20 +124,29 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("agy", "gemini-3.8-flash-medium", "google", "routine"),
         ("agy", "gemini-3.8-flash-low", "google", "trivial"),
         ("pi-free", "tier-free", "litellm-tier", "routine"),
+        ("pi-free", "free/glm-5.3-flash", "zhipu", "routine"),
+        ("pi-free", "free/deepseek-v4.1-flash", "deepseek", "routine"),
+        ("pi-free", "free/hy4-flash", "tencent", "routine"),
+        ("pi-free", "free/mimo-v2.6-flash", "xiaomi", "routine"),
+        ("pi-free", "free/nemotron-3.5-super-vl", "nvidia", "hard"),
+        ("pi-free", "free/nemotron-3.5-lightning", "nvidia", "routine"),
+        ("pi-free", "free/nemotron-3-ultra-550b-a55b", "nvidia", "routine"),
+        ("pi-free", "free/beam-1.0-501b-a23b", "reflection", "routine"),
+        ("pi-free", "free/gemini-3.6-flash", "google", "routine"),
+        ("pi-free", "free/gemini-3.5-flash-lite", "google", "trivial"),
+        ("pi-free", "free/gemma-4-31b-it", "google", "hard"),
+        ("pi-free", "free/gpt-oss-120b", "openai", "routine"),
+        ("pi-free", "free/gpt-oss-20b", "openai", "trivial"),
+        ("pi-free", "free/qwen3.8-27b", "alibaba", "routine"),
+        ("pi-free", "free/glm-4.7-flash", "zhipu", "routine"),
+        ("pi-free", "free/glm-4.5-flash", "zhipu", "trivial"),
+        ("pi-free", "free/mistral-small", "mistral", "trivial"),
+        ("pi-free", "free/ling-3.2-flash", "inclusionai", "trivial"),
+        ("pi-free", "free/particle-1", "particle", "trivial"),
         ("pi-tier-vibe", "tier-vibe", "litellm-tier", "routine"),
         ("pi-tier-go-cheap", "tier-go-cheap", "litellm-tier", "routine"),
         ("pi-tier-strong-open", "tier-strong-open", "litellm-tier", "hard"),
         ("pi-tier-review", "tier-review", "litellm-tier", "hard"),
-        ("opencode-free", "opencode/glm-5.3-flash-free", "zhipu", "routine"),
-        ("opencode-free", "opencode/deepseek-v4.1-flash-free", "deepseek", "routine"),
-        ("opencode-free", "opencode/hy4-flash-free", "tencent", "routine"),
-        ("opencode-free", "opencode/mimo-v2.6-flash-free", "xiaomi", "routine"),
-        ("opencode-free", "opencode/longcat-2.5-free", "meituan", "routine"),
-        ("opencode-free", "opencode/nemotron-3.5-super-vl-free", "nvidia", "hard"),
-        ("opencode-free", "opencode/nemotron-3.5-lightning-free", "nvidia", "routine"),
-        ("opencode-free", "opencode/big-pickle", "opencode", "routine"),
-        ("opencode-free", "opencode/beam-free", "opencode", "routine"),
-        ("opencode-free", "opencode/flint-40b-free", "opencode", "trivial"),
         ("opencode", "opencode-go/kimi-k2.7-code", "moonshot", "hard"),
         ("opencode", "opencode-go/mimo-v2.6-pro", "xiaomi", "hard"),
         ("opencode", "opencode-go/qwen3.8-flash", "alibaba", "routine"),
@@ -159,34 +165,6 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("pi", "mimo-v2.6-flash", "xiaomi", "routine"),
         ("pi", "qwen3.8-flash", "alibaba", "routine"),
         ("pi", "minimax-m3.1-flash", "minimax", "routine"),
-        ("pi", "opencode-go-free/beam-1.0-501b-a23b", "reflection", "routine"),
-        ("pi", "public/gemini-3.6-flash", "google", "routine"),
-        ("pi", "public/gemini-3.5-flash-lite", "google", "trivial"),
-        ("pi", "groq/gpt-oss-120b", "openai", "routine"),
-        ("pi", "groq/gpt-oss-20b", "openai", "trivial"),
-        ("pi", "groq/qwen3.8-27b", "alibaba", "routine"),
-        ("pi", "zai/glm-4.7-flash", "zhipu", "routine"),
-        ("pi", "zai/glm-4.5-flash", "zhipu", "trivial"),
-        ("pi", "zai/glm-4.6v-flash", "zhipu", "trivial"),
-        ("pi", "nvidia/nemotron-3-ultra-550b-a55b", "nvidia", "routine"),
-        ("pi", "nvidia/gemma-4-31b-it", "google", "hard"),
-        ("pi", "nvidia/glm-5.3-flash", "zhipu", "routine"),
-        ("pi", "nvidia/kimi-k3.1-pro", "moonshot", "hard"),
-        ("pi", "nvidia/minimax-m3.1-flash", "minimax", "routine"),
-        ("pi", "kilo/gemma-4-31b-it", "google", "hard"),
-        ("pi", "kilo/nemotron-3-ultra-550b-a55b", "nvidia", "routine"),
-        ("pi", "requesty/gemma-4-31b-it", "google", "hard"),
-        ("pi", "requesty/laguna-xs-2.1", "poolside", "trivial"),
-        ("pi", "naga/inkling-2-small", "thinkingmachines", "hard"),
-        ("pi", "naga/ling-3.2-flash", "inclusionai", "trivial"),
-        ("pi", "naga/particle-1", "particle", "trivial"),
-        ("pi", "routeway/deepseek-v4.1-flash", "deepseek", "routine"),
-        ("pi", "routeway/minimax-m3.1-flash", "minimax", "routine"),
-        ("pi", "ovh/gemma-4-26b-a4b", "google", "hard"),
-        ("pi", "ovh/deepseek-v4.1-flash", "deepseek", "routine"),
-        ("pi", "ovh/qwen3.6-35b-a3b", "alibaba", "routine"),
-        ("pi", "ovh/laguna-xs-2.1", "poolside", "trivial"),
-        ("pi", "ovh/nemotron3-nano-30b", "nvidia", "trivial"),
     ]
     assert all(m["notes"].strip() for m in models)
 
@@ -332,8 +310,9 @@ def test_the_shipped_pi_clients_are_one_per_litellm_route_and_only_the_public_on
     clients = json.loads(DEFAULTS.read_text())["clients"]
     shipped = {name.removeprefix("pi-"): client for name, client in clients.items() if name.startswith("pi-")}
     agents = {route["agent"] for route in routes}
-    # A tier no workstation key calls (tier-strong-open, an escalation key) has a client and no route.
-    assert set(shipped) - agents == {"tier-strong-open"} and agents <= set(shipped)
+    # A tier no workstation key calls (tier-strong-open, an escalation key) has a client and no route. The paid
+    # key has no client: the catalogue lists no paid/* group for Pi, so a paid/<model> caller names it directly.
+    assert set(shipped) - agents == {"tier-strong-open"} and agents - {"paid"} <= set(shipped)
     for route in routes:
         client = shipped.get(route["agent"])
         if client is not None:
@@ -744,3 +723,164 @@ def test_the_skill_carries_no_assistant_attribution() -> None:
     text = _skill_text().lower()
     for mark in ("co-authored-by", "generated with", "noreply@anthropic.com", "\U0001f916"):
         assert mark not in text, mark
+
+
+# ---------------------------------------------------------------------------
+# Docker Sandboxes (sbx) for the gateway: the setup step, run whole with sbx,
+# brew and model-gateway stubbed on PATH (tests/setup_harness.py).
+# ---------------------------------------------------------------------------
+
+SBX_SIGNED_IN = "  ✓ Authentication — authenticated"
+SBX_SIGNED_OUT = "  ✗ Authentication — not authenticated"
+PI_DIGEST = "sha256:" + "a" * 64
+OPENCODE_DIGEST = "sha256:" + "b" * 64
+REFRESH_JSON = json.dumps(
+    {
+        "clients": [
+            {"client": "pi", "image": "docker.io/sbx/pi-image", "tag": "20261125", "digest": PI_DIGEST},
+            {
+                "client": "opencode",
+                "image": "docker.io/sbx/opencode-image",
+                "tag": "20261125",
+                "digest": OPENCODE_DIGEST,
+            },
+        ]
+    }
+)
+MAC_ARM = {"uname": "case \"$1\" in\n  -m) echo arm64 ;;\n  *) echo Darwin ;;\nesac", "sw_vers": "echo 15.4"}
+
+
+def _sbx_root(tmp_path: Path) -> Path:
+    return tmp_path / "run"
+
+
+def _sbx_stub(calls: Path, auth: str) -> str:
+    return f"echo \"sbx $*\" >> \"{calls}\"\ncase \"$1\" in\n  diagnose) echo '{auth}' ;;\nesac"
+
+
+def _gateway_stub(calls: Path, body: str, rc: int = 0) -> str:
+    return f"echo \"model-gateway $*\" >> \"{calls}\"\n{body}\nexit {rc}"
+
+
+def _refresh_body() -> str:
+    return f"case \"$*\" in\n  'sandbox refresh --json') cat <<'JSON'\n{REFRESH_JSON}\nJSON\n    ;;\nesac"
+
+
+def _sbx_lines(run: Run) -> list[str]:
+    return [c for c in run.calls if c.startswith("sbx ") and not c.startswith("sbx diagnose")]
+
+
+def test_an_apple_silicon_mac_without_sbx_installs_it_with_homebrew(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    installed = tmp_path / "sbx-as-installed"
+    installed.write_text("#!/usr/bin/env bash\n" + _sbx_stub(calls, SBX_SIGNED_OUT) + "\n")
+    installed.chmod(0o755)
+    # What the cask does: `brew install` puts sbx on PATH, where the step's own check finds it.
+    brew = (
+        f'echo "brew $*" >> "{calls}"\n'
+        f'case "$*" in "install docker/tap/sbx") cp "{installed}" "{root}/bin/sbx" ;; esac'
+    )
+    run = setup_run(root, "Darwin", stubs={**MAC_ARM, "brew": brew})
+    assert "brew trust docker/tap" in run.calls
+    assert "brew install docker/tap/sbx" in run.calls
+    assert "setup:   ok    sbx installed" in run.stdout
+
+
+def test_a_dry_run_says_what_brew_would_run_and_runs_nothing(tmp_path: Path) -> None:
+    run = setup_run(_sbx_root(tmp_path), "Darwin", args=("--check",), stubs=MAC_ARM)
+    assert "would run: brew trust docker/tap && brew install docker/tap/sbx" in run.stdout
+    assert not [c for c in run.calls if c.startswith("brew trust") or c.startswith("brew install docker/tap")]
+
+
+def test_an_intel_mac_logs_that_sbx_is_unsupported_and_installs_nothing(tmp_path: Path) -> None:
+    intel = {"uname": "case \"$1\" in\n  -m) echo x86_64 ;;\n  *) echo Darwin ;;\nesac", "sw_vers": "echo 15.4"}
+    run = setup_run(_sbx_root(tmp_path), "Darwin", stubs=intel)
+    assert "sbx: Docker Sandboxes do not run on Intel Macs; skipped" in run.stdout
+    assert not [c for c in run.calls if "docker/tap" in c]
+
+
+def test_linux_without_sbx_prints_the_install_commands_and_runs_none_of_them(tmp_path: Path) -> None:
+    run = setup_run(_sbx_root(tmp_path), "Linux")
+    assert "curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh && sudo apt install docker-sbx" in run.stdout
+    assert "sudo usermod -aG kvm $USER" in run.stdout
+    assert not [c for c in run.calls if "get.docker.com" in c or "docker-sbx" in c or c.startswith("sbx ")]
+
+
+def test_a_signed_out_sbx_gets_a_login_hint_and_no_image_refresh(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_OUT),
+            "model-gateway": _gateway_stub(calls, _refresh_body()),
+        },
+    )
+    assert "not signed in; run sbx login yourself" in run.stdout + run.stderr
+    assert not [c for c in run.calls if c.startswith("model-gateway") or c.startswith("sbx create")]
+
+
+def test_a_refresh_with_two_clients_pre_pulls_each_image_then_removes_its_sandbox(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_IN),
+            "model-gateway": _gateway_stub(calls, _refresh_body()),
+        },
+    )
+    assert "model-gateway sandbox refresh --json" in run.calls
+    assert _sbx_lines(run) == [
+        f"sbx create --name agent-kit-prepull-pi --no-input --pull missing -t docker.io/sbx/pi-image@{PI_DIGEST} shell",
+        "sbx rm --force agent-kit-prepull-pi",
+        "sbx create --name agent-kit-prepull-opencode --no-input --pull missing "
+        f"-t docker.io/sbx/opencode-image@{OPENCODE_DIGEST} shell",
+        "sbx rm --force agent-kit-prepull-opencode",
+    ]
+    assert "setup:   ok    sbx: pi image docker.io/sbx/pi-image:20261125 ready" in run.stdout
+    assert "setup:   ok    sbx: opencode image docker.io/sbx/opencode-image:20261125 ready" in run.stdout
+    assert "AGENT_KIT_SANDBOX=sbx" in run.stdout
+
+
+def test_a_dry_run_with_sbx_signed_in_refreshes_and_pulls_nothing(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    run = setup_run(
+        root,
+        "Darwin",
+        args=("--check",),
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_IN),
+            "model-gateway": _gateway_stub(calls, _refresh_body()),
+        },
+    )
+    assert "would run: model-gateway sandbox refresh --json, then pre-pull each client's image" in run.stdout
+    assert not [c for c in run.calls if c.startswith("model-gateway") or c.startswith("sbx create")]
+
+
+def test_a_gateway_without_the_sandbox_subcommand_is_skipped_and_setup_goes_on(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    old_gateway = (
+        "echo 'model-gateway: unknown subcommand \"sandbox\"' >&2\n"
+        "echo '{\"status\":\"error\",\"code\":\"unknown-command\"}'"
+    )
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={
+            **MAC_ARM,
+            "sbx": _sbx_stub(calls, SBX_SIGNED_IN),
+            "model-gateway": _gateway_stub(calls, old_gateway, rc=1),
+        },
+    )
+    assert "model-gateway has no sandbox subcommand; images not refreshed" in run.stdout
+    assert not _sbx_lines(run)
+    assert "AGENT_KIT_SANDBOX=sbx" not in run.stdout

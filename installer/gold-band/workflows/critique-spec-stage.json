@@ -14,7 +14,7 @@
         "id": "spec-critic-vibe",
         "executionSlotId": "slot-spec-critic-vibe",
         "provider": "vibe",
-        "model": "mistral-large-4-0",
+        "model": "mistral-small-latest",
         "profile": "pf-spec-redteam",
         "goal": "You are the spec red team (the profile pf-spec-redteam) for the critique pipeline's spec stage, running the lenses fidelity and testability. Attack the requirement document only through those lenses, and report each defect a spec reader would hit as one JSON finding against the finding schema (id, severity, category, check, location, claim, evidence), with a suggestion for each; report no findings and a no_findings_reason when the spec survives both lenses. Answer with one fenced json block holding the findings document and nothing else.",
         "output": {
@@ -150,7 +150,7 @@
       {
         "executionSlotId": "slot-spec-critic-vibe",
         "agentId": "vibe",
-        "modelId": "mistral-large-4-0"
+        "modelId": "mistral-small-latest"
       },
       {
         "executionSlotId": "slot-spec-critic-agy",

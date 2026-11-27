@@ -399,3 +399,87 @@ fn the_kit_files_are_found_from_the_executable() {
 fn run_reads_the_process_environment() {
     assert_eq!(run(["--help".into()].into_iter()), 0);
 }
+
+/// A route table with the two shapes the registry carries: a budgeted route and an unbudgeted one.
+fn shaped_routes(tmp: &Tmp, base: &str) -> PathBuf {
+    tmp.file(
+        "shaped.json",
+        &format!(
+            r#"{{"base_url": "{base}", "routes": [
+                {{"agent": "budgeted", "key_env": "LITELLM_BUDGETED_KEY", "budget_eur": 255, "budget_duration": "30d"}},
+                {{"agent": "unbudgeted", "key_env": "LITELLM_UNBUDGETED_KEY", "budget_eur": null, "budget_duration": null}}
+            ]}}"#
+        ),
+    )
+}
+
+fn shaped_ctx(tmp: &Tmp, base: &str) -> Ctx {
+    let mut c = ctx(tmp, base);
+    c.routes = shaped_routes(tmp, base);
+    c.env
+        .insert("LITELLM_BUDGETED_KEY".into(), "sk-budgeted-1".into());
+    c.env
+        .insert("LITELLM_UNBUDGETED_KEY".into(), "sk-unbudgeted-1".into());
+    c
+}
+
+#[test]
+fn a_budgeted_route_reads_its_own_key_and_makes_one_request() {
+    let tmp = Tmp::new();
+    let (url, seen) = stub(vec![(200, info())]);
+    let (shown, fields) = measure(
+        "budgeted",
+        Some(&url),
+        &shaped_ctx(&tmp, "https://x.example/v1"),
+    )
+    .unwrap();
+    let seen = seen.join().unwrap();
+    assert_eq!(seen.len(), 1);
+    assert!(seen[0].contains("Authorization: Bearer sk-budgeted-1"));
+    assert!(!shown.contains("sk-budgeted-1"));
+    assert!(fields.contains(&("max_budget", Value::from(255.0))));
+    assert!(fields.contains(&("budget_duration", Value::from("30d"))));
+}
+
+#[test]
+fn an_unbudgeted_route_without_a_team_prints_null_budget() {
+    let tmp = Tmp::new();
+    let (url, seen) = stub(vec![(200, r#"{"info": {"spend": 0.25}}"#.into())]);
+    let (shown, fields) = measure(
+        "unbudgeted",
+        Some(&url),
+        &shaped_ctx(&tmp, "https://x.example/v1"),
+    )
+    .unwrap();
+    assert_eq!(seen.join().unwrap().len(), 1);
+    assert!(!shown.contains("sk-unbudgeted-1"));
+    assert!(fields.contains(&("max_budget", Value::Null)));
+    assert!(fields.contains(&("spend", Value::from(0.25))));
+}
+
+#[test]
+fn a_key_that_is_not_set_is_refused_before_any_request() {
+    let tmp = Tmp::new();
+    let (url, seen) = stub(vec![]);
+    let mut c = ctx(&tmp, "https://x.example/v1");
+    c.env.remove("LITELLM_VIBE_KEY");
+    let (code, out, err) = main_run(&["--url", &url], c);
+    assert_eq!(code, 2);
+    assert!(out.is_empty() && err.contains("LITELLM_VIBE_KEY"));
+    assert!(seen.join().unwrap().is_empty());
+}
+
+#[test]
+fn a_refused_team_lookup_fails_with_its_status_and_no_secret() {
+    let tmp = Tmp::new();
+    let key = r#"{"info": {"max_budget": null, "spend": 0.5, "team_id": "vibe-team"}}"#;
+    let (url, seen) = stub(vec![
+        (200, key.into()),
+        (500, format!(r#"{{"error": "{KEY}"}}"#)),
+    ]);
+    let (code, out, err) = main_run(&["--url", &url], ctx(&tmp, "https://x.example/v1"));
+    assert_eq!(code, 1);
+    assert_eq!(seen.join().unwrap().len(), 2);
+    assert!(err.contains("/team/info") && err.contains("HTTP 500"));
+    assert!(!err.contains(KEY) && !out.contains(KEY));
+}

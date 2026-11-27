@@ -1,0 +1,25 @@
+{
+  "steps": [
+    {
+      "argv": [
+        "models",
+        "--json",
+        "{}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/pi": "#!/bin/sh\nexit 0\n",
+        "home/.pi/agent/models.json": "{\"providers\":{\"litellm-free\":{\"api\":\"openai-completions\",\"apiKey\":\"x\",\"baseUrl\":\"https://litellm.example/v1\",\"models\":[{\"id\":\"free/gemma-4-31b-it\",\"cost\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0}},{\"id\":\"free/router\"},{\"id\":\"free/pricey\"},{\"id\":\"free/unpriced\"}]}}}",
+        "cache/agent-kit/litellm-catalogue.json": "{\"version\":1,\"updated_at\":\"2026-11-03T11:17:01Z\",\"providers\":{\"openrouter\":{\"models\":[{\"id\":\"openrouter/google/gemma-4-31b-it:free\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true,\"modality\":\"chat\"}},{\"id\":\"openrouter/openrouter/free\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":true,\"modality\":\"chat\"}},{\"id\":\"openrouter/acme/pricey\",\"metadata\":{\"status\":\"usable\",\"reason\":\"\",\"free\":false,\"modality\":\"chat\"}}]}},\"groups\":{\"free/gemma-4-31b-it\":{\"modality\":\"chat\",\"public\":true,\"deployments\":[{\"route\":\"openrouter\",\"upstream_id\":\"google/gemma-4-31b-it:free\",\"order\":1,\"weight\":1}]},\"free/router\":{\"modality\":\"chat\",\"public\":true,\"deployments\":[{\"route\":\"openrouter\",\"upstream_id\":\"openrouter/free\",\"order\":1,\"weight\":1}]},\"free/pricey\":{\"modality\":\"chat\",\"public\":true,\"deployments\":[{\"route\":\"openrouter\",\"upstream_id\":\"acme/pricey\",\"order\":1,\"weight\":1}]}}}"
+      },
+      "exec": [
+        "bin/pi"
+      ],
+      "env": {
+        "XDG_CACHE_HOME": "@SANDBOX@/cache"
+      }
+    }
+  ]
+}

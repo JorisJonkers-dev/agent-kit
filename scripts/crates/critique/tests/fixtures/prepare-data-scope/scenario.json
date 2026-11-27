@@ -65,10 +65,10 @@
         "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
         "bin/vibe": "#!/bin/sh\nexit 0\n",
         "home/.vibe/.env": "MISTRAL_API_KEY=sk-test\nZAI_API_KEY=sk-z\n",
-        "home/.vibe/agents/critic-mistral-large.toml": "# agent\n",
-        "home/.vibe/agents/critic-glm.toml": "# agent\n",
         "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-public-glm\":{\"binary\":\"pi\",\"data_scope\":\"public\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}},\"fallbacks\":{\"pi-public-glm\":[\"vibe-glm\"]},\"stages\":{\"spec\":{\"base\":[{\"client\":\"pi-public-glm\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\"],\"max_price_usd\":0.5,\"time_limit_s\":600}],\"deep\":[]}}}\n"
+        "home/.vibe/agents/critic-glm-flash.toml": "# agent\n",
+        "home/.vibe/agents/critic-mistral-small.toml": "# agent\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-public-glm\":{\"binary\":\"pi\",\"data_scope\":\"public\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}},\"fallbacks\":{\"pi-public-glm\":[\"vibe-glm-flash\"]},\"stages\":{\"spec\":{\"base\":[{\"client\":\"pi-public-glm\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\"],\"max_price_usd\":0.5,\"time_limit_s\":600}],\"deep\":[]}}}\n"
       },
       "exec": [
         "bin/vibe"
@@ -87,11 +87,38 @@
         "bin"
       ],
       "write": {
-        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\"],\"history\":false,\"public\":true,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
-        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-public-glm\":{\"binary\":\"pi\",\"data_scope\":\"public\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}},\"fallbacks\":{\"pi-public-glm\":[\"vibe-glm\"]},\"stages\":{\"spec\":{\"base\":[{\"client\":\"pi-public-glm\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\"],\"max_price_usd\":0.5,\"time_limit_s\":600}],\"deep\":[]}}}\n"
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\"],\"history\":false,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n",
+        "home/.config/agent-kit/critique-routing.json": "{\"clients\":{\"pi-public-glm\":{\"binary\":\"pi\",\"data_scope\":\"public\",\"family\":\"zhipu\",\"kind\":\"pi\",\"model\":\"glm-5-3\",\"provider\":\"litellm-vibe-study\"}},\"fallbacks\":{\"pi-public-glm\":[\"vibe-glm-flash\"]},\"stages\":{\"spec\":{\"base\":[{\"client\":\"pi-public-glm\",\"role\":\"spec-redteam\",\"lenses\":[\"fidelity\"],\"max_price_usd\":0.5,\"time_limit_s\":600}],\"deep\":[]}}}\n",
+        "bin/gh": "#!/bin/sh\necho public\n"
       },
       "roots": [
         "repos/k1/.git/critique"
+      ],
+      "exec": [
+        "bin/gh"
+      ]
+    },
+    {
+      "argv": [
+        "prepare",
+        "--json",
+        "{\"stage\":\"spec\",\"orchestrator_family\":\"openai\",\"repo\":\"@SANDBOX@/repos/k1\",\"spec\":\"docs/spec.md\"}"
+      ],
+      "path": [
+        "bin"
+      ],
+      "write": {
+        "bin/gh": "#!/bin/sh\necho 'gh: Not Found (HTTP 404)' >&2\nexit 1\n",
+        "home/.config/agent-kit/critique-allowlist.json": "{\"repositories\":{\"github.com/jorisjonkers-dev/example\":{\"code\":true,\"families\":[\"mistral\",\"zhipu\"],\"history\":false,\"public\":true,\"updated_at\":\"2026-11-01T00:00:00.000Z\"}},\"version\":1}\n"
+      },
+      "roots": [
+        "repos/k1/.git/critique"
+      ],
+      "exec": [
+        "bin/gh"
+      ],
+      "remove": [
+        "home/.cache/model-gateway/repository-visibility.json"
       ]
     }
   ]
