@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.10.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.9.1...v6.10.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** per-run sandbox network reach and the estate package proxy ([#969](https://github.com/JorisJonkers-dev/agent-kit/issues/969)) ([44a5404](https://github.com/JorisJonkers-dev/agent-kit/commit/44a54044dc6eaa3364c2842046b6e2ff49c13130))
+
+
+### Bug Fixes
+
+* **plugins:** update anthropics/claude-plugins-official digest to 0fbfda5 ([#887](https://github.com/JorisJonkers-dev/agent-kit/issues/887)) ([2fabbc8](https://github.com/JorisJonkers-dev/agent-kit/commit/2fabbc84c3a70faf8982d0fc41fca136ee54f81d))
+* **plugins:** update jgraph/drawio-mcp digest to b7941af ([#926](https://github.com/JorisJonkers-dev/agent-kit/issues/926)) ([bb3c7ec](https://github.com/JorisJonkers-dev/agent-kit/commit/bb3c7eca9b968ebc6ac2be0e6132a28be4a4b638))
+
 ## [6.9.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.9.0...v6.9.1) (2026-11-27)
 
 
