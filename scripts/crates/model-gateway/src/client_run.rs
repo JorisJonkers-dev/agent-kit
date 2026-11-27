@@ -75,6 +75,7 @@ fn names(extras: &RunExtras, name: &str) -> bool {
         "disable_home_mcp" => extras.disable_home_mcp.is_some(),
         "env" => extras.env.is_some(),
         "mcp_servers" => extras.mcp_servers.is_some(),
+        "network_allow" => extras.network_allow.is_some(),
         "sandbox" => extras.sandbox.is_some(),
         "schema" => extras.schema.is_some(),
         _ => extras.tools.is_some(),
@@ -143,8 +144,11 @@ impl ClientRun<'_> {
     pub fn launch_watched(&self, request: &ClientRunRequest, scope: Option<&ToolScope>, watch: &dyn LaunchWatch) -> Result<ClientRunOutcome, ClientRunError> {
         require_supported_extras(request.client, &request.extras)?;
         let backend = SandboxBackend::select(self.env)?;
+        if request.extras.network_allow.is_some() && backend != SandboxBackend::Sbx {
+            return Err(GatewayError::new("extras-not-supported", "network_allow needs the sbx backend: only a Docker Sandbox holds per-run host rules").into());
+        }
         if backend == SandboxBackend::Sbx {
-            sbx_launch::preflight(self.process, request.client, request.launch.mode)?;
+            sbx_launch::preflight(self.process, request.client, request.launch.mode, &request.extras.network.clone().unwrap_or_default())?;
         }
         let launcher = launcher(request.client);
         let confine = if request.client == RunClient::Pi { Some(self.confinement_of(request, scope)?) } else { None };
@@ -226,6 +230,7 @@ impl ClientRun<'_> {
         let mut sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
         sandboxed.image = reference;
         sandboxed.env_file = join(&[&dir, "sbx.env"]);
+        sbx_launch::apply_network(&mut sandboxed, self.process, self.files, self.env, &request.extras.network.clone().unwrap_or_default(), request.extras.network_allow.as_deref().unwrap_or_default(), &join(&[&dir, "packages.npmrc"]))?;
         if let Some(rewritten) = sbx_launch::rewritten_config(&text) {
             self.files.write_private(&path, &rewritten).map_err(GatewayError::from_fs)?;
         }

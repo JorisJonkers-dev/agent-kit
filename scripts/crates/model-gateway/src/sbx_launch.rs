@@ -2,19 +2,22 @@
 //!
 //! The confined command the launcher would have run is the source: its grants become one sandbox's mounts
 //! (`SbxPlan`), its variables pass by name with their values from the command, and its route's base URL decides the
-//! one network rule the sandbox gets. A run is `sbx create` (named, from the client's prebuilt image pinned by digest), `sbx policy allow
-//! network --sandbox` for the route, `sbx exec` of the client with the watch on its output, and `sbx rm --force`
-//! whatever happened before. Everything goes through the `Process` port, so tests use a fake and no real sbx starts.
+//! network rules the sandbox gets, widened or narrowed by the run's reach (`network.rs`). A run is `sbx create`
+//! (named, from the client's prebuilt image pinned by digest), `sbx policy allow network --sandbox` for the route and
+//! the reach, `sbx policy deny network --sandbox` for the global allows the reach does not need, the package proxy's
+//! custom secret, `sbx exec` of the client with the watch on its output, and `sbx rm --force` whatever happened
+//! before (which also removes the sandbox's rules and secret). Everything goes through the `Process` port, so tests use a fake and no real sbx starts.
 
 use crate::error::GatewayError;
 use crate::json::{self, Value};
 use crate::launchers::{OPENCODE_KEYED, SECRET_TOOL};
+use crate::network::{self, Egress, NetworkScope, Reach};
 use crate::pi_launch::url_port;
 use crate::ports::{Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
 use crate::sandbox::{Mount, SbxPlan};
 use crate::text::join;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The program that drives Docker Sandboxes.
@@ -39,9 +42,10 @@ pub fn program_of(client: RunClient) -> Option<&'static str> {
     }
 }
 
-/// What must hold before a launch makes anything: a client the backend runs, a read-only run, and an `sbx` that
-/// answers. Refused with the reason and the command that fixes it.
-pub fn preflight(process: &dyn Process, client: RunClient, mode: Option<RunMode>) -> Result<(), GatewayError> {
+/// What must hold before a launch makes anything: a client the backend runs, a read-only run, an `sbx` that
+/// answers, and no stored sbx service secret the run's profile does not name. Refused with the reason and the
+/// command that fixes it.
+pub fn preflight(process: &dyn Process, client: RunClient, mode: Option<RunMode>, scope: &NetworkScope) -> Result<(), GatewayError> {
     if program_of(client).is_none() {
         return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only pi and opencode so far; use confine or sbx-dry-run for this client", client.as_str())));
     }
@@ -49,9 +53,20 @@ pub fn preflight(process: &dyn Process, client: RunClient, mode: Option<RunMode>
         return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only read-only launches so far; a write run needs the next slice", client.as_str())));
     }
     match process.exec(SBX, &["version"], Some(SBX_TIMEOUT_MS)) {
-        Ok(result) if result.exit_code == 0 && !result.timed_out => Ok(()),
-        Ok(result) => Err(unavailable(&format!("sbx version exited {}", result.exit_code))),
-        Err(reason) => Err(unavailable(&reason)),
+        Ok(result) if result.exit_code == 0 && !result.timed_out => {}
+        Ok(result) => return Err(unavailable(&format!("sbx version exited {}", result.exit_code))),
+        Err(reason) => return Err(unavailable(&reason)),
+    }
+    let listing = sbx_stdout(process, &["secret", "ls", "-g", "--json"]).map_err(|reason| GatewayError::new("sandbox-unsafe", format!("the run cannot be checked for stored sbx service secrets ({reason})")))?;
+    network::require_no_service_secrets(&listing, &scope.secrets)
+}
+
+/// The standard output of one `sbx` call that must succeed.
+fn sbx_stdout(process: &dyn Process, args: &[&str]) -> Result<String, String> {
+    match process.exec(SBX, args, Some(SBX_TIMEOUT_MS)) {
+        Ok(ProcessResult { exit_code: 0, timed_out: false, stdout, .. }) => Ok(stdout),
+        Ok(result) => Err(format!("sbx {} exited {}: {}", args.join(" "), result.exit_code, result.stderr.trim())),
+        Err(reason) => Err(format!("sbx {} did not run: {reason}", args.join(" "))),
     }
 }
 
@@ -79,8 +94,28 @@ pub struct SbxLaunch {
     pub args: Vec<String>,
     /// `NAME=value` for each variable the confined launch passes, in the plan's order.
     pub env: Vec<String>,
-    /// The hosts the route needs, as `host:port` rules for `sbx policy allow network`.
+    /// The rules `sbx policy allow network` adds for the sandbox: the route's hosts first, then the run's reach.
     pub allow: Vec<String>,
+    /// The global allows the run's reach does not need, which `sbx policy deny network` denies for the sandbox.
+    pub deny: Vec<String>,
+    /// The proxy key and the placeholder the sandbox holds for it; none where the machine has no key.
+    pub credential: Option<ProxyCredential>,
+    /// What the run records of the reach it got.
+    pub reach: String,
+}
+
+/// The package proxy's credential: the key stays on the host, in the sbx custom secret, and the sandbox only ever
+/// holds the placeholder the host proxy swaps for it on requests to the proxy host.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProxyCredential {
+    pub placeholder: String,
+    key: String,
+}
+
+impl std::fmt::Debug for ProxyCredential {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("ProxyCredential").field("placeholder", &self.placeholder).field("key", &"<hidden>").finish()
+    }
 }
 
 impl SbxLaunch {
@@ -94,9 +129,19 @@ impl SbxLaunch {
         args
     }
 
-    /// `sbx policy allow network --sandbox`, for the route's hosts, in the one rule the sandbox gets.
+    /// `sbx policy allow network --sandbox`, for the route's hosts and the reach's, in the one rule the sandbox gets.
     pub fn policy_args(&self) -> Vec<String> {
         strings(&["policy", "allow", "network", "--sandbox", &self.name, &self.allow.join(",")])
+    }
+
+    /// `sbx policy deny network --sandbox`, for the global allows the reach does not need; none when it needs them all.
+    pub fn deny_args(&self) -> Option<Vec<String>> {
+        (!self.deny.is_empty()).then(|| strings(&["policy", "deny", "network", "--sandbox", &self.name, &self.deny.join(",")]))
+    }
+
+    /// `sbx secret set-custom`, scoped to the sandbox and to the package proxy's host; the key is read from stdin.
+    pub fn secret_args(&self) -> Option<Vec<String>> {
+        self.credential.as_ref().map(|credential| strings(&["secret", "set-custom", "--sandbox", &self.name, "--host", network::PROXY_HOST, "--placeholder", &credential.placeholder, "--value-stdin"]))
     }
 
     /// `sbx exec`: the client in the sandbox, from the plan's workdir, with the variables the launch names read from
@@ -144,7 +189,34 @@ pub fn translate(client: RunClient, name: &str, command: &ProcessCommand, route_
     }
     let env = plan.env.iter().filter_map(|name| values.get(name).map(|value| format!("{name}={value}"))).collect();
     let allow = allowed_hosts(route_text)?;
-    Ok(SbxLaunch { name: name.to_string(), program, image: String::new(), env_file: String::new(), plan, args, env, allow })
+    Ok(SbxLaunch { name: name.to_string(), program, image: String::new(), env_file: String::new(), plan, args, env, allow, deny: Vec::new(), credential: None, reach: String::new() })
+}
+
+/// Gives the launch its network reach and the package proxy: the rules for the run's reach (read against the
+/// machine's global allows), the task's own hosts, the proxy key as an sbx custom secret (the run's own npm config and
+/// the managers' settings carry only its placeholder), and the words the run records. A machine with no proxy key
+/// goes on without a credential, and the recorded reach says so. `npmrc` is where the run's npm user config is written.
+pub fn apply_network(sbx: &mut SbxLaunch, process: &dyn Process, files: &dyn Files, env: &HashMap<String, String>, scope: &NetworkScope, task_hosts: &[String], npmrc: &str) -> Result<(), GatewayError> {
+    let extras = task_hosts.iter().map(|entry| network::extra_rule(entry)).collect::<Result<Vec<_>, _>>()?;
+    let global = if scope.reach == Reach::OpenWeb {
+        Vec::new()
+    } else {
+        let listing = sbx_stdout(process, &["policy", "ls", "--json"]).map_err(|reason| GatewayError::new("sandbox-unsafe", format!("the machine's global sbx policy could not be read ({reason}), so the run's network reach cannot be narrowed")))?;
+        network::global_allows(&listing)?
+    };
+    let egress: Egress = network::plan(scope.reach, &sbx.allow, &extras, &global)?;
+    sbx.credential = network::proxy_key(files, env).map(|key| ProxyCredential { placeholder: network::placeholder(&sbx.name), key });
+    let placeholder = sbx.credential.as_ref().map(|credential| credential.placeholder.as_str());
+    let credential = match placeholder {
+        Some(_) => "key injected by the host proxy, only a placeholder in the sandbox".to_string(),
+        None => format!("no key on this machine ({} or {} under the config directory), so the sandbox reaches it anonymously", network::KEY_VARIABLE, network::KEY_FILE),
+    };
+    files.write_private(npmrc, &network::npmrc_text(placeholder)).map_err(|error| GatewayError::new("sandbox-unsupported", format!("the run's npm config was not written: {}", error.message)))?;
+    sbx.env.extend(network::package_env(placeholder, npmrc));
+    sbx.reach = network::describe(scope, &egress, &credential);
+    sbx.allow = egress.allow;
+    sbx.deny = egress.deny;
+    Ok(())
 }
 
 /// The confined command with OpenCode's keyed wrapper taken off: the key's name, and the `env NAME=value` pairs the
@@ -234,8 +306,11 @@ pub fn run(process: &dyn Process, files: &dyn Files, sbx: &SbxLaunch, command: &
     let create = sbx_call(process, &sbx.create_args());
     let created_ok = create.is_ok();
     let created = create.and_then(|()| sbx_call(process, &sbx.policy_args()));
+    let created = created.and_then(|()| sbx.deny_args().map_or(Ok(()), |args| sbx_call(process, &args)));
+    let created = created.and_then(|()| sbx.secret_args().map_or(Ok(()), |args| store_key(process, sbx, &args)));
     let ran = created.and_then(|()| {
         watch.note(&format!("sandbox {} (sbx): {} from {}", sbx.name, sbx.program, sbx.image));
+        watch.note(&sbx.reach);
         let written = if sbx.env.is_empty() { Ok(()) } else { write_env_file(files, sbx) };
         written.and_then(|()| {
             let exec = ProcessCommand { command: SBX.to_string(), args: sbx.exec_args(), cwd: None, env: BTreeMap::new(), timeout_ms: command.timeout_ms, stdin: command.stdin.clone() };
@@ -265,6 +340,17 @@ pub fn run(process: &dyn Process, files: &dyn Files, sbx: &SbxLaunch, command: &
 fn write_env_file(files: &dyn Files, sbx: &SbxLaunch) -> Result<(), String> {
     let text: String = sbx.env.iter().map(|pair| format!("{pair}\n")).collect();
     files.write_private(&sbx.env_file, &text).map_err(|error| format!("the sandbox's env file was not written: {}", error.message))
+}
+
+/// Stores the package proxy's key as the sandbox's custom secret, the key on stdin so no argument list holds it.
+fn store_key(process: &dyn Process, sbx: &SbxLaunch, args: &[String]) -> Result<(), String> {
+    let Some(credential) = &sbx.credential else { return Ok(()) };
+    let command = ProcessCommand { command: SBX.to_string(), args: args.to_vec(), cwd: None, env: BTreeMap::new(), timeout_ms: Some(SBX_TIMEOUT_MS), stdin: Some(credential.key.clone()) };
+    match process.run(&command) {
+        Ok(ProcessResult { exit_code: 0, timed_out: false, .. }) => Ok(()),
+        Ok(result) => Err(format!("sbx secret exited {}: {}", result.exit_code, result.stderr.trim())),
+        Err(reason) => Err(format!("sbx secret did not run: {reason}")),
+    }
 }
 
 /// One `sbx` call that must succeed; its output or its status is the reason when it does not.

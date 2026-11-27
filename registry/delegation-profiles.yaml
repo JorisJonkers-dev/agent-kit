@@ -31,6 +31,21 @@
 #                          list): no MCP server, no plugin, no skill.
 #   max_spend_usd          optional: the most one run may spend (the gateway
 #                          enforces it once #788 lands; it is validated now)
+#   network                the run's network reach in a Docker Sandbox, one of
+#                          `open-web` (any public host: research on public
+#                          material), `packages` (the LiteLLM route, the package
+#                          registries, Docker Hub and ghcr, GitHub read and the
+#                          hosts the task names) or `proxy-only` (the LiteLLM
+#                          route alone). Omitted is `proxy-only`. Every reach
+#                          adds the estate package proxy,
+#                          packages.jorisjonkers.dev, with the package managers
+#                          pointed at it. A private repository never gets
+#                          `open-web`: it is cut to `packages`. See
+#                          docs/adr/0019-gateway-workers-run-in-docker-sandboxes.md.
+#   sbx_secrets            optional: the sbx service secrets (sbx secret ls) the
+#                          profile names; a sandbox starts while one is stored
+#                          only when the profile names it, since sbx would put
+#                          its placeholder in every sandbox.
 #   unenforced_clients     optional: non-Pi clients the profile may run on although
 #                          the gateway cannot enforce its tool scope there. Naming a
 #                          client accepts the restrictions the gateway puts on its
@@ -73,6 +88,7 @@ profiles:
       - pi-vibe:glm-5.3-flash
       - pi-opencode-go:qwen3.8-flash
     max_spend_usd: 1.5
+    network: open-web
 
   cross-critic:
     description: >-
@@ -86,6 +102,7 @@ profiles:
     distinct_families: 2
     exclude_writer_family: true
     max_spend_usd: 3
+    network: proxy-only
 
   public-gemini:
     description: >-
@@ -97,6 +114,7 @@ profiles:
       - pi-free:free/gemini-3.5-flash-lite
       - pi-free:free/gemini-3.6-flash
     max_spend_usd: 0.75
+    network: proxy-only
 
   implement-cheap:
     description: >-
@@ -128,6 +146,7 @@ profiles:
 # public never reaches the public-only route pi-free, which is listed so
 # public-data work can use it. A free model is accepted only if the catalogue
 # marks it free; a billed one is refused with free-only-refused before anything runs.
+    network: packages
 
   research:
     description: >-
@@ -153,6 +172,7 @@ profiles:
       - pi-free:free/hy4-flash
     unenforced_clients: [agy, codex]
     max_spend_usd: 1.5
+    network: open-web
 
   implement:
     description: >-
@@ -180,6 +200,7 @@ profiles:
       - pi-vibe:glm-5.3
     unenforced_clients: [agy, codex]
     max_spend_usd: 6
+    network: packages
 
   critique:
     description: >-
@@ -205,6 +226,7 @@ profiles:
     exclude_writer_family: true
     unenforced_clients: [agy, codex]
     max_spend_usd: 3
+    network: proxy-only
 
   red-team:
     description: >-
@@ -234,6 +256,7 @@ profiles:
     exclude_writer_family: true
     unenforced_clients: [agy, codex]
     max_spend_usd: 4.5
+    network: proxy-only
 
   refute:
     description: >-
@@ -259,6 +282,7 @@ profiles:
     exclude_writer_family: true
     unenforced_clients: [agy, codex]
     max_spend_usd: 1.5
+    network: proxy-only
 
   triage:
     description: >-
@@ -281,3 +305,4 @@ profiles:
       - pi-free:free/hy4-flash
     unenforced_clients: [agy, codex]
     max_spend_usd: 0.75
+    network: proxy-only

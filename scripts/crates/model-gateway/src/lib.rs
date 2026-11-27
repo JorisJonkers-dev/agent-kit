@@ -42,6 +42,7 @@ pub mod locations;
 pub mod model_facts;
 pub mod matrix;
 pub mod models;
+pub mod network;
 pub mod outputs;
 pub mod pi_launch;
 pub mod quota;

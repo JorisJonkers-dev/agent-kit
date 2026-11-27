@@ -26,6 +26,7 @@ use crate::outputs::ClientOutput;
 use crate::policy::{decide_policy, resolve_scope, DataScope, ModelPermission, PolicySubject};
 use crate::ports::{ProcessResult, Runtime};
 use crate::proof::read_proof_files;
+use crate::network::{NetworkScope, Reach};
 use crate::profiles::{hold_to_profile, run_scope, tools_json};
 use crate::routing::{recorded, Routing};
 use crate::run::{
@@ -700,7 +701,8 @@ impl RunCommand<'_> {
         files.write_text(&join(&[run.run_dir, "input.json"]), &input_text).map_err(GatewayError::from_fs)?;
         let scope = run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref());
         let tiered = input.profile.as_deref().and_then(|name| run.config.profiles.get(name)).is_some_and(|profile| profile.tier.is_some());
-        let (launched, output, failure, launch_warnings, routing) = run.events.beating(|| self.launch(run.binary, input, &paths, &prompt, (scope.as_ref(), tiered), run.events));
+        let network = self.network_scope(run);
+        let (launched, output, failure, launch_warnings, routing) = run.events.beating(|| self.launch(run.binary, input, &paths, &prompt, (scope.as_ref(), tiered, network.clone()), run.events));
         let (result, ending) = launched;
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
@@ -751,14 +753,23 @@ impl RunCommand<'_> {
         })
     }
 
+    /// The network reach and the sbx secrets the run's profile gives it, with the open web cut to the package
+    /// registries when the repository is not public: a private repository keeps its policy of no open reach.
+    fn network_scope(&self, run: &Delegated) -> NetworkScope {
+        let profile = run.input.profile.as_deref().and_then(|name| run.config.profiles.get(name));
+        let wants_open_web = profile.is_some_and(|profile| profile.network == Some(Reach::OpenWeb));
+        let public = !wants_open_web || matches!(resolve_scope(self.runtime, run.repo), Ok(DataScope::Public { .. } | DataScope::Outside));
+        NetworkScope::of(profile, public)
+    }
+
     /// The client, non-interactively, through the gateway's launch path, with the mark that stops a delegate
     /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
     /// result and a ledger line. The failure is the reason the run carries. A tier run on Pi goes through the
     /// recording proxy, so the routing LiteLLM reports in its headers is known; any other run's routing is unseen.
     /// It reports to `watch` as the client runs, and says how the client's process ended beside its result.
     #[allow(clippy::type_complexity)]
-    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scoped: (Option<&ToolScope>, bool), watch: &dyn LaunchWatch) -> ((ProcessResult, Ending), ClientOutput, Option<String>, Vec<String>, Routing) {
-        let (scope, tiered) = scoped;
+    pub(crate) fn launch(&self, binary: &str, input: &RunInput, paths: &LaunchPaths, prompt: &str, scoped: (Option<&ToolScope>, bool, NetworkScope), watch: &dyn LaunchWatch) -> ((ProcessResult, Ending), ClientOutput, Option<String>, Vec<String>, Routing) {
+        let (scope, tiered, network) = scoped;
         let client = RunClient::parse(&input.client);
         let go = |env: &std::collections::HashMap<String, String>| {
             client.ok_or_else(|| ClientRunError::Spawn(format!("{} is not a client a run can launch", input.client))).and_then(|client| {
@@ -774,7 +785,7 @@ impl RunCommand<'_> {
                     client,
                     prompt: prompt.to_string(),
                     paths: paths.clone(),
-                    extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), ..RunExtras::default() },
+                    extras: RunExtras { env: Some(BTreeMap::from([(DELEGATION_MARK.to_string(), "1".to_string())])), network: Some(network.clone()), ..RunExtras::default() },
                 }, scope, watch)
             })
         };

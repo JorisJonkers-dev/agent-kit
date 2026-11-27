@@ -33,9 +33,9 @@ both operating systems.
   as a variable or a read-only file, and nothing else of the home. A login that refreshes itself is a copy in
   the run's home, written back by the gateway outside the sandbox. A client whose login lives only in the
   macOS keychain (Antigravity today) is refused until it has another way to sign in.
-- **Network: an allowlist by default.** Allowed: the LiteLLM proxy, the harness's own provider API, GitHub for
-  reading, and the package registries; everything else is denied. A run may add hosts by flag, and the added
-  hosts are recorded in its event log.
+- **Network: a reach per run, from its profile** (section below). The LiteLLM route, the estate package proxy,
+  and what the run's delegation profile adds; everything else is denied. A run may add hosts (`extras.network_allow`),
+  and the reach it got is in its event log.
 - **Docker inside the sandbox is on by default**, with the sandbox's own daemon. The host's Docker socket is
   never mounted and `DOCKER_HOST` is never passed in.
 - **The grant set stays the policy.** What ADR-0016 grants (working directory, git view, run home, ports) is
@@ -55,6 +55,77 @@ Docker tags a build each day as `YYYYMMDD-<40-hex commit>` (and `latest`, which 
 
 A launch's variables reach the client through `sbx exec --env-file`: a file written 0600 into the launch's own directory, removed when the exec ends whether it succeeded or not, so no value appears in an argument list.
 
+## Network reach
+
+Decided 2026-11-27 (#960). A sandbox's network reach is set per run from its delegation profile, not one allowlist for
+every run. The table is the profile field `network` in `registry/delegation-profiles.yaml` (rendered into the shipped
+defaults); a profile that states none, a tier profile and a run with no profile get `proxy-only`.
+
+| `network` | Reaches | Profiles |
+|---|---|---|
+| `open-web` | any public host, plus the route and the package proxy | `research`, `cheap-research` |
+| `packages` | the route, the package proxy, npm, PyPI, crates.io, the Go proxy, Docker Hub, ghcr, GitHub read, and the hosts the task names (`extras.network_allow`) | `implement`, `implement-cheap` |
+| `proxy-only` | the route (the LiteLLM proxy) and the package proxy | `critique`, `red-team`, `refute`, `triage`, `cross-critic`, `public-gemini`, every tier profile |
+
+Pi and OpenCode talk to their provider through the LiteLLM route, so the route's host is the client's own provider
+for them; a client that talks to its provider directly adds that host when it joins the sbx backend. A repository
+that is not public (no remote, `nedap`, private) keeps its policy: `open-web` is cut to `packages` for it, and the
+run records the cut. `extras.network_allow` takes `host` or `host:port` (443 when none); a pattern is refused.
+
+### What sbx 0.54.1 enforces (measured, not read from the docs)
+
+Throwaway sandboxes on this machine, `sbx policy ls` holding the default `local-policy` (195 global allows) and the
+default fallback deny; no global rule was changed.
+
+- A per-sandbox `sbx policy allow network --sandbox <name> <hosts>` adds a host: `example.com:443` and
+  `packages.jorisjonkers.dev:443` went from 403 to 200 and 401 (reached) for that sandbox only. `**` allows every
+  host, per sandbox, as the help says (a bare `*` is rejected).
+- A per-sandbox `sbx policy deny network --sandbox <name> <host>` beats a global allow: `github.com:443`, allowed
+  globally, returned 403 inside the sandbox and stayed reachable elsewhere.
+- A per-sandbox deny of `**` beats the sandbox's own allows too (every host, including the allowed ones, gave 403), so
+  "deny everything, allow the route" cannot be written. A narrow reach is therefore made by denying, in one
+  `sbx policy deny network --sandbox <name> <comma list>`, every global allow the reach does not need: all 195 went
+  in one call (0.6 s), `registry.npmjs.org` left out stayed reachable, GitHub, crates.io and `example.com` gave 403,
+  and `packages.jorisjonkers.dev` (allowed per sandbox) stayed reachable. The list is read from
+  `sbx policy ls --json` at launch. Sandbox rules and secrets go with `sbx rm` (checked: nothing is left in
+  `sbx secret ls` or the policy afterwards).
+- What this cannot do: a global allow that is a wildcard over a host the run needs (`**.github.com` for GitHub read)
+  cannot be partly denied, so it is kept and the run's recorded reach lists it as a wider global allow kept; a global
+  allow of every host (`**`, after `sbx policy init allow-all`) cannot be narrowed at all, and a launch whose reach
+  is narrower than the open web refuses with `sandbox-unsafe` rather than claim a restriction. A global allow the
+  owner adds between the listing and the run is not denied for that run.
+- Nothing in the owner's global sbx settings changes: setup does not edit `local-policy`, and the gateway only adds
+  rules scoped to its own `mg-*` sandboxes.
+- `sbx create --deny-network` exists but takes one rule per flag; the gateway uses the policy call, which takes a list.
+
+### The estate package proxy, in every sandbox
+
+Every sandbox, whatever its reach, allows `packages.jorisjonkers.dev:443` and gets the package managers pointed at it
+the way estate CI is, through the run's env file: `GOPROXY`, `GOPRIVATE` (first-party modules stay direct),
+`PIP_INDEX_URL`, `UV_DEFAULT_INDEX`, `NPM_CONFIG_REGISTRY` with `NPM_CONFIG_USERCONFIG` naming the run's own
+`packages.npmrc` (a file in the run's directory, never the owner's), and the Cargo registry
+`jorisjonkers-packages` (`CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX`, source replacement for crates.io).
+
+Its credential is the workstation key setup already stores (`PACKAGES_PROXY_TOKEN`, else
+`${XDG_CONFIG_HOME:-~/.config}/jorisjonkers/packages-token`). It reaches the sandbox as an sbx custom secret
+(`sbx secret set-custom --sandbox <name> --host packages.jorisjonkers.dev --placeholder <p> --value-stdin`, the key on
+stdin). Measured: the sandbox sends the placeholder (in `Authorization: Bearer <p>` or in a Basic pair
+`packages:<p>`), and the host proxy replaces it with the secret on the way out over HTTPS, base64 included (a test
+server behind HTTPS saw `Bearer <secret>` and `Basic base64(packages:<secret>)`); over plain HTTP nothing is
+replaced, which the package proxy never uses. The key is therefore in no file, argument or variable inside the
+sandbox: only the placeholder, derived from the sandbox's name and worthless outside its secret. The Go and pip URLs
+carry `packages:<placeholder>@`, npm and Cargo send the placeholder as their token. A machine with no key skips the
+credential and the run records that it reaches the proxy anonymously. Cargo's environment settings follow the
+documented names and are not exercised by a live build in the sandbox image, which carries no Rust toolchain.
+
+### No stored service secrets
+
+sbx puts a proxy-managed placeholder for every service secret it stores (`GH_TOKEN` for `github`) in every sandbox,
+so a stored global service secret would reach every run whatever its reach. The launch reads
+`sbx secret ls -g --json` before it makes anything and refuses with `sandbox-unsafe` while a service secret is stored,
+unless the run's profile names it in `sbx_secrets`. A secret scoped to one sandbox, a registry credential and a custom
+secret are not service secrets; a listing that cannot be read refuses too.
+
 ## Migration
 
 `AGENT_KIT_SANDBOX=sbx-dry-run` (first slice) prepares a launch, translates its grants into the sandbox plan,
@@ -66,5 +137,4 @@ marked superseded.
 ## Open
 
 Facts the docs do not state and a machine with `sbx` must settle before the backend lands: whether stdout and
-stderr stay separate without a terminal, startup time, git in a linked worktree, single-file mounts, whether
-a network policy is per sandbox or global, and how a sandbox reaches a LiteLLM proxy on the host.
+stderr stay separate without a terminal, startup time, git in a linked worktree, single-file mounts, and how a sandbox reaches a LiteLLM proxy on the host.
