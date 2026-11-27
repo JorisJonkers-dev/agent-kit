@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.13.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.13.0...v6.13.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **litellm-budget:** cover the secret-helper lookup without reading the host environment ([#989](https://github.com/JorisJonkers-dev/agent-kit/issues/989)) ([8034765](https://github.com/JorisJonkers-dev/agent-kit/commit/803476579d640c3479185ed6e4fa9a3ee99d85cc))
+
 ## [6.13.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.12.1...v6.13.0) (2026-11-27)
 
 
