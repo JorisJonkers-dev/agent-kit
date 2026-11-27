@@ -406,3 +406,14 @@ fn under_sbx_a_searching_critic_does_not_start_and_a_machine_without_sbx_refuses
     assert!(message.contains("brew trust docker/tap && brew install docker/tap/sbx"), "{message}");
     assert!(missing.seen().iter().all(|line| line.starts_with("sbx version") || line.starts_with("/bin/agent-kit-secret")), "{:?}", missing.seen());
 }
+
+#[test]
+fn a_plan_command_the_process_could_not_start_is_the_critics_unexpected_error() {
+    let process = Scripted::default().on("sbx-plan grants", Err("spawn sbx-plan ENOENT".to_string()));
+    let (files, runtime) = machine(Some(&home_models(SECRET)), process, &[]);
+    files.put("/c/prompt.md", "prompt");
+    let roster = roster_critic();
+    let launch = CriticLaunch { critic: &roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
+    let error = pi_review(&runtime, &launch, &config()).expect_err("not started");
+    assert!(format!("{error:?}").contains("spawn sbx-plan ENOENT"), "{error:?}");
+}
