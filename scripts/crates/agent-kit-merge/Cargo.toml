@@ -14,7 +14,7 @@ name = "agent-kit-merge"
 path = "src/main.rs"
 
 [dependencies]
-regex = "=1.13.1"
+regex = "=1.13.2"
 serde_yaml = "=0.9.34"
 toml_edit = "=0.25.19"
 serde_json = "=1.0.154"
