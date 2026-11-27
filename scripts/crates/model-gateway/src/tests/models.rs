@@ -63,7 +63,7 @@ fn config() -> GatewayConfig {
     clients.insert(
         "opencode".to_string(),
         ClientConfig {
-            provider_cost_classes: Some(BTreeMap::from([("opencode-go".to_string(), CostClass::Subsidised)])),
+            provider_cost_classes: Some(BTreeMap::from([("opencode-go".to_string(), CostClass::Subsidised), ("litellm-opencode-go".to_string(), CostClass::Subsidised)])),
             ..client("opencode", CostClass::MeteredPersonal, ModelSource::Live)
         },
     );
@@ -165,7 +165,7 @@ fn row(entry: &ListedModel) -> (&str, &str, &str, CostClass, Option<Tier>, &str,
 fn list_models_lists_a_model_a_listing_names_twice_once() {
     let listed = listings(vec![(
         "opencode",
-        models_of(vec![provider_model("opencode-go/glm-5.3", "opencode-go"), provider_model("opencode-go/glm-5.3", "opencode-go")]),
+        models_of(vec![provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"), provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go")]),
     )]);
 
     assert_eq!(list_models(&config(), &installed(&["opencode"]), &listed, &[]).models.len(), 1);
@@ -266,14 +266,14 @@ fn list_models_leaves_out_a_model_of_a_family_the_client_may_not_reach() {
 fn list_models_reports_every_model_whose_family_it_cannot_work_out_in_skipped() {
     let listed = listings(vec![(
         "opencode",
-        models_of(vec![provider_model("opencode-go/longcat-2.0", "opencode-go"), provider_model("opencode-go/hy3", "opencode-go")]),
+        models_of(vec![provider_model("litellm-opencode-go/longcat-2.0", "litellm-opencode-go"), provider_model("litellm-opencode-go/hy3", "litellm-opencode-go")]),
     )]);
 
     let listing = list_models(&config(), &installed(&["opencode"]), &listed, &[]);
     assert_eq!(listing.models, vec![]);
     assert_eq!(
         listing.skipped,
-        vec![skipped("opencode", "opencode-go/hy3", FAMILY_UNKNOWN), skipped("opencode", "opencode-go/longcat-2.0", FAMILY_UNKNOWN)]
+        vec![skipped("opencode", "litellm-opencode-go/hy3", FAMILY_UNKNOWN), skipped("opencode", "litellm-opencode-go/longcat-2.0", FAMILY_UNKNOWN)]
     );
 }
 
@@ -281,13 +281,13 @@ fn list_models_reports_every_model_whose_family_it_cannot_work_out_in_skipped() 
 fn list_models_takes_the_cost_class_of_the_provider_a_model_runs_on() {
     let listed = listings(vec![(
         "opencode",
-        models_of(vec![provider_model("opencode-go/glm-5.3", "opencode-go"), provider_model("other/gemini-4-argon", "other")]),
+        models_of(vec![provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"), provider_model("other/gemini-4-argon", "other")]),
     )]);
-    let named = with_client(config(), "opencode", |client| client.providers = Some(vec!["opencode-go".to_string(), "other".to_string()]));
+    let named = with_client(config(), "opencode", |client| client.providers = Some(vec!["litellm-opencode-go".to_string(), "other".to_string()]));
 
     let listing = list_models(&named, &installed(&["opencode"]), &listed, &[]);
     let models: Vec<(&str, CostClass)> = listing.models.iter().map(|entry| (entry.model.as_str(), entry.cost_class)).collect();
-    assert_eq!(models, [("opencode-go/glm-5.3", CostClass::Subsidised), ("other/gemini-4-argon", CostClass::MeteredPersonal)]);
+    assert_eq!(models, [("litellm-opencode-go/glm-5.3", CostClass::Subsidised), ("other/gemini-4-argon", CostClass::MeteredPersonal)]);
 }
 
 #[test]
@@ -837,7 +837,7 @@ fn is_vibe_model_id_holds_a_model_id_to_one_shape() {
 #[test]
 fn list_models_lists_only_the_models_of_the_default_opencode_provider() {
     let mixed = models_of(vec![
-        provider_model("opencode-go/glm-5.3", "opencode-go"),
+        provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"),
         provider_model("opencode/glm-5.3", "opencode"),
         provider_model("other/gemini-4-argon", "other"),
         provider_model("openrouter/hy3", "openrouter"),
@@ -845,7 +845,7 @@ fn list_models_lists_only_the_models_of_the_default_opencode_provider() {
 
     let listing = list_models(&config(), &installed(&["opencode"]), &listings(vec![("opencode", mixed)]), &[]);
     let models: Vec<&str> = listing.models.iter().map(|entry| entry.model.as_str()).collect();
-    assert_eq!(models, ["opencode-go/glm-5.3"]);
+    assert_eq!(models, ["litellm-opencode-go/glm-5.3"]);
     assert_eq!(listing.skipped, vec![]);
     assert_eq!(listing.missing.iter().filter(|entry| entry.client == "opencode").count(), 0);
 }
@@ -853,10 +853,10 @@ fn list_models_lists_only_the_models_of_the_default_opencode_provider() {
 #[test]
 fn list_models_lists_the_models_of_every_provider_the_client_names_but_never_the_pay_per_token_one() {
     let named = with_client(config(), "opencode", |client| {
-        client.providers = Some(vec!["opencode-go".to_string(), "other".to_string(), "opencode".to_string()])
+        client.providers = Some(vec!["litellm-opencode-go".to_string(), "other".to_string(), "opencode".to_string()])
     });
     let mixed = models_of(vec![
-        provider_model("opencode-go/glm-5.3", "opencode-go"),
+        provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"),
         provider_model("opencode/glm-5.3", "opencode"),
         provider_model("other/gemini-4-argon", "other"),
         provider_model("openrouter/hy3", "openrouter"),
@@ -864,7 +864,7 @@ fn list_models_lists_the_models_of_every_provider_the_client_names_but_never_the
 
     let listing = list_models(&named, &installed(&["opencode"]), &listings(vec![("opencode", mixed)]), &[]);
     let models: Vec<&str> = listing.models.iter().map(|entry| entry.model.as_str()).collect();
-    assert_eq!(models, ["opencode-go/glm-5.3", "other/gemini-4-argon"]);
+    assert_eq!(models, ["litellm-opencode-go/glm-5.3", "other/gemini-4-argon"]);
 }
 
 #[test]
@@ -876,11 +876,11 @@ fn list_models_drops_an_opencode_model_that_names_no_provider() {
 
 #[test]
 fn list_models_lists_an_opencode_model_whose_provider_only_its_id_names() {
-    let listed = listings(vec![("opencode", models_of(vec![model("opencode-go/glm-5.3")]))]);
+    let listed = listings(vec![("opencode", models_of(vec![model("litellm-opencode-go/glm-5.3")]))]);
 
     let listing = list_models(&config(), &installed(&["opencode"]), &listed, &[]);
     let models: Vec<(&str, CostClass)> = listing.models.iter().map(|entry| (entry.model.as_str(), entry.cost_class)).collect();
-    assert_eq!(models, [("opencode-go/glm-5.3", CostClass::Subsidised)]);
+    assert_eq!(models, [("litellm-opencode-go/glm-5.3", CostClass::Subsidised)]);
 }
 
 #[test]
@@ -984,10 +984,28 @@ fn list_models_lists_opencodes_free_models_as_free_and_never_its_paid_ones() {
         provider_model("opencode/deepseek-v4.1-flash-free", "opencode"),
         provider_model("opencode/deepseek-v4-pro", "opencode"),
         provider_model("opencode/big-pickle", "opencode"),
-        provider_model("opencode-go/glm-5.3", "opencode-go"),
+        provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"),
     ]);
     let listing = list_models(&config(), &installed(&["opencode"]), &listings(vec![("opencode", mixed)]), &[]);
     let listed: Vec<(&str, CostClass)> = listing.models.iter().map(|entry| (entry.model.as_str(), entry.cost_class)).collect();
-    assert_eq!(listed, [("opencode-go/glm-5.3", CostClass::Subsidised), ("opencode/deepseek-v4.1-flash-free", CostClass::Free)]);
+    assert_eq!(listed, [("litellm-opencode-go/glm-5.3", CostClass::Subsidised), ("opencode/deepseek-v4.1-flash-free", CostClass::Free)]);
     assert_eq!(cost_class_for(&client("opencode", CostClass::MeteredPersonal, ModelSource::Live), Some("opencode")), CostClass::Free);
+}
+
+#[test]
+fn list_models_offers_the_litellm_name_of_a_go_model_and_reports_a_direct_one_with_no_litellm_copy() {
+    let listed = listings(vec![(
+        "opencode",
+        models_of(vec![
+            provider_model("opencode-go/glm-5.3", "opencode-go"),
+            provider_model("litellm-opencode-go/glm-5.3", "litellm-opencode-go"),
+            provider_model("opencode-go/kimi-k2.7-code", "opencode-go"),
+        ]),
+    )]);
+    let listing = list_models(&config(), &installed(&["opencode"]), &listed, &[]);
+    let models: Vec<&str> = listing.models.iter().map(|entry| entry.model.as_str()).collect();
+    assert_eq!(models, ["litellm-opencode-go/glm-5.3"]);
+    assert_eq!(listing.skipped.len(), 1);
+    assert_eq!(listing.skipped[0].model, "opencode-go/kimi-k2.7-code");
+    assert!(listing.skipped[0].reason.contains("names no LiteLLM proxy address") && listing.skipped[0].reason.contains("lists no litellm-opencode-go/kimi-k2.7-code"));
 }

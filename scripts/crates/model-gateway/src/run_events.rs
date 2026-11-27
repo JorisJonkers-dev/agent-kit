@@ -149,6 +149,11 @@ impl<'a> RunEvents<'a> {
         let _ = self.files.append(&self.path(EVENTS_FILE), &line);
     }
 
+    /// A line of any other kind the run has to say, such as the route it was rewritten to or the fallback it is.
+    pub fn record(&self, kind: &str, data: Value) {
+        self.emit(kind, data);
+    }
+
     /// A `diagnostic` line: `source` is `stderr` or `gateway`.
     pub fn diagnostic(&self, source: &str, level: &str, text: &str) {
         self.emit("diagnostic", json::object(vec![("level", Value::str(level)), ("source", Value::str(source)), ("text", Value::str(&clipped(text)))]));

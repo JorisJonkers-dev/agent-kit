@@ -65,6 +65,8 @@ fn reads_the_input_a_caller_sends_with_the_default_time_limit() {
             profile: None,
             narrow: None,
             free_only: None,
+            free_fallback: None,
+            client_pinned: None,
             tail: Vec::new(),
         }
     );

@@ -128,7 +128,7 @@ falling back.
   first choice for such a task, since a free model is the cheapest class, and
   the gateway refuses a billed model on it.
 - Within one class, choose by the models' capability notes, excluding any
-  `opencode/...` model (only `opencode-go/...`) and any free model that is not
+  `opencode/...` model (only `litellm-opencode-go/...`) and any free model that is not
   `pi-free`'s `free/<model>`, except OpenCode's own `opencode/<id>-free` models
   (public data only; prefer the two that keep nothing and train on nothing,
   `opencode/deepseek-v4.1-flash-free` and `opencode/hy4-flash-free`), and never
@@ -220,11 +220,22 @@ the Workflow tool for those tasks.
 - Free models only as `pi-free`'s `free/<model>`, public data only, never
   through any other client, name or provider (OpenRouter is refused on every
   client) and never a billed model.
-- OpenCode only through its `opencode-go/...` models, never `opencode/...` (its
-  pay-per-token Zen), except OpenCode's own free models `opencode/<id>-free`,
+- OpenCode reaches OpenCode Go through `litellm-opencode-go/...` (budgeted,
+  through the LiteLLM proxy), never `opencode/...` (its pay-per-token Zen). A run
+  that names `opencode-go/<id>` is run as `litellm-opencode-go/<id>` and the
+  result says `rewritten`; with no LiteLLM copy it is refused, naming the model
+  to use. The exception is OpenCode's own free models `opencode/<id>-free`,
   for public data only. Only `opencode/deepseek-v4.1-flash-free` and
   `opencode/hy4-flash-free` are zero-retention; the other `-free` models may
   keep or train on prompts.
+- A `free/<model>` run that finds no free copy (the proxy's limiter refusal, a
+  daily limit, every copy blocked) falls back once to `opencode/<model>-free`
+  when the repository is public or the content is inline public data, the
+  client was not named with `client_pinned: true` and `free_fallback` is not
+  `false`; `escalate: false` does not stop it. The result carries `fallback`
+  (`from`, `to`, `reason`), `available_again_in_s` and `available_at` when the
+  refusal names them, and a `recommendation`: name `opencode:opencode/<id>-free`
+  or `tier-free` on the next calls until then.
 - The family you name is binding: a delegation to a model of one family is never
   answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with
   the cause; keep the task or pick another model of the family. Pass

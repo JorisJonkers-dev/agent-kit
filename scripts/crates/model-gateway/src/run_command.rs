@@ -16,6 +16,8 @@ use crate::config_parse::load_config;
 use crate::error::GatewayError;
 use crate::escalation_run::{AttemptError, AttemptOptions, AttemptedRun, Delegation, EscalatedRun};
 use crate::extras::RunExtras;
+use crate::free_fallback::FallbackReport;
+use crate::go_route::{reroute, Rewrite};
 use crate::grant_guard::GrantGuard;
 use crate::json::{self, Object, Value};
 use crate::launchers::{LaunchPaths, LaunchRequest, DELEGATION_MARK};
@@ -83,6 +85,10 @@ pub struct RunResult {
     pub cleanup_warning: Option<String>,
     /// One line per plan window of this client at or above the warning ratio.
     pub warnings: Vec<String>,
+    /// Set when this run is the free fallback of one that found no free copy of its model.
+    pub fallback: Option<FallbackReport>,
+    /// Set when the model asked for was OpenCode's direct Go model and the run went through LiteLLM's copy of it.
+    pub rewrite: Option<Rewrite>,
     /// What LiteLLM's response headers said of how the run was routed; written on the ledger line, not on the result.
     pub routing: Routing,
 }
@@ -130,8 +136,10 @@ impl RunResult {
             ("attempt_of", self.attempt_of.as_deref().map(Value::str)),
             ("cleanup_warning", self.cleanup_warning.as_deref().map(Value::str)),
             ("warnings", (!self.warnings.is_empty()).then(|| Value::Arr(self.warnings.iter().map(|line| Value::str(line)).collect()))),
+            ("rewritten", self.rewrite.as_ref().map(Rewrite::to_json)),
         ];
         members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
+        members.extend(self.fallback.iter().flat_map(FallbackReport::members));
         let mut object = Object::new();
         for (key, value) in members {
             object.set(key, value);
@@ -170,6 +178,10 @@ impl AttemptedRun for RunResult {
     }
     fn check_output_path(&self) -> Option<&str> {
         self.write.as_ref().and_then(|write| write.check.as_ref()).map(|check| check.output_path.as_str())
+    }
+    fn free_refusal(&self) -> Option<String> {
+        let said = [self.failure.as_ref().map_or("", |failure| failure.reason.as_str()), self.stderr_tail.as_deref().unwrap_or_default()];
+        crate::free_fallback::refusal_in(self.reason.as_deref(), &said)
     }
 }
 
@@ -219,12 +231,14 @@ pub struct RunOptions<'a> {
     pub reservation: Option<Reservation>,
     /// The batch plan and delegation this attempt belongs to, written on its ledger line.
     pub tag: Option<BatchTag>,
+    /// Set when this attempt is the free fallback of one that found no free copy.
+    pub fallback: Option<FallbackReport>,
 }
 
 impl RunOptions<'_> {
     /// The options of a run that is not part of a batch: nothing taken up front, and nothing tagged.
     fn plain<'a, 'b: 'a>(options: &'a AttemptOptions<'b>) -> RunOptions<'a> {
-        RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: None, tag: None }
+        RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: None, tag: None, fallback: options.fallback.clone() }
     }
 }
 
@@ -310,7 +324,7 @@ impl RunCommand<'_> {
             let give = given.slot.map(|slot| slot(&attempt.client));
             let result = self.run_once(
                 attempt,
-                &RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: taken, tag: given.tag.clone() },
+                &RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: taken, tag: given.tag.clone(), fallback: options.fallback.clone() },
             );
             drop(give);
             result
@@ -320,7 +334,9 @@ impl RunCommand<'_> {
     /// What a delegation needs before it can run, as a batch plan checks it without launching or reserving
     /// anything: its client model, the data policy, its workflow, its estimate, and the grant that covers it. The
     /// first thing wrong is the refusal it returns.
-    pub fn check(&self, input: &RunInput) -> Result<Checked, GatewayError> {
+    pub fn check(&self, asked: &RunInput) -> Result<Checked, GatewayError> {
+        let rerouted = reroute(self.runtime, asked)?;
+        let input = rerouted.as_ref().map_or(asked, |(routed, _)| routed);
         let placed = self.place(input)?;
         let cost_class = run_cost_class(&placed.client, input);
         let estimate = (CapGuard { runtime: self.runtime }).estimate(input, placed.entry.as_ref(), &placed.config)?;
@@ -347,8 +363,11 @@ impl RunCommand<'_> {
     }
 
     /// One attempt: a single run of one client model, which the escalation wraps.
-    fn run_once(&self, given: &RunInput, options: &RunOptions) -> Result<RunResult, AttemptError> {
+    pub(crate) fn run_once(&self, asked: &RunInput, options: &RunOptions) -> Result<RunResult, AttemptError> {
         self.refuse_nested()?;
+        // OpenCode's direct Go provider is run through LiteLLM's copy of the model, and the run says so.
+        let rerouted = reroute(self.runtime, asked)?;
+        let given = rerouted.as_ref().map_or(asked, |(routed, _)| routed);
         let placed = self.place(given)?;
         let Placed { repository, client, config, entry, family, root } = placed;
         let held = options.reservation.as_ref();
@@ -426,6 +445,12 @@ impl RunCommand<'_> {
             identity,
             &RunStart { mode: input.mode.as_str(), time_limit_s: input.time_limit_s },
         );
+        if let Some((_, rewrite)) = &rerouted {
+            events.record("route.rewritten", rewrite.to_json());
+        }
+        if let Some(fallback) = &options.fallback {
+            events.record("fallback", fallback.event());
+        }
         let delegated = self.delegate(&Delegated {
             started_at,
             started_ms,
@@ -445,6 +470,11 @@ impl RunCommand<'_> {
         });
         let warning = self.release(&workplace);
         let mut result = delegated?;
+        result.rewrite = rerouted.map(|(_, rewrite)| rewrite);
+        result.fallback = options.fallback.clone();
+        if let Some(fallback) = &result.fallback {
+            result.summary = format!("{}\n{}", fallback.notice(), result.summary);
+        }
         if let Some(link) = &options.link {
             result.attempt = Some(link.attempt);
             result.attempt_of = link.attempt_of.clone();
@@ -749,6 +779,8 @@ impl RunCommand<'_> {
             failure,
             cleanup_warning: None,
             warnings: launch_warnings,
+            fallback: None,
+            rewrite: None,
             routing,
         })
     }

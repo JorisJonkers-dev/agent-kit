@@ -484,6 +484,7 @@ struct Listed {
 /// never by a name. A model a listing names twice is listed once. A model of a
 /// family the client may not reach is left out; one whose family the gateway
 /// cannot work out is reported in `skipped`, so it never vanishes silently.
+/// OpenCode's direct `opencode-go/<id>` models are left out for LiteLLM's `litellm-opencode-go/<id>`.
 /// OpenCode models of a provider the client's `providers` allowlist (else
 /// `opencode-go`) does not name, and its pay-per-token ones, are dropped without
 /// a trace: no run could reach them.
@@ -505,6 +506,16 @@ fn listed_models(config: &GatewayConfig, id: &str, client: &ClientConfig, listed
         };
         if id == "opencode" && !crate::run::is_zen_free(model) && !is_provider_allowed(runs_on.as_deref(), client.providers.as_deref()) {
             continue;
+        }
+        // OpenCode's direct Go models cannot run in the sandbox (no LiteLLM proxy address): a run names the
+        // LiteLLM copy instead, so that is the one listed, and a direct model with no copy is reported.
+        if id == "opencode" {
+            if let Some(litellm) = crate::go_route::litellm_name(model) {
+                if !listed.iter().any(|offered| offered.model == litellm) {
+                    skipped.push(SkippedModel { client: id.to_string(), model: model.to_string(), reason: format!("{model} names no LiteLLM proxy address, which the sandbox requires, and LiteLLM lists no {litellm}") });
+                }
+                continue;
+            }
         }
         let known: Vec<&str> = std::iter::once(model).chain(client_model.names.iter().map(String::as_str)).collect();
         let entry = config

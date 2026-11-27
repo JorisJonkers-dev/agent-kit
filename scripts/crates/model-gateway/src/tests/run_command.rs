@@ -276,11 +276,18 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
         failure: Some(crate::run_failure::Failure { kind: crate::run_failure::FailureKind::Signalled, reason: "the client was ended by SIGKILL".into(), output_tail: None }),
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
+        fallback: None,
+        rewrite: None,
         routing: crate::routing::Routing::unseen("claude"),
     };
     assert!(!result.is_ok() && result.check_output_path().is_none());
     assert_eq!((result.family(), result.summary()), (Some("anthropic"), Some("s")));
     result.set_summary("t".into());
+    // What the run said when no free copy was available is what the fallback reads.
+    assert_eq!(result.free_refusal(), None);
+    result.stderr_tail = Some("free limits [limiter refusal, no provider was called]: back in 90s".into());
+    assert_eq!(result.free_refusal().as_deref(), Some("free limits [limiter refusal, no provider was called]: back in 90s"));
+    result.stderr_tail = Some("killed".into());
     let keys: Vec<String> = match result.to_json() {
         Value::Obj(object) => object.entries().into_iter().map(|(key, _)| key.to_string()).collect(),
         other => panic!("{other:?}"),
@@ -582,4 +589,71 @@ fn the_free_client_runs_free_models_only() {
     let free = |model: &str| format!(r#"{{"workflow":"w","client":"pi-free","mode":"read-only","model":"{model}","prompt":"p","escalate":false}}"#);
     assert_eq!(text(&run(&machine, &free("ministral-8b")).expect("free"), "status"), "ok");
     assert_eq!(run(&machine, &free("mistral-small")).expect_err("billed").code, "free-only-refused");
+}
+
+fn events_of(machine: &Machine, result: &Value) -> String {
+    std::fs::read_to_string(format!("{}/state/agent-kit/model-gateway/runs/{}/events.jsonl", machine.sandbox.text(), text(result, "run_id"))).expect("events")
+}
+
+#[test]
+fn a_direct_go_model_runs_as_the_litellm_one_and_the_result_and_events_say_so() {
+    let machine = with_tmp(machine());
+    machine.process.install("opencode");
+    machine.write_override(r#"{"clients": {"opencode": {"provider_cost_classes": {"litellm-opencode-go": "subsidised"}}}}"#);
+    machine.process.answer("opencode", answer("opencode-go/glm-5.3-flash\nlitellm-opencode-go/glm-5.3-flash\n"));
+    let result = run(&machine, r#"{"workflow":"w","client":"opencode","mode":"read-only","model":"opencode-go/glm-5.3-flash","prompt":"p","escalate":false}"#).expect("a result");
+    assert_eq!(text(&result, "model"), "litellm-opencode-go/glm-5.3-flash");
+    let rewritten = result.as_object().and_then(|object| object.get("rewritten")).and_then(Value::as_object).expect("rewritten");
+    assert_eq!(rewritten.get("from").and_then(Value::as_str), Some("opencode-go/glm-5.3-flash"));
+    assert_eq!(rewritten.get("to").and_then(Value::as_str), Some("litellm-opencode-go/glm-5.3-flash"));
+    assert!(events_of(&machine, &result).contains(r#""type":"route.rewritten""#));
+}
+
+#[test]
+fn a_direct_go_model_with_no_litellm_copy_is_refused_before_anything_runs() {
+    let machine = with_tmp(machine());
+    machine.process.install("opencode");
+    machine.process.answer("opencode", answer("opencode-go/glm-5.3-flash\n"));
+    let refused = run(&machine, r#"{"workflow":"w","client":"opencode","mode":"read-only","model":"opencode-go/glm-5.3-flash","prompt":"p","escalate":false}"#).expect_err("refused");
+    assert_eq!(refused.code, "provider-not-allowed");
+    assert!(refused.message.contains("litellm-opencode-go/glm-5.3-flash"));
+}
+
+#[test]
+fn a_batch_plan_checks_a_direct_go_model_as_the_litellm_one() {
+    let machine = with_tmp(machine());
+    machine.process.install("opencode");
+    machine.write_override(r#"{"clients": {"opencode": {"provider_cost_classes": {"litellm-opencode-go": "subsidised"}}}}"#);
+    machine.process.answer("opencode", answer("litellm-opencode-go/glm-5.3-flash\n"));
+    let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"opencode","mode":"read-only","model":"opencode-go/glm-5.3-flash","prompt":"p"}"#).expect("JSON")).expect("input");
+    let checked = RunCommand { runtime: &machine.runtime, decision: None }.check(&input).expect("checked");
+    assert_eq!(checked.family, "zhipu");
+}
+
+#[test]
+fn the_free_fallback_an_attempt_is_handed_is_in_its_events_and_its_result() {
+    let machine = with_tmp(machine());
+    let fallback = crate::free_fallback::FallbackReport {
+        from: "pi-free free/x".into(),
+        to: "claude claude-sonnet-5-5".into(),
+        reason: "limiter refusal, back in 90s".into(),
+        from_run_id: "r0".into(),
+        available_again_in_s: Some(90),
+        available_at: Some("2026-11-04T10:01:30.000Z".into()),
+        recommendation: "name tier-free".into(),
+    };
+    let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"claude-sonnet-5-5","prompt":"p","escalate":false}"#).expect("JSON")).expect("input");
+    let options = super::super::run_command::RunOptions { link: None, start_check: None, reservation: None, tag: None, fallback: Some(fallback) };
+    let result = {
+        let _held = super::scenarios::EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        RunCommand { runtime: &machine.runtime, decision: None }.run_once(&input, &options).expect("a run")
+    };
+    let json = result.to_json();
+    assert!(text(&json, "summary").starts_with("fell back from pi-free free/x to claude claude-sonnet-5-5: "));
+    let object = json.as_object().expect("an object");
+    assert_eq!(object.get("available_again_in_s"), Some(&Value::Num(90.0)));
+    assert_eq!(object.get("recommendation").and_then(Value::as_str), Some("name tier-free"));
+    assert!(object.get("fallback").is_some());
+    let events = events_of(&machine, &json);
+    assert!(events.contains(r#""type":"fallback""#) && events.contains("limiter refusal, back in 90s"));
 }
