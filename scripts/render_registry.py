@@ -2581,7 +2581,7 @@ for entry in (data.get("clients", []) if isinstance(data, dict) else data):
     fi
     sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
   done <<< "${line_list}"
-  log "sbx: every model-gateway run is in a sandbox (the default, and required); a machine without a working sbx refuses each launch with sandbox-unavailable"
+  log "sbx: sandboxes are the default and required for every model-gateway run"
 }
 sandbox_setup
 """

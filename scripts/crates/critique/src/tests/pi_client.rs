@@ -247,7 +247,7 @@ fn readiness_needs_the_route_and_a_sandbox_that_can_start() {
     assert!(ready(Some("not json"), Scripted::default(), &[]).detail.unwrap().contains("has no litellm-vibe-study provider"));
     // With sbx selected, readiness is `sbx version`, and a machine without it says how to get it.
     let sbx = [("AGENT_KIT_SANDBOX", "sbx")];
-    let checked = Scripted::default();
+    let checked = Scripted::default().on("sbx secret ls", Ok(ok(r#"{"secrets":[],"custom_secrets":[],"shadowed_services":[],"env_only_count":0}"#)));
     assert!(ready(Some(&models), checked.clone(), &sbx).ready);
     assert!(checked.seen().contains(&"sbx version".to_string()), "{:?}", checked.seen());
     let missing = Scripted::default().on("sbx version", Err("spawn sbx ENOENT".to_string()));
