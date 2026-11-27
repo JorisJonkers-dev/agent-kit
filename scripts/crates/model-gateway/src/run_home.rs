@@ -124,9 +124,15 @@ pub fn opencode_config(mode: Option<RunMode>, provider: Option<(&str, Value)>) -
     opencode_config_with(mode, provider, true)
 }
 
-/// `opencode_config`, with the web search tool left out when `web_search` is false: OpenCode answers that tool with
-/// a request for input a non-interactive run cannot answer, which fails the whole run ("Cancelled a request for
-/// input this run cannot answer: Web Search"), so a run that cannot reach it anyway does not offer it.
+/// The search backend a run that may search the web selects: OpenCode asks the user which one to use the first time
+/// a run searches ("Allow OpenCode to search the web?"), and a run that cannot answer is failed, so the choice is
+/// made in the config (`websearch.provider`, `random` meaning any of its providers).
+const OPENCODE_SEARCH_PROVIDER: &str = "random";
+
+/// `opencode_config`, with the web search tool left out when `web_search` is false: without a search backend chosen
+/// OpenCode answers the tool with a request for input a non-interactive run cannot answer, which fails the whole run
+/// ("Cancelled a request for input this run cannot answer: Web Search"). A run with the open web names its backend
+/// (`websearch.provider`) and so searches without a prompt; any other run does not offer the tool.
 pub fn opencode_config_with(mode: Option<RunMode>, provider: Option<(&str, Value)>, web_search: bool) -> Value {
     let write = mode == Some(RunMode::Write);
     let granted: Vec<&str> = OPENCODE_READ_ACTIONS.iter().copied().filter(|action| web_search || *action != "websearch").collect();
@@ -154,6 +160,9 @@ pub fn opencode_config_with(mode: Option<RunMode>, provider: Option<(&str, Value
         ("permission", json::object(permission)),
         ("tools", json::object(tools)),
     ];
+    if web_search {
+        members.push(("websearch", json::object(vec![("provider", Value::str(OPENCODE_SEARCH_PROVIDER))])));
+    }
     if let Some((name, entry)) = provider {
         members.push(("provider", json::object(vec![(name, entry)])));
     }
@@ -218,6 +227,12 @@ fn opencode_provider(files: &dyn Files, env: &HashMap<String, String>, provider:
 /// nobody and its models answer 429 or no route. Those launches
 /// keep `XDG_DATA_HOME` as it is, and only the config, state, cache and `HOME` are the run's own.
 pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model: &str, mode: Option<RunMode>, dir: &str) -> Result<RunHome, String> {
+    prepare_opencode_with(files, env, model, mode, dir, false)
+}
+
+/// `prepare_opencode` for a run whose reach is the open web when `web_search` is true: its config then offers the
+/// web search tool with its backend chosen, and any other run's does not offer it.
+pub fn prepare_opencode_with(files: &dyn Files, env: &HashMap<String, String>, model: &str, mode: Option<RunMode>, dir: &str, web_search: bool) -> Result<RunHome, String> {
     let provider = crate::models::open_code_provider(model);
     let litellm = provider.as_deref().filter(|name| name.starts_with("litellm-"));
     let entry = match litellm {
@@ -225,7 +240,7 @@ pub fn prepare_opencode(files: &dyn Files, env: &HashMap<String, String>, model:
         None => None,
     };
     let config = join(&[dir, "opencode.json"]);
-    files.write_private(&config, &format!("{}\n", json::pretty(&opencode_config_with(mode, entry, !crate::run::is_zen_free(model))))).map_err(|error| format!("opencode: cannot write the launch's home {dir}: {}", error.message))?;
+    files.write_private(&config, &format!("{}\n", json::pretty(&opencode_config_with(mode, entry, web_search)))).map_err(|error| format!("opencode: cannot write the launch's home {dir}: {}", error.message))?;
     made_tmp(files, dir, "opencode")?;
     let mut vars = home_vars(dir);
     let mut writes = Vec::new();

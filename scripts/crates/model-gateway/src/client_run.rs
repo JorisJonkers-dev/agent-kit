@@ -19,7 +19,7 @@ use crate::network::NetworkScope;
 use crate::sandbox::{dry_run, SandboxBackend};
 use crate::sbx_images;
 use crate::sbx_launch;
-use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
+use crate::run_home::{sync_login, prepare_codex, prepare_hermes, prepare_opencode_with, prepare_tmp, prepare_vibe, run_home_dir, RunHome};
 use std::collections::HashMap;
 
 /// The longest a keychain read may take: it may be locked, and an unattended run must not wait on a dialog.
@@ -363,7 +363,7 @@ impl ClientRun<'_> {
             return Err(GatewayError::new("unconfined", format!("the launch's home {dir} already exists; a run home is made for one launch and never reused")));
         }
         let made = match request.client {
-            RunClient::Opencode => prepare_opencode(self.files, self.env, &request.launch.model, request.launch.mode, &dir),
+            RunClient::Opencode => prepare_opencode_with(self.files, self.env, &request.launch.model, request.launch.mode, &dir, request.extras.network.as_ref().is_some_and(|scope| scope.reach == crate::network::Reach::OpenWeb)),
             RunClient::Hermes => prepare_hermes(self.files, self.env, request.launch.provider.as_deref().unwrap_or("undefined"), &dir),
             RunClient::Codex => prepare_codex(self.files, self.env, &dir),
             RunClient::Vibe => prepare_vibe(self.files, self.env, &dir),

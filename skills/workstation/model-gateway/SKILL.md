@@ -428,8 +428,7 @@ Everything that can refuse the run happens before anything is launched:
   public data. They work only through the OpenCode CLI, and OpenCode's quota
   is per IP address. Their sandbox reaches `opencode.ai:443` and nothing else,
   needs no sign-in (the run's home is bare, and the owner's `opencode.db` is not
-  given to it) and has no web search tool, which OpenCode answers with a request
-  for input a non-interactive run cannot answer. When
+  given to it). When
   every model OpenCode lists is on a provider the list does not name, `models`
   names `opencode` in `missing` with the reason instead of offering nothing.
 - `workflow-ended` — the run names a workflow that ended, so its caps and
@@ -1350,8 +1349,13 @@ Hermes has no read-only file toolset: a read-only run has `-t web` alone (no fil
 memory or delegation) and a writing run `-t web,file`.
 
 **OpenCode read-only means read-only tools.** The run home's config denies
-everything first, allows `read`, `grep`, `glob`, `webfetch` and `websearch`, and
-denies `shell`, `execute`, `subagent`, `external_directory` and (read-only) `edit`,
+everything first, allows `read`, `grep`, `glob` and `webfetch`, and `websearch`
+only for a run whose network reach is `open-web` (a research profile, or a profile
+that sets `network: open-web`; the config then also names the search backend,
+`websearch.provider: random`, because OpenCode otherwise asks which one to use and
+a non-interactive run cannot answer, which fails it with "Cancelled a request for
+input this run cannot answer: Web Search"). A run on any other reach is not
+offered the tool and says it has none. The config also denies `shell`, `execute`, `subagent`, `external_directory` and (read-only) `edit`,
 which covers `write`, `edit` and `patch`; the v1 `permission` and `tools` keys say
 the same. A writing run keeps `edit` (and the v1 `tools` agree) and still denies a shell and any path outside
 its working directory. Checked live on OpenCode 2.3.2: asked for its tools, the read-only delegate named

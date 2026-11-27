@@ -9,7 +9,7 @@ use crate::launchers::{GitView, LaunchPaths, LaunchRequest, VIBE_ENV};
 use crate::ports::{Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
 use crate::tests::confined::{unwrapped};
-use crate::run_home::{opencode_config, prepare_hermes, prepare_opencode, run_home_dir};
+use crate::run_home::{opencode_config, prepare_hermes, prepare_opencode, prepare_opencode_with, run_home_dir};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
@@ -609,8 +609,13 @@ fn an_opencode_free_model_runs_in_a_bare_home_with_no_login_database_and_no_web_
     let text = disk.text("/run/h/opencode.json").unwrap();
     assert!(!text.contains("websearch\": \"allow") && text.contains("webfetch"), "{text}");
     assert!(!text.contains("\"websearch\"") || text.contains("\"websearch\": \"deny\""), "{text}");
-    // Any other launch still offers the tool.
-    let routed = prepare_opencode(&disk, &env(), "litellm-vibe/glm-5.3", Some(RunMode::ReadOnly), "/run/h2").expect("a home");
-    assert!(disk.text("/run/h2/opencode.json").unwrap().contains("\"websearch\": \"allow\""));
+    // A run with the open web gets the search tool and its backend chosen, so OpenCode never asks which to use; any
+    // other run is not offered the tool, whatever its provider or mode.
+    let web = prepare_opencode_with(&disk, &env(), "litellm-vibe/glm-5.3", Some(RunMode::ReadOnly), "/run/h2", true).expect("a home");
+    let text = disk.text("/run/h2/opencode.json").unwrap();
+    assert!(text.contains("\"websearch\": \"allow\"") && text.contains("\"provider\": \"random\""), "{text}");
+    let routed = prepare_opencode(&disk, &env(), "litellm-vibe/glm-5.3", Some(RunMode::ReadOnly), "/run/h3").expect("a home");
+    assert!(!disk.text("/run/h3/opencode.json").unwrap().contains("websearch"));
+    assert!(web.login.is_none());
     assert!(routed.login.is_none());
 }
