@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.10.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.10.0...v6.10.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **setup:** clear dangling uv tool links before install and name sbx's uninitialised network policy ([#977](https://github.com/JorisJonkers-dev/agent-kit/issues/977)) ([6397064](https://github.com/JorisJonkers-dev/agent-kit/commit/639706416ba586bd8b8acc9e1b5c675b5a8bdf84))
+
 ## [6.10.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.9.1...v6.10.0) (2026-11-27)
 
 
