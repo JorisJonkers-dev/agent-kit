@@ -39,4 +39,5 @@ mod visibility;
 mod run_events;
 mod git_view;
 mod sandbox;
+mod sbx_clients;
 mod sbx_images;
