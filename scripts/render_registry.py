@@ -2592,6 +2592,12 @@ for entry in (data.get("clients", []) if isinstance(data, dict) else data):
     fi
     sbx rm --force "${sbx_name}" >/dev/null 2>&1 || true
   done <<< "${line_list}"
+  # Leftovers of earlier gateway runs: sandboxes of ended gateways and images the records no longer pin.
+  if prune_out="$(model-gateway sandbox prune 2>&1)"; then
+    ok "sbx: leftover sandboxes and superseded images cleared"
+  else
+    warn "sbx: model-gateway sandbox prune failed ($(printf '%s' "${prune_out}" | head -1)); leftovers stay"
+  fi
   log "sbx: sandboxes are the default and required for every model-gateway run"
 }
 sandbox_setup

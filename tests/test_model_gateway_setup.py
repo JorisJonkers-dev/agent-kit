@@ -846,6 +846,8 @@ def test_a_refresh_with_two_clients_pre_pulls_each_image_then_removes_its_sandbo
         },
     )
     assert "model-gateway sandbox refresh --json" in run.calls
+    assert run.calls.index("model-gateway sandbox prune") > run.calls.index("sbx rm --force agent-kit-prepull-opencode")
+    assert "setup:   ok    sbx: leftover sandboxes and superseded images cleared" in run.stdout
     assert _sbx_lines(run) == [
         f"sbx create --name agent-kit-prepull-pi --no-input --pull missing -t docker.io/sbx/pi-image@{PI_DIGEST} shell",
         "sbx rm --force agent-kit-prepull-pi",
@@ -855,6 +857,19 @@ def test_a_refresh_with_two_clients_pre_pulls_each_image_then_removes_its_sandbo
     ]
     assert "setup:   ok    sbx: pi image docker.io/sbx/pi-image:20261125 ready" in run.stdout
     assert "setup:   ok    sbx: opencode image docker.io/sbx/opencode-image:20261125 ready" in run.stdout
+    assert "sandboxes are the default and required for every model-gateway run" in run.stdout
+
+
+def test_a_prune_that_fails_is_a_warning_and_the_sandbox_step_still_finishes(tmp_path: Path) -> None:
+    root = _sbx_root(tmp_path)
+    calls = root / "calls.log"
+    body = f"case \"$*\" in\n  'sandbox prune') echo 'prune broke' >&2; exit 1 ;;\nesac\n{_refresh_body()}"
+    run = setup_run(
+        root,
+        "Darwin",
+        stubs={**MAC_ARM, "sbx": _sbx_stub(calls, SBX_SIGNED_IN), "model-gateway": _gateway_stub(calls, body)},
+    )
+    assert "sbx: model-gateway sandbox prune failed (prune broke); leftovers stay" in run.stdout
     assert "sandboxes are the default and required for every model-gateway run" in run.stdout
 
 

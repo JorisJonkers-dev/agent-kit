@@ -41,3 +41,4 @@ mod git_view;
 mod sandbox;
 mod sbx_clients;
 mod sbx_images;
+mod sbx_prune;

@@ -202,6 +202,8 @@ pub fn ensure(process: &dyn Process, files: &dyn Files, clock: &dyn Clock, env: 
             if let Err(reason) = write_records(files, &path, &records) {
                 warnings.push(format!("{RECORDS_FILE} was not written ({reason})"));
             }
+            // The digests this client ran from before are no longer pinned: their images leave sbx's store.
+            warnings.extend(crate::sbx_prune::remove_superseded(process, &records));
             Ok((reference, warnings))
         }
         Err(reason) => match existing {
@@ -258,6 +260,7 @@ pub fn refresh_command(runtime: &Runtime) -> Result<Value, GatewayError> {
         if let Err(reason) = write_records(runtime.files.as_ref(), &path, &records) {
             warnings.push(format!("{RECORDS_FILE} was not written ({reason})"));
         }
+        warnings.extend(crate::sbx_prune::remove_superseded(runtime.process.as_ref(), &records));
     }
     Ok(result(clients, warnings))
 }

@@ -226,9 +226,9 @@ fn a_run_with_no_profile_gets_the_proxy_alone_and_records_what_it_denied_with_no
     assert_eq!(calls[0], "sbx version");
     assert_eq!(calls[1], "sbx secret ls -g --json");
     assert_eq!(calls[2], "sbx ls -q");
-    assert_eq!(calls[4], "sbx policy ls --json");
-    assert_eq!(calls[6], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
-    assert_eq!(calls[7], format!("sbx policy deny network --sandbox {name} api.anthropic.com:443,registry.npmjs.org:443,**.github.com:443,pypi.org:443"));
+    assert_eq!(calls[5], "sbx policy ls --json");
+    assert_eq!(calls[7], format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443"));
+    assert_eq!(calls[8], format!("sbx policy deny network --sandbox {name} api.anthropic.com:443,registry.npmjs.org:443,**.github.com:443,pypi.org:443"));
     assert!(!calls.iter().any(|call| call.starts_with("sbx secret set-custom")), "no key, no secret: {calls:?}");
     let file = env_file(&disk);
     assert!(file.contains("GOPROXY=https://packages.jorisjonkers.dev/go\n") && file.contains("NPM_CONFIG_USERCONFIG=/run/export/pi-agent/packages.npmrc\n"), "{file}");
