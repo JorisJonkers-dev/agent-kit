@@ -28,27 +28,27 @@ pub struct RealGit {
     pub dir: PathBuf,
 }
 
-impl Git for RealGit {
-    fn git(&self, args: &[&str], stdin: &str) -> Result<String, String> {
+impl RealGit {
+    fn exec(&self, args: &[&str], stdin: &str) -> std::io::Result<std::process::Output> {
         let mut child = Command::new("git")
             .args(args)
             .current_dir(&self.dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("git spawn: {error}"))?;
-        let mut input = child
-            .stdin
-            .take()
-            .ok_or_else(|| "git stdin unavailable".to_string())?;
-        input
-            .write_all(stdin.as_bytes())
-            .map_err(|error| format!("git stdin: {error}"))?;
+            .spawn()?;
+        let mut input = child.stdin.take().expect("stdin is piped");
+        input.write_all(stdin.as_bytes())?;
         drop(input);
-        let output = child
-            .wait_with_output()
-            .map_err(|error| format!("git wait: {error}"))?;
+        child.wait_with_output()
+    }
+}
+
+impl Git for RealGit {
+    fn git(&self, args: &[&str], stdin: &str) -> Result<String, String> {
+        let output = self
+            .exec(args, stdin)
+            .map_err(|error| format!("git: {error}"))?;
         if !output.status.success() {
             return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
         }
@@ -79,16 +79,14 @@ pub fn refname(key: &str) -> String {
 
 impl Store<'_> {
     /// Pushes a new value, or reads back who held the ref when the push lost.
-    fn push(
-        &self,
-        key: &str,
-        expected: &str,
-        refspec: &str,
-        sha: &str,
-    ) -> Result<Outcome, String> {
+    fn push(&self, key: &str, expected: &str, refspec: &str, sha: &str) -> Result<Outcome, String> {
         let reference = refname(key);
         let lease_arg = format!("--force-with-lease={reference}:{expected}");
-        if self.git.git(&["push", &lease_arg, &self.url, refspec], "").is_ok() {
+        if self
+            .git
+            .git(&["push", &lease_arg, &self.url, refspec], "")
+            .is_ok()
+        {
             return Ok(Outcome::Won(sha.to_string()));
         }
         match self.current(key)? {
@@ -211,7 +209,9 @@ impl Store<'_> {
 
     /// Every claim on the remote, sorted by key.
     pub fn list(&self) -> Result<Vec<(String, Lease)>, String> {
-        let remote = self.git.git(&["ls-remote", &self.url, "refs/claims/*"], "")?;
+        let remote = self
+            .git
+            .git(&["ls-remote", &self.url, "refs/claims/*"], "")?;
         let mut found = Vec::new();
         for line in remote.lines() {
             let field = line
@@ -229,7 +229,3 @@ impl Store<'_> {
         Ok(found)
     }
 }
-
-#[cfg(test)]
-#[path = "store_tests.rs"]
-mod tests;

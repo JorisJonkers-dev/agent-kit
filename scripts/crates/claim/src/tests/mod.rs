@@ -1,8 +1,18 @@
-//! Tests for the placeholder entrypoint and for every line of the lease
+//! Tests for the real entrypoint and for every line of the lease
 //! record, including each parse error path and both clocks.
 
 use super::*;
 use crate::lease::*;
+use std::sync::Mutex;
+
+mod cli;
+mod store;
+
+static RUN_LOCK: Mutex<()> = Mutex::new(());
+
+fn scratch_dir() -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("claim-{}", std::process::id()))
+}
 
 fn sample_lease() -> Lease {
     Lease {
@@ -14,9 +24,27 @@ fn sample_lease() -> Lease {
 }
 
 #[test]
-fn run_is_a_placeholder_that_reports_bad_usage() {
+fn run_reports_bad_usage_and_removes_its_scratch_directory() {
+    let _lock = RUN_LOCK.lock().unwrap();
+    let dir = scratch_dir();
     assert_eq!(run(vec![]), 2);
-    assert_eq!(run(vec!["anything".to_string()]), 2);
+    assert!(!dir.exists());
+}
+
+#[test]
+fn run_reports_a_missing_repository_and_removes_its_scratch_directory() {
+    let _lock = RUN_LOCK.lock().unwrap();
+    let dir = scratch_dir();
+    let missing = std::env::temp_dir().join(format!("claim-missing-repo-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&missing);
+    assert_eq!(
+        run(vec![
+            "list".to_string(),
+            missing.to_string_lossy().to_string()
+        ]),
+        1
+    );
+    assert!(!dir.exists());
 }
 
 #[test]
@@ -149,4 +177,10 @@ fn fixed_clock_returns_its_instant() {
 #[test]
 fn system_clock_is_after_2023() {
     assert!(SystemClock.now() > 1_700_000_000);
+}
+
+#[test]
+fn env_var_reads_the_process_environment() {
+    assert!(env_var("PATH").is_some());
+    assert_eq!(env_var("CLAIM_SURELY_UNSET_VARIABLE"), None);
 }

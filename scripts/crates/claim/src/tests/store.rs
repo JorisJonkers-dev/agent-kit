@@ -10,8 +10,8 @@
 //! Tests for the claim store: a real local bare repository for the locking
 //! races and a scripted git stub for the error paths.
 
-use super::*;
 use crate::lease::{Clock, FixedClock, Lease};
+use crate::store::*;
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -43,7 +43,16 @@ impl Fixture {
             .unwrap();
         // A machine-wide hook may refuse the test identity; the test remote takes none.
         setup
-            .git(&["-C", bare.to_str().unwrap(), "config", "core.hooksPath", "/dev/null"], "")
+            .git(
+                &[
+                    "-C",
+                    bare.to_str().unwrap(),
+                    "config",
+                    "core.hooksPath",
+                    "/dev/null",
+                ],
+                "",
+            )
             .unwrap();
         Self {
             url: bare.to_string_lossy().to_string(),
@@ -57,7 +66,8 @@ impl Fixture {
         let git = RealGit { dir };
         git.git(&["init", "-q"], "").unwrap();
         // A machine-wide hook may refuse the test identity; the scratch repository takes none.
-        git.git(&["config", "core.hooksPath", "/dev/null"], "").unwrap();
+        git.git(&["config", "core.hooksPath", "/dev/null"], "")
+            .unwrap();
         git
     }
 }
@@ -86,11 +96,17 @@ fn lease_at(device: &str, run: &str, issue: u64, expires: u64) -> Lease {
 }
 
 fn wins(outcome: Outcome) -> String {
-    match outcome { Outcome::Won(sha) => sha, Outcome::Lost(_) => "lost".to_string() }
+    match outcome {
+        Outcome::Won(sha) => sha,
+        Outcome::Lost(_) => "lost".to_string(),
+    }
 }
 
 fn held_by(outcome: Outcome) -> Lease {
-    match outcome { Outcome::Won(_) => lease_at("won", "won", 0, 0), Outcome::Lost(lease) => lease }
+    match outcome {
+        Outcome::Won(_) => lease_at("won", "won", 0, 0),
+        Outcome::Lost(lease) => lease,
+    }
 }
 
 /// A git stub that answers one canned reply per call.
@@ -102,7 +118,11 @@ struct Scripted {
 impl Git for Scripted {
     fn git(&self, args: &[&str], _stdin: &str) -> Result<String, String> {
         if args == ["config", "user.name"] {
-            return if self.identity { Ok("owner".to_string()) } else { Err("unset".to_string()) };
+            return if self.identity {
+                Ok("owner".to_string())
+            } else {
+                Err("unset".to_string())
+            };
         }
         self.replies.lock().unwrap().pop_front().unwrap()
     }
@@ -128,16 +148,15 @@ struct MoveOnPush<'a> {
 impl Git for MoveOnPush<'_> {
     fn git(&self, args: &[&str], stdin: &str) -> Result<String, String> {
         if args.first() == Some(&"push") && !self.moved.replace(true) {
-            self.mover
-                .git(
-                    &[
-                        "push",
-                        "--force",
-                        self.url,
-                        &format!("{}:{}", self.move_to, self.reference),
-                    ],
-                    "",
-                )?;
+            self.mover.git(
+                &[
+                    "push",
+                    "--force",
+                    self.url,
+                    &format!("{}:{}", self.move_to, self.reference),
+                ],
+                "",
+            )?;
         }
         self.inner.git(args, stdin)
     }
@@ -145,7 +164,11 @@ impl Git for MoveOnPush<'_> {
 
 fn push_message(git: &RealGit, url: &str, reference: &str, message: &str) {
     let clock = FixedClock(0);
-    let store = Store { git, clock: &clock, url: url.to_string() };
+    let store = Store {
+        git,
+        clock: &clock,
+        url: url.to_string(),
+    };
     let sha = store.commit_message(message, None).unwrap();
     git.git(&["push", url, &format!("{sha}:{reference}")], "")
         .unwrap();
@@ -174,11 +197,7 @@ fn acquire_wins_then_another_device_loses_to_the_holder() {
         clock: &clock,
         url: fixture.url.clone(),
     };
-    let holder = held_by(
-        other
-            .acquire("dev-a", "dev-2", "run-2", 43, 60)
-            .unwrap(),
-    );
+    let holder = held_by(other.acquire("dev-a", "dev-2", "run-2", 43, 60).unwrap());
     assert_eq!(holder.device, "dev-1");
     assert_eq!(holder.run, "run-1");
 }
@@ -212,7 +231,8 @@ fn concurrent_acquires_have_exactly_one_winner() {
         let one = first.join().unwrap();
         let two = second.join().unwrap();
         assert_eq!(
-            matches!(one, Ok(Outcome::Won(_))) as usize + matches!(two, Ok(Outcome::Won(_))) as usize,
+            matches!(one, Ok(Outcome::Won(_))) as usize
+                + matches!(two, Ok(Outcome::Won(_))) as usize,
             1
         );
     });
@@ -291,11 +311,7 @@ fn a_takeover_loses_when_the_ref_moved_before_the_push() {
         clock: &later,
         url: fixture.url.clone(),
     };
-    let holder = held_by(
-        racing
-            .acquire("dev", "dev-2", "run-2", 2, 60)
-            .unwrap(),
-    );
+    let holder = held_by(racing.acquire("dev", "dev-2", "run-2", 2, 60).unwrap());
     assert_eq!(holder.device, "dev-3");
     assert_eq!(store.current("dev").unwrap().unwrap().0, moved_sha);
 }
@@ -426,7 +442,10 @@ fn list_returns_every_claim_sorted_by_key() {
     wins(store.acquire("alpha", "dev-a", "run-a", 2, 60).unwrap());
     let found = store.list().unwrap();
     assert_eq!(
-        found.iter().map(|(key, _)| key.as_str()).collect::<Vec<_>>(),
+        found
+            .iter()
+            .map(|(key, _)| key.as_str())
+            .collect::<Vec<_>>(),
         vec!["alpha", "zeta"]
     );
     assert_eq!(found[0].1.device, "dev-a");
@@ -438,7 +457,11 @@ fn a_missing_remote_url_is_an_error() {
     let fixture = Fixture::new();
     let git = fixture.scratch("first");
     let clock = FixedClock(1_000);
-    let missing = fixture.base.join("absent.git").to_string_lossy().to_string();
+    let missing = fixture
+        .base
+        .join("absent.git")
+        .to_string_lossy()
+        .to_string();
     let store = Store {
         git: &git,
         clock: &clock,
@@ -597,13 +620,7 @@ fn a_git_stub_covers_the_remaining_error_paths() {
 
     let message = lease_at("dev-1", "run-1", 1, 60).message();
     let listing: Result<String, String> = Ok(format!("{SHA}\t{}\n", refname("dev")));
-    let shown = || {
-        vec![
-            listing.clone(),
-            Ok(String::new()),
-            Ok(message.clone()),
-        ]
-    };
+    let shown = || vec![listing.clone(), Ok(String::new()), Ok(message.clone())];
 
     let mut replies = shown();
     replies.push(Ok("tree".to_string()));
@@ -640,11 +657,43 @@ fn a_git_stub_covers_the_remaining_error_paths() {
 fn a_machine_without_a_git_identity_gets_the_fallback_identity() {
     let git = Scripted {
         replies: Mutex::new(
-            vec![Ok(String::new()), Ok("tree".to_string()), Ok(SHA.to_string()), Ok(String::new())].into(),
+            vec![
+                Ok(String::new()),
+                Ok("tree".to_string()),
+                Ok(SHA.to_string()),
+                Ok(String::new()),
+            ]
+            .into(),
         ),
         identity: false,
     };
     let clock = FixedClock(0);
-    let store = Store { git: &git, clock: &clock, url: "stub-remote".to_string() };
-    assert_eq!(store.acquire("dev", "dev-1", "run-1", 1, 60), Ok(Outcome::Won(SHA.to_string())));
+    let store = Store {
+        git: &git,
+        clock: &clock,
+        url: "stub-remote".to_string(),
+    };
+    assert_eq!(
+        store.acquire("dev", "dev-1", "run-1", 1, 60),
+        Ok(Outcome::Won(SHA.to_string()))
+    );
+}
+
+#[test]
+fn a_missing_scratch_directory_or_a_closed_stdin_is_a_git_error() {
+    let gone = RealGit {
+        dir: std::env::temp_dir().join("claim-no-such-directory"),
+    };
+    assert!(gone
+        .git(&["--version"], "")
+        .unwrap_err()
+        .starts_with("git: "));
+    let here = RealGit {
+        dir: std::env::temp_dir(),
+    };
+    let big = "x".repeat(4 * 1024 * 1024);
+    assert!(here
+        .git(&["--version"], &big)
+        .unwrap_err()
+        .starts_with("git: "));
 }
