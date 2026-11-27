@@ -293,7 +293,7 @@ build_tracker:
 model_gateway:
   files:
     - path: skills/workstation/model-gateway/defaults.json
-      sha256: 50b8fe898db683189d2a6b0e63943770c4a9eedcf03c63498271db26dcd55e7d
+      sha256: 25a4f5545856c4241fc14ecf35bc84bd5d3f38b73e9c2e6585b8df08fd61cd7b
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
       sha256: 99f30d35a6dabc7415bae1135e567caf1205d7d0e7d450383de290ec6da3fd1d

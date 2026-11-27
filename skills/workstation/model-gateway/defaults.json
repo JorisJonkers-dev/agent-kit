@@ -172,7 +172,7 @@
       "network": "proxy-only"
     },
     "tier-free": {
-      "description": "The LiteLLM tier tier-free (cost ceiling free): the proxy runs free/hy4-flash -> free/longcat-2.5 -> free/beam-1.0-501b-a23b -> free/glm-4.7-flash -> free/qwen3.8-27b in order, and falls to the next step when one fails. The request names a tier, never a model.",
+      "description": "The LiteLLM tier tier-free (cost ceiling free): the proxy runs free/hy4-flash -> free/longcat-2.5 -> free/beam-1.0-501b-a23b -> free/glm-4.7-flash -> free/qwen3.8-27b -> free-router/openrouter in order, and falls to the next step when one fails. The request names a tier, never a model.",
       "models": ["pi-free:tier-free"],
       "tier": "tier-free",
       "key_models": ["free", "tier-free"],
