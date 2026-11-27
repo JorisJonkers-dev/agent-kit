@@ -45,4 +45,5 @@ members = [
     "crates/litellm-harness",
     "crates/litellm-budget",
     "crates/agent-kit-merge",
+    "crates/claim",
 ]
