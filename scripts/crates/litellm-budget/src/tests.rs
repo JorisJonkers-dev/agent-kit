@@ -385,14 +385,31 @@ fn the_kit_files_are_found_from_the_executable() {
     tmp.file("registry/generated/litellm/routes.json", "{}");
     tmp.file("installer/agent-kit-secret", "");
     let exe = tmp.0.join("scripts/target/release/measure-litellm-budget");
-    let c = real_ctx(&exe);
+    let c = ctx_from(&exe, BTreeMap::new());
     assert_eq!(c.routes, tmp.0.join(ROUTES_REL));
     assert_eq!(c.secret, tmp.0.join(SECRET_REL));
     assert_eq!(find_up(&exe, "nothing/here"), None);
-    // Away from a kit, the routes path stays relative and the secret is the installed helper.
-    let c = real_ctx(Path::new("/nonexistent/exe"));
+    // Away from a kit, the routes path stays relative and the secret is the installed helper,
+    // whatever the host's own environment holds.
+    let mut env = BTreeMap::new();
+    env.insert("HOME".to_string(), "/home/someone".to_string());
+    let c = ctx_from(Path::new("/nonexistent/exe"), env.clone());
     assert_eq!(c.routes, PathBuf::from(ROUTES_REL));
-    assert!(c.secret.ends_with(".local/bin/agent-kit-secret") || c.secret.exists());
+    assert_eq!(
+        c.secret,
+        PathBuf::from("/home/someone/.local/bin/agent-kit-secret")
+    );
+    // No HOME at all still yields a path rather than a failure.
+    let c = ctx_from(Path::new("/nonexistent/exe"), BTreeMap::new());
+    assert_eq!(c.secret, PathBuf::from(".local/bin/agent-kit-secret"));
+    // An explicit AGENT_KIT_SECRET_TOOL wins over the kit's own helper.
+    env.insert(
+        "AGENT_KIT_SECRET_TOOL".to_string(),
+        "/opt/secret".to_string(),
+    );
+    let c = ctx_from(&exe, env);
+    assert_eq!(c.secret, PathBuf::from("/opt/secret"));
+    assert_eq!(c.routes, tmp.0.join(ROUTES_REL));
 }
 
 #[test]
