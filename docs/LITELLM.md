@@ -14,9 +14,10 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `opencode-go` | `LITELLM_OPENCODE_GO_KEY` | 60 EUR | `canonical` | every canonical model |
 | `free` | `LITELLM_FREE_KEY` | none | `free`, `tier-free` | every free model, only as `free/<model>` (each group every free copy of one model across the free providers), and the `tier-free` tier name; never `canonical`, so nothing paid is reachable and a refusal fails instead of billing; **public work only** |
 | `local` | `LITELLM_LOCAL_KEY` | none | `canonical`, `local/*` | every canonical model, and `local/<id>` for any id the GPU workstation's server (free) serves, such as `local/qwen3:32b`; the key has no cap, so use it for local models only |
-| `tier-vibe` | `LITELLM_TIER_VIBE_KEY` | none | `tier-vibe`, `vibe-tier`, `opencode-go-tier` | the `tier-vibe` chain: Vibe's Flash models, then Go's cheap ones |
-| `tier-go-cheap` | `LITELLM_TIER_GO_CHEAP_KEY` | none | `tier-go-cheap`, `opencode-go-tier` | the `tier-go-cheap` chain: Go's cheap models |
+| `tier-vibe` | `LITELLM_TIER_VIBE_KEY` | none | `tier-vibe`, `vibe-tier`, `opencode-go-tier`, `paid` | the `tier-vibe` chain: Vibe's Flash models, then Go's cheap ones; and `paid/<model>` |
+| `tier-go-cheap` | `LITELLM_TIER_GO_CHEAP_KEY` | none | `tier-go-cheap`, `opencode-go-tier`, `paid` | the `tier-go-cheap` chain: Go's cheap models; and `paid/<model>` |
 | `tier-review` | `LITELLM_TIER_REVIEW_KEY` | none | `free`, `tier-review`, `vibe-tier`, `opencode-go-tier` | the `tier-review` chain: free models, then Vibe Flash, then Go Flash; **public work only** |
+| `paid` | `LITELLM_PAID_KEY` | none | `paid` | `paid/<model>` only (each a budgeted paid group, see the paid groups in AGENTS.md of litellm); a dedicated key for callers that name a paid model explicitly |
 
 A key lists **access groups**, not a provider wildcard (the free `local` key alone adds its own
 `local/*`: LiteLLM puts a wildcard in an access group only with an Enterprise licence, so the key

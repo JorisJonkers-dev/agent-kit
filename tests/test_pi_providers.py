@@ -82,12 +82,13 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
     routes = data["litellm"]["routes"]
     assert table["base_url"] == data["litellm"]["base_url"]
     assert table["api"] == "openai-completions"
-    # A route with no usable model has no provider: local has none until a local/* model is probed, and free
-    # none until a free group is. The routes that do have models keep the registry's order and key.
+    # A route with no usable model has no provider: local has none until a local/* model is probed, free
+    # none until a free group is, and paid none, since the catalogue lists no paid/* group for Pi (a paid/<model>
+    # caller names it directly). The routes that do have models keep the registry's order and key.
     names = [p["name"] for p in table["providers"]]
     expected = [f"litellm-{r['agent']}" for r in routes]
     assert [name for name in expected if name in names] == names
-    assert {name for name in expected if name not in names} <= {"litellm-local", "litellm-free"}
+    assert {name for name in expected if name not in names} <= {"litellm-local", "litellm-free", "litellm-paid"}
     keys = {f"litellm-{r['agent']}": r["key_env"] for r in routes}
     assert [p["key_env"] for p in table["providers"]] == [keys[name] for name in names]
     for provider in table["providers"]:

@@ -4146,6 +4146,13 @@
           "maxTokens": 32768
         }
       ]
+    },
+    {
+      "agent": "paid",
+      "provider": "litellm-paid",
+      "key_env": "LITELLM_PAID_KEY",
+      "data_scope": "any",
+      "models": []
     }
   ]
 }

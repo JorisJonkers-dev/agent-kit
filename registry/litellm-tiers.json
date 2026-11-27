@@ -4,7 +4,7 @@
     "path": "catalog/routing.json",
     "key": "tier_groups",
     "ref": "main",
-    "blob": "f81eb4927f4f4dafac74e3a5a09bb4c24ff63733"
+    "blob": "fd3cae2278c94c9c59bd55e7b17d65db8621f6ae"
   },
   "tier_groups": {
     "tier-free": {
@@ -41,7 +41,8 @@
       "key_models": [
         "tier-vibe",
         "vibe-tier",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ],
       "steps": [
         {
@@ -65,7 +66,8 @@
       "ceiling": "go",
       "key_models": [
         "tier-go-cheap",
-        "opencode-go-tier"
+        "opencode-go-tier",
+        "paid"
       ],
       "steps": [
         {

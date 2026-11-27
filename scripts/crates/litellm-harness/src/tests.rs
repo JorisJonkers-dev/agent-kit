@@ -114,8 +114,9 @@ fn the_rendered_table_has_routes_with_providers_and_holds_no_key() {
         assert_eq!(route["provider"], format!("litellm-{agent}"));
         assert!(route["key_env"].as_str().unwrap().starts_with("LITELLM_"));
         assert!(
-            !model_ids(route).unwrap().is_empty() || agent == "local" || agent == "free",
-            "only local and free have no usable model yet"
+            // paid holds only paid/<model> groups, which the published catalogue lists once the sync plans them.
+            !model_ids(route).unwrap().is_empty() || matches!(agent, "local" | "free" | "paid"),
+            "only local, free and paid have no usable model yet"
         );
     }
     assert!(!body.contains("sk-"));

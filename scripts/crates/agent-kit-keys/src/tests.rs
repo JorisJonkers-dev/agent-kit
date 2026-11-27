@@ -1808,6 +1808,28 @@ fn missing_keys_get_a_team_each_and_a_key_named_for_this_host() {
 }
 
 #[test]
+fn the_paid_key_is_a_team_holding_paid_alone_and_is_minted_like_the_tiers() {
+    let state: SharedProxy = Arc::new(Mutex::new(ProxyState::default()));
+    let url = proxy_server(&state);
+    let mut entry = litellm_entry(&url, "LITELLM_PAID_KEY", "paid", None);
+    entry["litellm"]["team"]["models"] = json!(["paid"]);
+    let w = World::new(&url, &json!([entry]));
+    mint(&w, &["LITELLM_PAID_KEY"], ADMIN, false);
+    let s = state.lock().unwrap();
+    let team = s
+        .teams
+        .iter()
+        .find(|t| t["team_alias"] == "paid")
+        .expect("a team named paid");
+    assert_eq!(team["models"], json!(["paid"]));
+    assert!(team.get("max_budget").is_none());
+    let stored = w.stored();
+    let key = &s.keys[&stored["LITELLM_PAID_KEY"]];
+    assert_eq!(key["key_alias"], "paid@box");
+    assert_eq!(key["team_id"], team["team_id"]);
+}
+
+#[test]
 fn the_old_shared_key_is_deleted_and_a_drifted_budget_is_put_back() {
     let (w, proxy) = litellm_world();
     {

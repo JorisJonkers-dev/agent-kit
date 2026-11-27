@@ -162,14 +162,14 @@
       "description": "The LiteLLM tier tier-vibe (cost ceiling go): the proxy runs vibe-tier/deepseek-v4-1-flash-1017 -> vibe-tier/zai-glm-5-3-flash -> vibe-tier/mistral-small-2603 -> opencode-go-tier/deepseek-v4.1-flash -> opencode-go-tier/glm-5.3-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
       "models": ["pi-tier-vibe:tier-vibe"],
       "tier": "tier-vibe",
-      "key_models": ["tier-vibe", "vibe-tier", "opencode-go-tier"],
+      "key_models": ["tier-vibe", "vibe-tier", "opencode-go-tier", "paid"],
       "tools": {"mcp": [], "skills": [], "plugins": []}
     },
     "tier-go-cheap": {
       "description": "The LiteLLM tier tier-go-cheap (cost ceiling go): the proxy runs opencode-go-tier/deepseek-v4.1-flash -> opencode-go-tier/glm-5.3-flash -> opencode-go-tier/mimo-v2.6-flash in order, and falls to the next step when one fails. The request names a tier, never a model.",
       "models": ["pi-tier-go-cheap:tier-go-cheap"],
       "tier": "tier-go-cheap",
-      "key_models": ["tier-go-cheap", "opencode-go-tier"],
+      "key_models": ["tier-go-cheap", "opencode-go-tier", "paid"],
       "tools": {"mcp": [], "skills": [], "plugins": []}
     },
     "tier-strong-open": {
