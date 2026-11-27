@@ -1,9 +1,8 @@
-//! claim: claim a device for one run by storing a lease in a git commit
-//! message. This member is deliberately trivial and std-only, with no
-//! dependency of any kind. New Rust joins this workspace as a new member,
-//! never as its own Cargo project.
+//! claim: a ticket claim is the git ref `refs/claims/<key>` in a repository, taken with a
+//! create-only push, so exactly one agent wins. The lease is recorded in the claim commit.
 
 pub mod lease;
+pub mod store;
 
 #[cfg(test)]
 mod tests;
