@@ -324,6 +324,14 @@ package_proxy:
     go_private: "github.com/JorisJonkers-dev/*"
   vault_path: "packages-system/keys"
   vault_field: "workstation"
+  # After the vault and before the stored token file: the first kube context
+  # whose name ends in context_suffix that can read the secret's `key` data
+  # item in `namespace` supplies the key. Skipped in a run that does not
+  # prompt (--no-prompt, --check, --cloud); kubectl may ask for a password.
+  cluster_secret:
+    namespace: "packages-system"
+    key: "workstation"
+    context_suffix: "-admin"
   # Relative to XDG_CONFIG_HOME, mode 0600.
   token_file: "jorisjonkers/packages-token"
   verify_url: "https://packages.jorisjonkers.dev/npm/typescript"
