@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.14.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.13.1...v6.14.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** clear superseded sbx images and ended sandboxes, add sandbox prune ([#992](https://github.com/JorisJonkers-dev/agent-kit/issues/992)) ([20ef16c](https://github.com/JorisJonkers-dev/agent-kit/commit/20ef16ca22ba13628d68579ac09248bb4248a42b))
+
+
+### Bug Fixes
+
+* **registry:** take the tier-free chain with OpenRouter's free router from litellm ([#991](https://github.com/JorisJonkers-dev/agent-kit/issues/991)) ([13d54ed](https://github.com/JorisJonkers-dev/agent-kit/commit/13d54ed4f5ed75b4cb86a0479c47e30c7a3a4d78))
+
 ## [6.13.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.13.0...v6.13.1) (2026-11-27)
 
 
