@@ -8,7 +8,7 @@ use crate::json::{self, Value};
 use crate::launchers::{GitView, LaunchPaths, LaunchRequest, VIBE_ENV};
 use crate::ports::{Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
-use crate::tests::confined::{unwrapped, LAUNCHER};
+use crate::tests::confined::{unwrapped};
 use crate::run_home::{opencode_config, prepare_hermes, prepare_opencode, run_home_dir};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
@@ -130,7 +130,7 @@ impl Process for Programs {
 }
 
 fn env() -> HashMap<String, String> {
-    HashMap::from([("HOME".to_string(), "/home/me".to_string()), ("AGENT_KIT_LAUNCHER_BIN".to_string(), LAUNCHER.to_string())])
+    HashMap::from([("HOME".to_string(), "/home/me".to_string()), ("AGENT_KIT_SANDBOX".to_string(), "host".to_string())])
 }
 
 /// The owner's OpenCode config: an MCP server of their own, a LiteLLM provider with two models, a second provider.

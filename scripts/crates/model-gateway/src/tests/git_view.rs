@@ -130,9 +130,9 @@ fn every_confined_launch_starts_from_the_same_grants_with_the_git_it_sees() {
     let base = base_grants(&request(Some(RunMode::ReadOnly)), &paths, "tool");
     assert_eq!(base, ["--read", "/w", "--read", "/repo/.git/worktrees/w", "--read", "/repo/.git/HEAD", "--run", "/clt", "--run-from", "tool"]);
     // Pi and every other client begin with exactly these.
-    let confine = PiConfinement { launcher: "l".into(), agent_dir: "/a".into(), bin: None, port: 8, path: None, skills: Vec::new(), extensions: Vec::new() };
+    let confine = PiConfinement { agent_dir: "/a".into(), bin: None, port: 8, path: None, skills: Vec::new(), extensions: Vec::new() };
     assert_eq!(pi_grants(&request(None), &paths, "tool", &confine)[..base.len()], base[..]);
-    let client = Confinement { launcher: "l".into(), ..Confinement::default() }.args(&request(None), &paths, "tool", &[]);
+    let client = Confinement { ..Confinement::default() }.args(&request(None), &paths, "tool", &[]);
     assert_eq!(client[1..=base.len()], base[..]);
     let writing = base_grants(&request(Some(RunMode::Write)), &LaunchPaths { git_writable: Some(vec!["/g".into()]), ..paths.clone() }, "tool");
     assert_eq!(writing[..4], ["--write", "/w", "--write", "/g"]);

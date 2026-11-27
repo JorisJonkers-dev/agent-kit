@@ -4,14 +4,14 @@
 //! reads `result` and `exported`; a delegation reads `output` too.
 
 use crate::config::ToolScope;
-use crate::client_confine::{no_launcher, Confinement};
+use crate::client_confine::Confinement;
 use crate::error::GatewayError;
 use crate::extras::{RunExtras, EXTRA_NAMES};
 use crate::home_mcp::home_mcp_servers;
 use crate::json::{self, Value};
 use crate::launchers::{launcher, LaunchExtras, LaunchPaths, LaunchRequest, PiConfinement};
 use crate::outputs::ClientOutput;
-use crate::pi_launch::{launcher_of, prepare_pi};
+use crate::pi_launch::prepare_pi;
 use crate::ports::{Clock, Ending, Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
@@ -144,8 +144,11 @@ impl ClientRun<'_> {
         require_supported_extras(request.client, &request.extras)?;
         let mut image_warnings = Vec::new();
         let backend = SandboxBackend::select(self.env)?;
+        if !backend.is_host() {
+            sbx_launch::require_client(request.client)?;
+        }
         if backend == SandboxBackend::Sbx {
-            sbx_launch::preflight(self.process, request.client)?;
+            sbx_launch::preflight(self.process)?;
             // A sandbox an ended gateway left behind goes before this run makes its own.
             image_warnings.extend(sbx_launch::prune_orphans(self.process));
         }
@@ -155,14 +158,7 @@ impl ClientRun<'_> {
         // A client that can sign in from an environment variable gets its credential that way and no keychain: the
         // gateway asks the keychain, outside the confinement, for the one item the client needs.
         let credential = self.credential_of(request);
-        let confinement = match self.confinement_of_client(request, home.as_ref(), credential.is_some()) {
-            Ok(confinement) => confinement,
-            Err(error) => {
-                // A home made for a launch that never starts goes at once: it may hold a link to the owner's login.
-                let _ = home.iter().try_for_each(|home| self.files.remove(&home.dir));
-                return Err(error.into());
-            }
-        };
+        let confinement = self.confinement_of_client(request, home.as_ref(), credential.is_some());
         let mut extras = LaunchExtras { confine: confine.clone(), home: home.clone(), confinement, ..self.extras_of(request)? };
         extras.env.extend(credential);
         let command = (launcher.command)(&request.binary, &request.launch, &request.paths, &request.prompt, Some(&extras));
@@ -175,7 +171,8 @@ impl ClientRun<'_> {
             return Err(dry_run(request.client.as_str(), &command).into());
         }
         let sandboxed = if backend == SandboxBackend::Sbx {
-            match self.sandboxed(request, &command, confine.as_ref(), home.as_ref()) {
+            let dir = confine.as_ref().map(|confine| confine.agent_dir.clone()).or_else(|| home.as_ref().map(|home| home.dir.clone())).unwrap_or_default();
+            match self.sandboxed(request.client, &command, &dir) {
                 Ok((sandboxed, warnings)) => {
                     image_warnings.extend(warnings);
                     Some(sandboxed)
@@ -186,6 +183,7 @@ impl ClientRun<'_> {
                 }
             }
         } else {
+            // Only the host backend of a test build gets here, and it runs the plan command as it is: a test's fake process is the sandbox.
             None
         };
         let (ran, sandbox_warnings) = match sandboxed {
@@ -217,28 +215,56 @@ impl ClientRun<'_> {
         Ok(ClientRunOutcome { result, ending, exported, output, warnings: leftovers })
     }
 
+    /// Whether a launch on this machine can start: the sandbox backend the environment names, and for sbx a working
+    /// `sbx`. The refusal is the one a launch would end with, so a caller that asks before it launches says the same.
+    pub fn sandbox_ready(process: &dyn Process, env: &HashMap<String, String>) -> Result<(), GatewayError> {
+        match SandboxBackend::select(env)? {
+            SandboxBackend::Sbx => sbx_launch::preflight(process),
+            _ => Ok(()),
+        }
+    }
+
+    /// One launch of a caller that makes its own plan command (`sbx-plan grants ... -- client args`, with the
+    /// client's own directory `dir` holding its route's config), as a critique critic does: the same backend
+    /// selection, the same sbx preflight, image, sandbox and cleanup as `launch`, and the client's result.
+    pub fn launch_planned(&self, client: RunClient, command: &ProcessCommand, dir: &str) -> Result<Launched, ClientRunError> {
+        let backend = SandboxBackend::select(self.env)?;
+        if !backend.is_host() {
+            sbx_launch::require_client(client)?;
+        }
+        if backend == SandboxBackend::SbxDryRun {
+            return Err(dry_run(client.as_str(), command).into());
+        }
+        if backend.is_host() {
+            return self.process.run_watched(command, &Unwatched).map_err(ClientRunError::Spawn);
+        }
+        sbx_launch::preflight(self.process)?;
+        // A sandbox an ended gateway left behind goes first; what cannot be listed or removed is not this launch's to report.
+        let _ = sbx_launch::prune_orphans(self.process);
+        let (sandboxed, _) = self.sandboxed(client, command, dir)?;
+        sbx_launch::run(self.process, self.files, &sandboxed, command, &Unwatched).ran.map_err(ClientRunError::Spawn)
+    }
+
     /// The sbx side of a launch: its image is the client's current record (refreshed first when it is stale), its
     /// route is read from the launch's own config, which the sandbox must reach through the host name it sees, so a
     /// loopback base URL is rewritten in that file once the rule for it is taken. The image's warnings come with it.
-    fn sandboxed(&self, request: &ClientRunRequest, command: &ProcessCommand, confine: Option<&PiConfinement>, home: Option<&RunHome>) -> Result<(sbx_launch::SbxLaunch, Vec<String>), GatewayError> {
-        let (reference, warnings) = sbx_images::ensure(self.process, self.files, self.clock, self.env, request.client.as_str())?;
-        let dir = confine.map(|confine| confine.agent_dir.clone()).or_else(|| home.map(|home| home.dir.clone())).unwrap_or_default();
-        let path = sbx_launch::config_path(request.client, &dir);
+    fn sandboxed(&self, client: RunClient, command: &ProcessCommand, dir: &str) -> Result<(sbx_launch::SbxLaunch, Vec<String>), GatewayError> {
+        let (reference, warnings) = sbx_images::ensure(self.process, self.files, self.clock, self.env, client.as_str())?;
+        let path = sbx_launch::config_path(client, dir);
         // Claude Code and Codex reach their own provider at fixed hosts: they have no route file to read.
-        let text = if crate::sbx_clients::fixed_hosts(request.client).is_some() { String::new() } else { self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", request.client.as_str(), error.message)))? };
-        let mut sandboxed = sbx_launch::translate(request.client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
+        let text = if crate::sbx_clients::fixed_hosts(client).is_some() { String::new() } else { self.files.read_text(&path).map_err(|error| GatewayError::new("sandbox-unsupported", format!("{}: the route's config {path} cannot be read: {}", client.as_str(), error.message)))? };
+        let mut sandboxed = sbx_launch::translate(client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
         sandboxed.image = reference;
-        sandboxed.env_file = join(&[&dir, "sbx.env"]);
-        let config = crate::sbx_clients::with_model(request.client, &text, &sandboxed.args);
-        let config = sbx_launch::rewritten_config(request.client, &config).unwrap_or(config);
+        sandboxed.env_file = join(&[dir, "sbx.env"]);
+        let config = crate::sbx_clients::with_model(client, &text, &sandboxed.args);
+        let config = sbx_launch::rewritten_config(client, &config).unwrap_or(config);
         if config != text {
             self.files.write_private(&path, &config).map_err(GatewayError::from_fs)?;
         }
         Ok((sandboxed, warnings))
     }
 
-    /// What a Pi launch runs through, or the refusal that says why it cannot: Pi has no sandbox of its own,
-    /// so a launch that cannot be confined never starts.
+    /// What a Pi launch runs through, or the refusal that says why it cannot start.
     fn confinement_of(&self, request: &ClientRunRequest, scope: Option<&ToolScope>) -> Result<PiConfinement, GatewayError> {
         let Some(provider) = request.launch.provider.as_deref() else {
             return Err(GatewayError::new("unconfined", "a pi launch must name its provider"));
@@ -271,14 +297,11 @@ impl ClientRun<'_> {
         Some((variable.to_string(), value))
     }
 
-    /// What a client but Pi is started through: the launcher and the grants of its recipe (ADR-0016), or why it
-    /// cannot be confined. A client that cannot is refused, never started bare.
-    fn confinement_of_client(&self, request: &ClientRunRequest, home: Option<&RunHome>, has_credential: bool) -> Result<Option<Confinement>, GatewayError> {
-        let Some(home) = home else {
-            return Ok(None);
-        };
+    /// What a client but Pi is granted in its sandbox: the grants of its recipe (the sbx plan's input, ADR-0019),
+    /// or why it cannot be given them.
+    fn confinement_of_client(&self, request: &ClientRunRequest, home: Option<&RunHome>, has_credential: bool) -> Option<Confinement> {
+        let home = home?;
         let client = request.client;
-        let launcher = launcher_of(self.files, self.env).ok_or_else(|| GatewayError::new("unconfined", no_launcher(client.as_str())))?;
         let owner_home = self.env.get("HOME").map_or("", String::as_str);
         let gemini = |name: &str| join(&[owner_home, ".gemini", name]);
         let (keychain, preferences, own, env) = match client {
@@ -318,7 +341,7 @@ impl ClientRun<'_> {
         // Antigravity serves itself on a loopback port chosen at run time, like OpenCode: loopback at any port, the rest
         // of the network at 443 only.
         let (ports, loopback) = if client == RunClient::Agy { (vec![443], true) } else { (home.ports.clone(), home.loopback) };
-        Ok(Some(Confinement { launcher, reads, run_from, writes, ports, loopback, keychain, preferences, env }))
+        Some(Confinement { reads, run_from, writes, ports, loopback, keychain, preferences, env })
     }
 
     /// The home of a launch of a client but Pi (#903): what the client runs in, and what the confinement grants for

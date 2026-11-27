@@ -13,6 +13,12 @@ grant, Codex. The point is that
 cheap, already-paid-for clients do most of the work and you spend few tokens
 planning and checking it.
 
+**Docker Sandboxes (`sbx`) are required.** Every worker runs in its own sandbox, with no fallback
+(ADR-0019). A machine without a working `sbx` refuses each launch with `sandbox-unavailable` before anything
+is made; the fix is `brew trust docker/tap && brew install docker/tap/sbx`, then `sbx login`. Do not work
+around the refusal with another backend: `AGENT_KIT_SANDBOX` stays unset, and `confine` is retired.
+Antigravity is refused (`sandbox-unsupported`) because no sandbox can hold its sign-in; pick another client.
+
 The gateway's commands, fields and error codes live in
 [`../model-gateway/SKILL.md`](../model-gateway/SKILL.md). This skill does not
 repeat them; read that file for anything not shown here.
@@ -110,7 +116,7 @@ falling back.
 
 - A model covers a tier when its own tier is at least the task's.
 - Prefer Pi. Within a class, take a `pi-<route>` client over any other client
-  whose model covers the tier: Pi runs confined to its working directory, on a
+  whose model covers the tier: Pi runs in a Docker Sandbox with only its working directory, on a
   LiteLLM route's own budget. Take another client only when no Pi model covers
   the tier or the family the task needs. `pi-free` is the Pi client the data
   policy never lists for a repository GitHub does not say is public: use it

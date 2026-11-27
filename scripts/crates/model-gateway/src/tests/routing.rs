@@ -411,7 +411,7 @@ fn a_tier_run_sends_the_tier_as_the_model_and_writes_one_ledger_line_with_the_ro
     ]);
     let asked = Arc::new(Mutex::new(Vec::new()));
     let mut machine = Machine::with_process(crate::SHIPPED_DEFAULTS, super::machine::now_ms(), super::machine::FakeProcess::default(), Box::new(StubPi { asked: asked.clone() }));
-    machine.runtime.env.insert("AGENT_KIT_LAUNCHER_BIN".to_string(), "/opt/agent-launcher".to_string());
+    machine.runtime.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
     let provider = format!(
         r#"{{"providers":{{"litellm-free":{{"api":"openai-completions","apiKey":"literal-key","baseUrl":"http://127.0.0.1:{}/v1","models":[{{"id":"tier-free","cost":{{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}}}}]}}}}}}"#,
         upstream.port

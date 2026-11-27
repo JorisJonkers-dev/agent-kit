@@ -2,7 +2,7 @@
 //! and the home's MCP servers, ported from the node runner's tests of the same
 //! modules. Every client is a fake: nothing here starts a real program.
 
-use crate::tests::confined::{grant_values, unwrapped, LAUNCHER};
+use crate::tests::confined::{grant_values, unwrapped};
 use crate::client_run::{require_supported_extras, ClientRun, ClientRunError, ClientRunRequest};
 use crate::error::GatewayError;
 use crate::extras::{AttachedServer, RunExtras, SandboxProfile};
@@ -177,7 +177,7 @@ fn finished(stdout: &str, exit_code: i32) -> ProcessResult {
 }
 
 fn env() -> HashMap<String, String> {
-    HashMap::from([("HOME".to_string(), HOME.to_string()), ("AGENT_KIT_LAUNCHER_BIN".to_string(), LAUNCHER.to_string())])
+    HashMap::from([("HOME".to_string(), HOME.to_string()), ("AGENT_KIT_SANDBOX".to_string(), "host".to_string())])
 }
 
 fn paths() -> LaunchPaths {

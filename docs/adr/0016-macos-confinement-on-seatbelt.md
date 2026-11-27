@@ -1,5 +1,10 @@
 # `agent-launcher confine` holds a read allowlist and a network limit on macOS
 
+> **Superseded for gateway workers by [ADR-0019](0019-gateway-workers-run-in-docker-sandboxes.md).** Every
+> gateway worker runs in a Docker Sandbox and the gateway no longer starts `agent-launcher confine`. This
+> record stays for `agent-launcher confine` itself (ADR-0013's interactive write layer) and for the grant set,
+> which is still the sandbox plan's input.
+
 This extends ADR-0013, which gave macOS a write limit and no read allowlist.
 `agent-launcher confine` (#737) limits a whole process to the paths it is
 given, and until now only Landlock could hold that, so on a Mac every

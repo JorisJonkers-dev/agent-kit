@@ -1,4 +1,4 @@
-//! The sandbox backend a launch runs in, and the sbx plan a dry run turns a confined launch into.
+//! The sandbox backend a launch runs in, and the sbx plan a dry run turns a launch's grants into.
 
 use crate::json::{self, Value};
 use crate::ports::{Clock, ProcessCommand};
@@ -24,24 +24,31 @@ fn env(value: Option<&str>) -> HashMap<String, String> {
 }
 
 fn confined(grants: &[&str]) -> ProcessCommand {
-    let mut args = vec!["confine"];
+    let mut args = vec!["grants"];
     args.extend(grants);
     args.extend(["--", "opencode", "run", "say ok"]);
-    ProcessCommand { cwd: Some("/work".to_string()), ..ProcessCommand::new("/bin/agent-launcher", &args) }
+    ProcessCommand { cwd: Some("/work".to_string()), ..ProcessCommand::new("sbx-plan", &args) }
 }
 
 #[test]
-fn confine_is_the_backend_unless_the_machine_names_another_and_an_unknown_name_is_refused() {
-    assert_eq!(SandboxBackend::select(&env(None)), Ok(SandboxBackend::Confine));
-    assert_eq!(SandboxBackend::select(&env(Some(""))), Ok(SandboxBackend::Confine));
-    assert_eq!(SandboxBackend::select(&env(Some("confine"))), Ok(SandboxBackend::Confine));
-    assert_eq!(SandboxBackend::select(&env(Some("sbx-dry-run"))), Ok(SandboxBackend::SbxDryRun));
+fn sbx_is_the_backend_unless_the_machine_names_the_dry_run_and_confine_and_unknown_names_are_refused() {
+    assert_eq!(SandboxBackend::select(&env(None)), Ok(SandboxBackend::Sbx));
+    assert_eq!(SandboxBackend::select(&env(Some(""))), Ok(SandboxBackend::Sbx));
     assert_eq!(SandboxBackend::select(&env(Some("sbx"))), Ok(SandboxBackend::Sbx));
+    assert_eq!(SandboxBackend::select(&env(Some("sbx-dry-run"))), Ok(SandboxBackend::SbxDryRun));
+    assert_eq!(SandboxBackend::select(&env(Some("host"))), Ok(SandboxBackend::Host));
     assert_eq!(SandboxBackend::Sbx.as_str(), "sbx");
+    assert_eq!(SandboxBackend::Host.as_str(), "host");
+    assert!(SandboxBackend::Host.is_host());
+    assert!(!SandboxBackend::Sbx.is_host() && !SandboxBackend::SbxDryRun.is_host());
     let refused = SandboxBackend::select(&env(Some("vm"))).expect_err("not a backend");
     assert_eq!(refused.code, "sandbox-unknown");
-    assert!(refused.message.contains("AGENT_KIT_SANDBOX=vm names no sandbox backend; use confine, sbx-dry-run or sbx"), "{}", refused.message);
-    assert_eq!(SandboxBackend::Confine.as_str(), "confine");
+    assert!(refused.message.contains("AGENT_KIT_SANDBOX=vm names no sandbox backend; use sbx (the default) or sbx-dry-run"), "{}", refused.message);
+    // The confine backend is retired for gateway workers (ADR-0019), and it is refused by name rather than as a typo.
+    let retired = SandboxBackend::select(&env(Some("confine"))).expect_err("retired");
+    assert_eq!(retired.code, "sandbox-unknown");
+    assert!(retired.message.contains("the confine backend was retired for gateway workers (ADR-0019)"), "{}", retired.message);
+    assert!(retired.message.contains("sbx or sbx-dry-run"), "{}", retired.message);
 }
 
 #[test]
@@ -57,7 +64,7 @@ fn a_read_only_launch_mounts_its_grants_read_only_and_its_run_directory_written(
     assert!(plan.loopback);
     // The port rule has no host names yet: that is said, not dropped.
     assert_eq!(plan.gaps.len(), 1);
-    assert!(plan.gaps[0].starts_with("network: confine allows TCP ports 443 to any host"), "{}", plan.gaps[0]);
+    assert!(plan.gaps[0].starts_with("network: the grants allow TCP ports 443 to any host"), "{}", plan.gaps[0]);
 }
 
 #[test]
@@ -80,14 +87,14 @@ fn a_grant_the_plan_does_not_know_and_a_port_that_is_not_one_are_gaps() {
 }
 
 #[test]
-fn a_launch_not_behind_the_launcher_has_no_plan() {
+fn a_launch_that_carries_no_grants_has_no_plan() {
     assert_eq!(SbxPlan::of_command("claude", &ProcessCommand::new("claude", &["-p"])), None);
     assert_eq!(SbxPlan::of_command("claude", &ProcessCommand::new("claude", &[])), None);
-    // `confine` with no `--` is not a launch the launcher would take.
-    assert_eq!(SbxPlan::of_command("claude", &ProcessCommand::new("/bin/agent-launcher", &["confine", "--read", "/work"])), None);
+    // Grants with no `--` are not a launch.
+    assert_eq!(SbxPlan::of_command("claude", &ProcessCommand::new("sbx-plan", &["grants", "--read", "/work"])), None);
     let refusal = dry_run("claude", &ProcessCommand::new("claude", &["-p"]));
     assert_eq!(refusal.code, "sandbox-dry-run");
-    assert!(refusal.message.ends_with("there are no grants to plan from"), "{}", refusal.message);
+    assert!(refusal.message.ends_with("the launch carries no grants, so there is nothing to plan from"), "{}", refusal.message);
 }
 
 #[test]
@@ -140,7 +147,7 @@ fn the_plan_json_carries_every_field_with_the_grants_it_was_built_from() {
     assert_eq!(plan.gaps.len(), 3);
     assert_eq!(plan.gaps[0], "--net-connect https is not a port");
     assert!(plan.gaps[1].starts_with("keychain:"), "{}", plan.gaps[1]);
-    assert!(plan.gaps[2].starts_with("network: confine allows TCP ports 443 to any host"), "{}", plan.gaps[2]);
+    assert!(plan.gaps[2].starts_with("network: the grants allow TCP ports 443 to any host"), "{}", plan.gaps[2]);
 }
 
 // The sbx backend: every `sbx` call goes through the fake process, which records it and answers from the test.
@@ -334,7 +341,6 @@ fn pi_disk(base: &str) -> Disk {
 pub(super) fn sbx_env() -> HashMap<String, String> {
     HashMap::from([
         ("HOME".to_string(), "/home/me".to_string()),
-        ("AGENT_KIT_LAUNCHER_BIN".to_string(), "/opt/agent-launcher".to_string()),
         (SANDBOX_VARIABLE.to_string(), "sbx".to_string()),
     ])
 }
@@ -376,7 +382,7 @@ fn every_refusal_before_a_launch_makes_nothing_and_names_its_reason() {
     let healthy_sbx = Sbx::new(healthy);
     let (code, message) = run(&healthy_sbx, RunClient::Agy, Some(RunMode::ReadOnly));
     assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("does not run this client") && message.contains("login keychain") && message.contains("~/.gemini"), "{message}");
+    assert!(message.contains("no sandbox can run this client") && message.contains("login keychain") && message.contains("~/.gemini"), "{message}");
     assert!(healthy_sbx.calls().is_empty(), "nothing asked of sbx");
 
     // sbx missing, and sbx that does not answer, are refused with the install command and no create.
@@ -490,7 +496,7 @@ fn keyed_opencode(with_env: bool) -> ProcessCommand {
     if with_env {
         words.extend(["env", "XDG_CONFIG_HOME=/run/export.client-home/.config"]);
     }
-    words.extend(["/opt/agent-launcher", "confine", "--read", "/run/work", "--write", "/run/export.client-home", "--net-connect", "443", "--net-loopback", "--env", "LITELLM_KEY", "--env", "XDG_CONFIG_HOME", "--", "opencode", "run", "--standalone", "--model", "litellm-x/m", "--format", "json", "say ok"]);
+    words.extend(["sbx-plan", "grants", "--read", "/run/work", "--write", "/run/export.client-home", "--net-connect", "443", "--net-loopback", "--env", "LITELLM_KEY", "--env", "XDG_CONFIG_HOME", "--", "opencode", "run", "--standalone", "--model", "litellm-x/m", "--format", "json", "say ok"]);
     ProcessCommand { cwd: Some("/run/work".to_string()), ..ProcessCommand::new("/bin/sh", &words) }
 }
 
@@ -546,28 +552,28 @@ fn a_command_the_sbx_plan_cannot_hold_is_refused_before_any_sandbox_is_named() {
     let not_confined = ProcessCommand::new("opencode", &["run"]);
     let (code, message) = refusal(translate(RunClient::Opencode, &not_confined, ROUTE_REMOTE));
     assert_eq!(code, "sandbox-unsupported");
-    assert!(message.contains("not behind agent-launcher confine"), "{message}");
+    assert!(message.contains("carries no grants"), "{message}");
 
-    let no_separator = ProcessCommand::new("/opt/agent-launcher", &["confine", "--read", "/run/work"]);
+    let no_separator = ProcessCommand::new("sbx-plan", &["grants", "--read", "/run/work"]);
     let (_, message) = refusal(translate(RunClient::Opencode, &no_separator, ROUTE_REMOTE));
-    assert!(message.contains("not behind agent-launcher confine"), "{message}");
+    assert!(message.contains("carries no grants"), "{message}");
 
     // Each refusal below needs a written mount, which sbx needs as its primary workspace, so the gap and route
     // refusals are the ones reached. A plan with only read mounts is refused first, whatever else it holds.
-    let read_only_only = ProcessCommand::new("/opt/agent-launcher", &["confine", "--read", "/run/work", "--keychain", "--", "opencode"]);
+    let read_only_only = ProcessCommand::new("sbx-plan", &["grants", "--read", "/run/work", "--keychain", "--", "opencode"]);
     let (code, message) = refusal(translate(RunClient::Opencode, &read_only_only, ROUTE_REMOTE));
     assert_eq!(code, "sandbox-unsupported");
     assert!(message.starts_with("opencode: the sbx plan has no written mount"), "{message}");
 
-    let keychain = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--keychain", "--", "opencode"]);
+    let keychain = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--keychain", "--", "opencode"]);
     let (code, message) = refusal(translate(RunClient::Opencode, &keychain, ROUTE_REMOTE));
     assert_eq!(code, "sandbox-unsupported");
     assert!(message.starts_with("opencode: the sbx plan holds no way to give keychain:"), "{message}");
 
-    let unknown = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--mystery", "x", "--", "opencode"]);
+    let unknown = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--mystery", "x", "--", "opencode"]);
     assert!(refusal(translate(RunClient::Opencode, &unknown, ROUTE_REMOTE)).1.contains("--mystery x"));
 
-    let confined = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "opencode"]);
+    let confined = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "opencode"]);
     for route in ["{}", "not json", r#"{"baseURL": 3}"#] {
         assert_eq!(refusal(translate(RunClient::Opencode, &confined, route)).1, "the route names no base URL; the sbx backend allows only the LiteLLM proxy the route names");
     }
@@ -581,7 +587,7 @@ fn a_command_the_sbx_plan_cannot_hold_is_refused_before_any_sandbox_is_named() {
 #[test]
 fn a_loopback_route_allows_both_names_and_its_config_is_rewritten_to_the_one_the_sandbox_sees() {
     let local = r#"{"x":{"baseUrl":"http://127.0.0.1:4000/v1"}}"#;
-    let plain = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "pi"]);
+    let plain = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "pi"]);
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &plain, local, &|_| Ok(String::new())).expect("a translation");
     assert_eq!(sbx.allow, ["host.docker.internal:4000", "localhost:4000"]);
     assert_eq!(sbx.policy_args().join(" "), "policy allow network --sandbox mg-test host.docker.internal:4000,localhost:4000");
@@ -618,7 +624,7 @@ fn an_opencode_route_with_no_litellm_base_url_is_refused_under_sbx_and_its_home_
 
 #[test]
 fn the_written_mounts_come_first_in_the_create_args_and_each_group_keeps_its_order() {
-    let command = ProcessCommand::new("/opt/agent-launcher", &["confine", "--read", "/run/a", "--write", "/run/b", "--read", "/run/c", "--write", "/run/d", "--", "pi"]);
+    let command = ProcessCommand::new("sbx-plan", &["grants", "--read", "/run/a", "--write", "/run/b", "--read", "/run/c", "--write", "/run/d", "--", "pi"]);
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &command, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
     let pinned = SbxLaunch { image: PI_IMAGE.to_string(), ..sbx };
     assert_eq!(pinned.create_args(), ["create", "--name", "mg-test", "--no-input", "--pull", "missing", "-t", PI_IMAGE, "shell", "/run/b", "/run/d", "/run/a:ro", "/run/c:ro"]);
@@ -627,7 +633,7 @@ fn the_written_mounts_come_first_in_the_create_args_and_each_group_keeps_its_ord
 #[test]
 fn a_plan_with_no_written_mount_is_refused_before_sbx_is_asked_for_anything() {
     // `translate` takes no process at all, so a refused plan cannot reach `sbx create`.
-    let read_only = ProcessCommand::new("/opt/agent-launcher", &["confine", "--read", "/run/work", "--", "pi"]);
+    let read_only = ProcessCommand::new("sbx-plan", &["grants", "--read", "/run/work", "--", "pi"]);
     let error = sbx_launch::translate(RunClient::Pi, "mg-test", &read_only, ROUTE_REMOTE, &|_| Ok(String::new())).expect_err("refused");
     assert_eq!(error.code, "sandbox-unsupported");
     assert_eq!(error.message, "pi: the sbx plan has no written mount, and sbx needs one as its primary workspace");
@@ -635,7 +641,7 @@ fn a_plan_with_no_written_mount_is_refused_before_sbx_is_asked_for_anything() {
 
 #[test]
 fn a_create_that_failed_leaves_no_removal_warning_and_a_removal_after_a_create_still_warns() {
-    let command = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "pi"]);
+    let command = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "pi"]);
     let sbx = sbx_launch::translate(RunClient::Pi, "mg-test", &command, ROUTE_REMOTE, &|_| Ok(String::new())).expect("a translation");
 
     // `sbx create` refused: nothing was made, so a removal that exits or does not run says nothing.
@@ -703,7 +709,7 @@ fn a_remote_route_is_allowed_by_its_own_host_and_its_config_is_left_as_it_is() {
 
 #[test]
 fn a_client_the_backend_does_not_run_and_an_sbx_call_that_did_not_run_are_named() {
-    let plain = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "pi"]);
+    let plain = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "pi"]);
     let refused = sbx_launch::translate(RunClient::Agy, "mg-test", &plain, ROUTE_REMOTE, &|_| Ok(String::new())).expect_err("antigravity has no sandbox program");
     assert_eq!(refused.code, "sandbox-unsupported");
     assert_eq!(refused.message, "agy: no sbx program");
@@ -864,11 +870,11 @@ alias = "litellm-vibe/glm-5.3"
 
 /// A Vibe launch as `launchers` builds it for a confined run: no wrapper, the key named by `--env`.
 fn confined_vibe(model: &str) -> ProcessCommand {
-    let words = ["confine", "--read", "/run/work", "--write", "/run/export", "--write", "/run/export.client-home", "--net-connect", "443", "--env", "MISTRAL_API_KEY", "--env", "VIBE_HOME", "--", "vibe", "--prompt-file", "/run/prompt.md", "--model", model, "--agent", "delegate"];
+    let words = ["grants", "--read", "/run/work", "--write", "/run/export", "--write", "/run/export.client-home", "--net-connect", "443", "--env", "MISTRAL_API_KEY", "--env", "VIBE_HOME", "--", "vibe", "--prompt-file", "/run/prompt.md", "--model", model, "--agent", "delegate"];
     ProcessCommand {
         cwd: Some("/run/work".to_string()),
         env: [("MISTRAL_API_KEY".to_string(), "mistral-secret".to_string()), ("VIBE_HOME".to_string(), "/run/export.client-home/vibe".to_string())].into_iter().collect(),
-        ..ProcessCommand::new("/opt/agent-launcher", &words)
+        ..ProcessCommand::new("sbx-plan", &words)
     }
 }
 
@@ -900,7 +906,7 @@ fn a_litellm_routed_vibe_launch_allows_the_proxy_by_both_loopback_names_and_a_co
         let sbx = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("devstral-small"), config, &|_| Ok(String::new())).expect("a translation");
         assert_eq!(sbx.allow, ["api.mistral.ai:443"], "{config}");
     }
-    let agent_picks = ProcessCommand::new("/opt/agent-launcher", &["confine", "--write", "/run/export", "--", "vibe", "--agent", "a"]);
+    let agent_picks = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "vibe", "--agent", "a"]);
     assert_eq!(sbx_launch::translate(RunClient::Vibe, "mg-test", &agent_picks, VIBE_CONFIG, &|_| Ok(String::new())).expect("a translation").allow, ["api.mistral.ai:443"]);
     let broken = sbx_launch::translate(RunClient::Vibe, "mg-test", &confined_vibe("x"), "[[models", &|_| Ok(String::new())).expect_err("refused");
     assert_eq!(broken.code, "sandbox-unsupported");
@@ -939,4 +945,138 @@ fn a_vibe_login_only_in_the_keychain_is_refused_naming_the_keychain_and_a_key_re
     assert!(calls.iter().any(|call| call.starts_with("sbx policy allow network ") && call.ends_with(" api.mistral.ai:443")), "{calls:?}");
     assert!(calls.iter().any(|call| call.starts_with("sbx exec ") && call.contains(" vibe ") && !call.contains("mistral-secret")), "{calls:?}");
     assert!(calls.last().is_some_and(|call| call.starts_with("sbx rm --force mg-")), "{calls:?}");
+}
+
+#[test]
+fn with_no_variable_set_every_client_runs_in_sbx_and_a_machine_without_sbx_refuses_each_launch_and_makes_nothing() {
+    // The owner's environment names no backend at all: sbx is the default (ADR-0019).
+    let unset = HashMap::from([("HOME".to_string(), "/home/me".to_string())]);
+    for client in [RunClient::Pi, RunClient::Opencode, RunClient::Vibe, RunClient::Claude, RunClient::Codex, RunClient::Hermes] {
+        let disk = pi_disk("http://localhost:4000/v1");
+        let missing = Sbx::new(|args| if args[0] == "version" { Err("sbx: executable file not found".to_string()) } else { healthy(args) });
+        let (code, message) = gateway_code(ClientRun { process: &missing, files: &disk, clock: &Fixed, env: &unset }.launch(&pi_request(client, Some(RunMode::ReadOnly))).expect_err("refused"));
+        assert_eq!(code, "sandbox-unavailable", "{client:?}");
+        assert!(message.contains("brew trust docker/tap && brew install docker/tap/sbx") && message.contains("sbx login"), "{message}");
+        // Only the version check ran: no program but sbx, no sandbox, and no file or directory of the launch's.
+        assert_eq!(missing.calls(), ["sbx version"], "{client:?}");
+        assert!(disk.removed.lock().expect("removed").is_empty(), "{client:?}: nothing was made to remove");
+        assert!(disk.files.lock().expect("files").keys().all(|path| path == "/home/me/.pi/agent/models.json"), "{client:?}: nothing was written");
+    }
+    // Antigravity has no sandbox and is refused without sbx being asked, whatever the variable says.
+    for value in [None, Some(""), Some("sbx"), Some("sbx-dry-run")] {
+        let disk = pi_disk("http://localhost:4000/v1");
+        let process = Sbx::new(healthy);
+        let env = env_with(value);
+        let (code, _) = gateway_code(ClientRun { process: &process, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Agy, Some(RunMode::ReadOnly))).expect_err("refused"));
+        assert_eq!(code, "sandbox-unsupported");
+        assert!(process.calls().is_empty());
+    }
+}
+
+fn env_with(value: Option<&str>) -> HashMap<String, String> {
+    let mut machine = HashMap::from([("HOME".to_string(), "/home/me".to_string())]);
+    machine.extend(env(value));
+    machine
+}
+
+#[test]
+fn the_confine_backend_is_refused_by_name_before_anything_is_asked_or_made() {
+    let disk = pi_disk("http://localhost:4000/v1");
+    for client in [RunClient::Pi, RunClient::Opencode, RunClient::Vibe, RunClient::Claude, RunClient::Codex, RunClient::Hermes, RunClient::Agy] {
+        let process = Sbx::new(healthy);
+        let env = env_with(Some("confine"));
+        let (code, message) = gateway_code(ClientRun { process: &process, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(client, Some(RunMode::ReadOnly))).expect_err("refused"));
+        assert_eq!(code, "sandbox-unknown", "{client:?}");
+        assert!(message.contains("the confine backend was retired for gateway workers (ADR-0019)"), "{message}");
+        assert!(process.calls().is_empty(), "{client:?}: nothing was asked of any program");
+    }
+    assert!(disk.removed.lock().expect("removed").is_empty());
+}
+
+/// A plan command of Pi as a caller outside the gateway's own launch (a critique critic) makes it.
+fn plan_of_pi() -> ProcessCommand {
+    let args = ["grants", "--read", "/run/work", "--write", "/run/export/pi-agent", "--net-connect", "4000", "--env", "PI_CODING_AGENT_DIR", "--", "pi", "-p"];
+    ProcessCommand {
+        cwd: Some("/run/work".to_string()),
+        env: [("PI_CODING_AGENT_DIR".to_string(), "/run/export/pi-agent".to_string())].into_iter().collect(),
+        stdin: Some("say ok".to_string()),
+        ..ProcessCommand::new("sbx-plan", &args)
+    }
+}
+
+fn planned(process: &Sbx, disk: &Disk, env: &HashMap<String, String>, client: RunClient) -> Result<Launched, ClientRunError> {
+    ClientRun { process, files: disk, clock: &Fixed, env }.launch_planned(client, &plan_of_pi(), "/run/export/pi-agent")
+}
+
+fn planned_disk() -> Disk {
+    let disk = Disk::default();
+    disk.files.lock().expect("files").insert("/run/export/pi-agent/models.json".to_string(), PI_MODELS.replace("BASE", "http://localhost:4000/v1"));
+    disk
+}
+
+#[test]
+fn a_planned_launch_of_a_caller_outside_the_gateway_runs_in_a_sandbox_like_any_launch() {
+    let disk = planned_disk();
+    let sbx = Sbx::new(healthy);
+    let launched = planned(&sbx, &disk, &env_with(None), RunClient::Pi).expect("a run");
+    assert_eq!(launched.result.stdout, "ok\n");
+    let calls = sbx.calls();
+    let name = sbx_name_in(&calls);
+    assert_eq!(calls[0], "sbx version");
+    assert!(calls.iter().any(|call| call == &format!("sbx create --name {name} --no-input --pull missing -t {PI_IMAGE} shell /run/export/pi-agent /run/work:ro")), "{calls:?}");
+    assert!(calls.iter().any(|call| call.starts_with(&format!("sbx exec -i -w /run/work --env-file /run/export/pi-agent/sbx.env {name} pi -p"))), "{calls:?}");
+    assert_eq!(calls.last().map(String::as_str), Some(format!("sbx rm --force {name}").as_str()));
+    assert!(disk.removed.lock().expect("removed").contains(&"/run/export/pi-agent/sbx.env".to_string()));
+}
+
+#[test]
+fn a_planned_launch_is_refused_like_any_launch_before_anything_is_made() {
+    let disk = planned_disk();
+    // sbx missing: the install command, and only the version check ran.
+    let missing = Sbx::new(|args| if args[0] == "version" { Err("sbx: executable file not found".to_string()) } else { healthy(args) });
+    let (code, message) = gateway_code(planned(&missing, &disk, &env_with(None), RunClient::Pi).expect_err("refused"));
+    assert_eq!(code, "sandbox-unavailable");
+    assert!(message.contains("brew trust docker/tap && brew install docker/tap/sbx"), "{message}");
+    assert_eq!(missing.calls(), ["sbx version"]);
+    // Antigravity has no sandbox; confine is retired; the dry run only plans.
+    for (value, client, want) in [("sbx", RunClient::Agy, "sandbox-unsupported"), ("confine", RunClient::Pi, "sandbox-unknown"), ("sbx-dry-run", RunClient::Pi, "sandbox-dry-run")] {
+        let process = Sbx::new(healthy);
+        let (code, _) = gateway_code(planned(&process, &disk, &env_with(Some(value)), client).expect_err("refused"));
+        assert_eq!(code, want);
+        assert!(process.calls().is_empty(), "{value}: nothing was asked of any program");
+    }
+    // No image recorded and the registry does not answer: refused with the way out, and no sandbox was made.
+    let offline = Sbx::new(|args| if args.first() == Some(&"-fsS") { Err("curl: not found".to_string()) } else { healthy(args) });
+    let (code, _) = gateway_code(planned(&offline, &disk, &env_with(None), RunClient::Pi).expect_err("refused"));
+    assert_eq!(code, "sandbox-unavailable");
+    assert!(!offline.calls().iter().any(|call| call.starts_with("sbx create")));
+}
+
+#[test]
+fn a_planned_launch_whose_client_could_not_start_is_a_spawn_error_and_the_host_backend_runs_the_plan_as_it_is() {
+    let disk = planned_disk();
+    let broken = Sbx::new(healthy).running(|_| Err("spawn failed".to_string()));
+    let error = planned(&broken, &disk, &env_with(None), RunClient::Pi).expect_err("not started");
+    assert!(matches!(&error, ClientRunError::Spawn(message) if message.contains("spawn failed")), "{error:?}");
+    // The host backend of a test build hands the plan command itself to the process, and starts no sandbox.
+    let host = Sbx::new(healthy);
+    let launched = planned(&host, &disk, &env_with(Some("host")), RunClient::Pi).expect("a run");
+    assert_eq!(launched.result.stdout, "ok\n");
+    assert_eq!(host.calls(), ["sbx-plan grants --read /run/work --write /run/export/pi-agent --net-connect 4000 --env PI_CODING_AGENT_DIR -- pi -p"]);
+    let failing = Sbx::new(healthy).running(|_| Err("no such program".to_string()));
+    assert!(matches!(planned(&failing, &disk, &env_with(Some("host")), RunClient::Pi), Err(ClientRunError::Spawn(message)) if message == "no such program"));
+}
+
+#[test]
+fn readiness_asks_sbx_only_when_sbx_is_the_backend() {
+    let working = Sbx::new(healthy);
+    assert_eq!(ClientRun::sandbox_ready(&working, &HashMap::new()), Ok(()));
+    assert_eq!(working.calls(), ["sbx version"]);
+    let missing = Sbx::new(|_| Err("sbx: executable file not found".to_string()));
+    assert_eq!(ClientRun::sandbox_ready(&missing, &env_with(Some("sbx"))).expect_err("not ready").code, "sandbox-unavailable");
+    let quiet = Sbx::new(healthy);
+    assert_eq!(ClientRun::sandbox_ready(&quiet, &env_with(Some("host"))), Ok(()));
+    assert_eq!(ClientRun::sandbox_ready(&quiet, &env_with(Some("sbx-dry-run"))), Ok(()));
+    assert_eq!(ClientRun::sandbox_ready(&quiet, &env_with(Some("confine"))).expect_err("retired").code, "sandbox-unknown");
+    assert!(quiet.calls().is_empty());
 }

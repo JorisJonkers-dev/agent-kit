@@ -170,7 +170,7 @@ fn antigravity_is_refused_before_sbx_is_asked_and_says_why() {
     let env = sbx_env();
     let (code, message) = gateway_code(ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &env }.launch(&pi_request(RunClient::Agy, Some(RunMode::ReadOnly))).expect_err("refused"));
     assert_eq!(code, "sandbox-unsupported");
-    assert!(message.starts_with("agy: the sbx backend does not run this client: its sign-in is the macOS login keychain"), "{message}");
+    assert!(message.starts_with("agy: no sandbox can run this client, and every gateway worker runs in one: its sign-in is the macOS login keychain"), "{message}");
     assert!(sbx.calls().is_empty());
 }
 
@@ -202,7 +202,7 @@ fn the_fixed_hosts_belong_to_claude_and_codex_alone_and_the_hermes_route_is_read
 
 #[test]
 fn a_wrapped_hermes_command_is_unwrapped_like_opencodes_and_its_key_is_read_outside() {
-    let words = ["-c", crate::launchers::HERMES_KEYED, "hermes-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY", "env", "HERMES_HOME=/run/home/.hermes", "/opt/agent-launcher", "confine", "--write", "/run/home", "--env", "LITELLM_VIBE_KEY", "--env", "HERMES_HOME", "--", "hermes", "-z", "say ok"];
+    let words = ["-c", crate::launchers::HERMES_KEYED, "hermes-keyed", "agent-kit-secret", "LITELLM_VIBE_KEY", "env", "HERMES_HOME=/run/home/.hermes", "sbx-plan", "grants", "--write", "/run/home", "--env", "LITELLM_VIBE_KEY", "--env", "HERMES_HOME", "--", "hermes", "-z", "say ok"];
     let command = ProcessCommand { cwd: Some("/run/work".to_string()), ..ProcessCommand::new("/bin/sh", &words) };
     let sbx = sbx_launch::translate(RunClient::Hermes, "mg-test", &command, "base_url: https://litellm.example.com/v1\n", &|key| Ok(format!("value-of-{key}"))).expect("a translation");
     assert_eq!(sbx.program, "hermes");

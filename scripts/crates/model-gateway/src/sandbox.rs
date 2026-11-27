@@ -1,54 +1,74 @@
-//! Which sandbox a delegated client runs in. Every launch runs through `agent-launcher confine` (ADR-0016) until
-//! the Docker Sandboxes backend lands (`sbx`: one microVM per sandbox, with a private Docker engine and a
-//! host-side network proxy). Then sbx is required: a machine without it refuses the launch, and `confine` retires.
-//! Until it is built, `AGENT_KIT_SANDBOX=sbx-dry-run` turns a launch into its sbx
-//! plan: the gateway prepares the launch exactly as for `confine`, translates the grants the launcher would have
-//! been given into what one sandbox would hold, removes what it made for the launch, and refuses it with the plan
-//! as the reason. Nothing is started, and a machine that does not set the variable runs as before.
+//! Which sandbox a delegated client runs in. Every gateway worker runs in Docker Sandboxes (`sbx`: one microVM per
+//! sandbox, with a private Docker engine and a host-side network proxy), with no fallback (ADR-0019): a machine
+//! without a working sbx refuses each launch with `sandbox-unavailable` and the install command, before anything
+//! is made. The `confine` launcher of ADR-0016 is retired for gateway workers and is no backend.
+//! `AGENT_KIT_SANDBOX=sbx-dry-run` is the one diagnostic: it turns a launch into its sbx plan, removes what the
+//! gateway made for the launch, and refuses it with the plan as the reason. Nothing is started.
 //!
-//! The grants are the policy, and each backend renders them: `confine` as its own flags, `sbx` as the mounts of
-//! one sandbox (`PATH` or `PATH:ro`, at the same path inside it), the variables passed in by name, and the network
-//! reach. What the sbx side cannot hold the way `confine` does is listed as a gap, never dropped silently.
+//! The grants are the policy, and sbx renders them as the mounts of one sandbox (`PATH` or `PATH:ro`, at the same
+//! path inside it), the variables passed in by name, and the network reach. The grants are carried as the words
+//! of a plan command (`sbx-plan grants ... -- client args`) that is read and never run. What the sbx side cannot
+//! hold is listed as a gap, never dropped silently.
 
 use crate::error::GatewayError;
 use crate::json::{self, Value};
 use crate::ports::ProcessCommand;
 use std::collections::HashMap;
 
-/// The variable that picks the backend on this machine; unset or empty is `confine`.
+/// The variable that picks the backend on this machine; unset or empty is `sbx`.
 pub const SANDBOX_VARIABLE: &str = "AGENT_KIT_SANDBOX";
 
 /// The sandbox a launch runs in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SandboxBackend {
-    /// `agent-launcher confine`: Seatbelt on macOS, Landlock on Linux.
-    Confine,
     /// Plan the launch for Docker Sandboxes and refuse it with the plan; nothing starts.
     SbxDryRun,
-    /// Run the launch in its own Docker Sandbox (`sbx`), for the read-only Pi and OpenCode clients.
+    /// Run the launch in its own Docker Sandbox (`sbx`): the default, and the only backend that starts a client.
     Sbx,
+    /// A launch whose plan command is handed to the process port as it is, with no sandbox: a test's fake process
+    /// stands for the sandbox. Only a build for tests has it, so no shipped gateway can start a client outside sbx.
+    #[cfg(any(test, feature = "unsandboxed-tests"))]
+    Host,
 }
 
 impl SandboxBackend {
+    /// Whether the launch's plan command is run as it is, with no sandbox: only a build for tests has such a backend.
+    pub fn is_host(self) -> bool {
+        #[cfg(any(test, feature = "unsandboxed-tests"))]
+        return self == SandboxBackend::Host;
+        #[cfg(not(any(test, feature = "unsandboxed-tests")))]
+        false
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
-            SandboxBackend::Confine => "confine",
             SandboxBackend::SbxDryRun => "sbx-dry-run",
             SandboxBackend::Sbx => "sbx",
+            #[cfg(any(test, feature = "unsandboxed-tests"))]
+            SandboxBackend::Host => "host",
         }
     }
 
-    /// The backend `AGENT_KIT_SANDBOX` names, or why the value names none. A value the gateway does not know is
-    /// refused rather than read as `confine`, so a typo never decides how a delegate is held.
+    /// The backend `AGENT_KIT_SANDBOX` names, or why the value names none. Unset or empty is `sbx`. A value the
+    /// gateway does not know is refused rather than read as `sbx`, so a typo never decides how a delegate is held,
+    /// and `confine` is refused by name: it was retired for gateway workers (ADR-0019).
     pub fn select(env: &HashMap<String, String>) -> Result<SandboxBackend, GatewayError> {
         match env.get(SANDBOX_VARIABLE).map_or("", String::as_str) {
-            "" | "confine" => Ok(SandboxBackend::Confine),
+            "" | "sbx" => Ok(SandboxBackend::Sbx),
             "sbx-dry-run" => Ok(SandboxBackend::SbxDryRun),
-            "sbx" => Ok(SandboxBackend::Sbx),
-            other => Err(GatewayError::new("sandbox-unknown", format!("{SANDBOX_VARIABLE}={other} names no sandbox backend; use confine, sbx-dry-run or sbx"))),
+            #[cfg(any(test, feature = "unsandboxed-tests"))]
+            "host" => Ok(SandboxBackend::Host),
+            "confine" => Err(GatewayError::new("sandbox-unknown", format!("{SANDBOX_VARIABLE}=confine names no sandbox backend: the confine backend was retired for gateway workers (ADR-0019), and every worker runs in Docker Sandboxes; unset the variable, or use sbx or sbx-dry-run"))),
+            other => Err(GatewayError::new("sandbox-unknown", format!("{SANDBOX_VARIABLE}={other} names no sandbox backend; use sbx (the default) or sbx-dry-run"))),
         }
     }
 }
+
+/// The word that starts a plan command's grants.
+pub const PLAN_VERB: &str = "grants";
+
+/// The command word of a plan command: a carrier of grants that is read to plan a sandbox and never run.
+pub const PLAN_PROGRAM: &str = "sbx-plan";
 
 /// One host path the sandbox sees, at the same path inside it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,21 +97,21 @@ pub struct SbxPlan {
     /// The directory the client starts in.
     pub workdir: String,
     pub mounts: Vec<Mount>,
-    /// The host programs `confine` would have let run; in a sandbox they come from the template instead.
+    /// The host programs the grants name; in a sandbox they come from the template instead.
     pub programs: Vec<String>,
     /// The variables passed into the sandbox, by name; their values are never part of a plan.
     pub env: Vec<String>,
     pub ports: Vec<u16>,
     pub loopback: bool,
-    /// What `confine` holds that this plan does not hold the same way.
+    /// What the grants ask for that this plan does not hold the same way.
     pub gaps: Vec<String>,
 }
 
 impl SbxPlan {
-    /// The plan of a command behind `agent-launcher confine`, read from the grants between `confine` and `--`;
-    /// `None` for a command that is not behind the launcher.
+    /// The plan of a plan command (`sbx-plan grants ... -- client args`), read from the grants between `grants` and
+    /// `--`; `None` for a command that carries no grants.
     pub fn of_command(client: &str, command: &ProcessCommand) -> Option<SbxPlan> {
-        if command.args.first().map(String::as_str) != Some("confine") {
+        if command.args.first().map(String::as_str) != Some(PLAN_VERB) {
             return None;
         }
         let end = command.args.iter().position(|word| word == "--")?;
@@ -112,7 +132,7 @@ impl SbxPlan {
         }
         if !plan.ports.is_empty() {
             let ports = plan.ports.iter().map(u16::to_string).collect::<Vec<_>>().join(", ");
-            plan.gaps.push(format!("network: confine allows TCP ports {ports} to any host; an sbx policy allows host names, which the plan does not derive yet"));
+            plan.gaps.push(format!("network: the grants allow TCP ports {ports} to any host; an sbx policy allows host names, which the plan does not derive yet"));
         }
         Some(plan)
     }
@@ -160,6 +180,6 @@ impl SbxPlan {
 pub fn dry_run(client: &str, command: &ProcessCommand) -> GatewayError {
     match SbxPlan::of_command(client, command) {
         Some(plan) => GatewayError::new("sandbox-dry-run", format!("{client}: not started ({SANDBOX_VARIABLE}=sbx-dry-run); the sbx plan: {}", json::compact(&plan.to_json()))),
-        None => GatewayError::new("sandbox-dry-run", format!("{client}: not started ({SANDBOX_VARIABLE}=sbx-dry-run); the launch is not behind agent-launcher confine, so there are no grants to plan from")),
+        None => GatewayError::new("sandbox-dry-run", format!("{client}: not started ({SANDBOX_VARIABLE}=sbx-dry-run); the launch carries no grants, so there is nothing to plan from")),
     }
 }

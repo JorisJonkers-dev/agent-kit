@@ -536,38 +536,30 @@ optional and defaults to `pi`. Its routing name is `pi-<route>-<model>`:
 The provider must be `litellm-<route>`. That is the provider setup writes
 into `~/.pi/agent/models.json`, with the route's key read from the secret
 store at request time. The runner starts Pi in the critic's packet copy,
-with the prompt on stdin, confined by the operating system:
+with the prompt on stdin, in a Docker Sandbox (ADR-0019; `sbx` is required, and a
+machine without it refuses the critic with `sandbox-unavailable`; install it with
+`brew trust docker/tap && brew install docker/tap/sbx` and sign in with `sbx login`):
 
 ```sh
-agent-launcher confine --read <packet copy> --run-from pi [--run ~/.pi/agent/bin] \
-  --write <critic>/pi-agent --net-connect 443 --env PI_CODING_AGENT_DIR -- \
-  pi -p --mode json --no-session --offline --provider litellm-vibe-study --model glm-5-3 \
+# the sandbox holds <packet copy> read-only and <critic>/pi-agent written, and reaches the proxy alone
+pi -p --mode json --no-session --offline --provider litellm-vibe-study --model glm-5-3 \
   --tools read,grep,find,ls --no-extensions --no-skills --no-prompt-templates --no-themes \
   --no-context-files --no-mcp --no-approve --system-prompt '<read-only reviewer>'
 ```
 
-The confined Pi gets only `PATH`, `HOME`, the locale, `TERM`, `TZ`, `TMPDIR`,
-the certificate-store variables and `PI_CODING_AGENT_DIR` of the runner's
-environment, and none of the runner's open descriptors; UDP reaches port 53
-alone where the kernel can limit it (Landlock ABI 10).
+The sandboxed Pi gets only the variables the launch names (`PI_CODING_AGENT_DIR`,
+`TMPDIR` and `PATH`), passed through an env file that is removed after the run.
 
-When the runner has its search server and it proves it cannot see past the
-packet (the same proof a Vibe critic waits for), a Pi critic gets that server
-too. Pi reads MCP servers from configuration only, so the launch's own
-`<critic>/pi-agent/mcp.json` names the server `packet` (`exposure: direct`),
-the launch adds `-e builtin:mcp` (MCP is a built-in extension, which
-`--no-extensions` also switches off) and `--tools` names
-`mcp__packet__*` in place of `--no-mcp`, and the confinement runs the server
-from its program (`--run-from`). The critic calls `mcp__packet__grep`,
-`mcp__packet__list` and `mcp__packet__symbol`; any other tool still voids the
-review. `CRITIQUE_SEARCH_OFF=1` gives no critic a search server.
+A Pi critic gets no packet search server under sbx: the server is a program of the
+host's, which no sandbox image holds, so a critic that needs it does not start
+(`unconfined`, with that reason). Use a Vibe critic for search, or a Pi critic without it.
+`CRITIQUE_SEARCH_OFF=1` gives no critic a search server.
 
 Pi's `read`, `grep`, `find` and `ls` run inside the Pi process itself, so a
-sandbox around Pi's bash tool would not hold them. `agent-launcher confine`
-(Landlock, docs/RUST.md) confines the whole process instead. It can read
-only its packet copy, the Pi and node installs, the system runtime and its
-own agent directory. It can write only that directory, and it can open a
-TCP connection only to the proxy's port. `<critic>/pi-agent` is made for
+sandbox around Pi's bash tool would not hold them. The whole process runs in the
+sandbox instead (the gateway's launch path, ADR-0019). It can read
+only its packet copy and its own agent directory, can write only that
+directory, and can reach only the proxy's host and port. `<critic>/pi-agent` is made for
 the one launch, with `PI_CODING_AGENT_DIR` pointing at it. Its
 `models.json` (mode 0600) holds only the route's provider, with that
 route's key written in as a literal. The runner reads the key from the
@@ -575,9 +567,8 @@ secret store just before the launch and deletes the directory when Pi ends.
 The key is the route's own budgeted key: a hostile model could have Pi send
 it back to the proxy, and nothing else secret is readable.
 
-A critic that cannot be confined never starts. That covers no Landlock, a
-launcher that is not installed (setup installs `~/.local/bin/agent-launcher`),
-macOS, where the confinement is not built yet, and a key that cannot be
+A critic that cannot be sandboxed never starts. That covers a machine where
+`sbx` is missing, not signed in or cannot start a microVM, and a key that cannot be
 read. The client is then unavailable with the reason, or the critic fails as
 `unconfined`.
 
@@ -593,7 +584,7 @@ logged in both ledgers with kind `pi`, charged what Pi priced it at
 spend comes from the route's team budget, never from the flow's Vibe cap.
 A Pi client is ready when `pi auth check --provider <provider>` answers
 `ready`, `pi --offline --list-models <model>` lists the model under that
-provider and `agent-launcher confine --check` passes. None of these calls
+provider and `sbx version` answers. None of these calls
 reaches a model. A Pi client that is not ready falls
 back like any other. `/flow setup` lists `pi-signed-in` (free), one
 `critic:<client>` trivial prompt per Pi client (cost `pi`), and a read-only
