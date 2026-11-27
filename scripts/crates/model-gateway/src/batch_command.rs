@@ -24,6 +24,7 @@ use crate::ledger_file::LedgerStore;
 use crate::ports::Runtime;
 use crate::run_command::{BatchTag, Checked, DelegationOptions, RunCommand, RunResult};
 use crate::slots::ClientSlots;
+use crate::write_run::WriteReport;
 use std::collections::BTreeMap;
 use std::sync::mpsc;
 
@@ -47,9 +48,9 @@ pub struct DelegationReport {
     pub attempts: Option<Vec<AttemptSummary>>,
     /// The delegation that failed for good, which made the gateway skip this one.
     pub skipped_because: Option<String>,
-    /// The worktree and branch of a writing delegation, where its staged change is kept until `worktrees clean`.
-    pub worktree: Option<String>,
-    pub branch: Option<String>,
+    /// What a writing delegation adds to its report, as a single run does: its branch and worktree (where the
+    /// staged change is kept until `worktrees clean`), the check's result and the files it staged.
+    pub write: Option<WriteReport>,
 }
 
 impl DelegationReport {
@@ -68,11 +69,8 @@ impl DelegationReport {
         if let Some(reason) = &self.reason {
             members.push(("reason", Value::str(reason)));
         }
-        if let Some(branch) = &self.branch {
-            members.push(("branch", Value::str(branch)));
-        }
-        if let Some(worktree) = &self.worktree {
-            members.push(("worktree", Value::str(worktree)));
+        if let Some(write) = &self.write {
+            members.extend(write.members());
         }
         if let Some(skipped_because) = &self.skipped_because {
             members.push(("skipped_because", Value::str(skipped_because)));
@@ -310,8 +308,7 @@ impl BatchCommand<'_> {
                 reason: None,
                 attempts: None,
                 skipped_because: Some(because.to_string()),
-                worktree: None,
-                branch: None,
+                write: None,
             },
         );
         if let Some(reservation) = held.get(&delegation.id) {
@@ -434,13 +431,11 @@ fn report_of(delegation: &BatchDelegation, outcome: Delegation<RunResult>) -> De
             reason: Some("unavailable".to_string()),
             attempts: Some(unavailable.attempts),
             skipped_because: None,
-            worktree: None,
-            branch: None,
+            write: None,
         },
         Delegation::Run(escalated) => {
             let run = escalated.run;
             let attempts = escalated.report.attempts;
-            let write = run.write.as_ref().map(|write| (write.branch.clone(), write.worktree.clone()));
             DelegationReport {
                 id: delegation.id.clone(),
                 status: if run.ok { DelegationStatus::Done } else { DelegationStatus::Failed },
@@ -452,8 +447,7 @@ fn report_of(delegation: &BatchDelegation, outcome: Delegation<RunResult>) -> De
                 reason: run.reason,
                 attempts: if attempts.len() > 1 { Some(attempts) } else { None },
                 skipped_because: None,
-                worktree: write.as_ref().map(|(_, worktree)| worktree.clone()),
-                branch: write.map(|(branch, _)| branch),
+                write: run.write,
             }
         }
     }
@@ -493,8 +487,7 @@ fn failed_report(
         reason: Some(reason.unwrap_or_else(|| error.code.clone())),
         attempts,
         skipped_because: None,
-        worktree: None,
-        branch: None,
+        write: None,
     }
 }
 

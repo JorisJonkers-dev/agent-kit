@@ -901,3 +901,179 @@ fn mkdir_private_makes_the_directory_owner_only_or_says_why_not() {
     let error = files.mkdir_private("file/export").expect_err("a file is in the way");
     assert_eq!(error.code, "ENOTDIR");
 }
+
+#[test]
+fn git_clears_the_locked_entry_an_interrupted_worktree_creation_left_before_it_adds_its_own() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit {
+        env: env_with_path(&real_path()),
+        timeout_ms: TIMEOUT_MS,
+    };
+    let stale = sandbox.path.join("stale");
+    git(
+        &repo,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "gateway/stale",
+            &text(&stale),
+            "HEAD",
+        ],
+    );
+    git(
+        &repo,
+        &[
+            "worktree",
+            "lock",
+            "--reason",
+            "initializing",
+            &text(&stale),
+        ],
+    );
+    std::fs::remove_dir_all(&stale).expect("the directory is gone");
+
+    // A locked worktree whose directory is still there is somebody's work in progress, and is left alone.
+    let live = sandbox.path.join("live");
+    git(
+        &repo,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "gateway/live",
+            &text(&live),
+            "HEAD",
+        ],
+    );
+    git(
+        &repo,
+        &["worktree", "lock", "--reason", "initializing", &text(&live)],
+    );
+
+    let fresh = sandbox.path.join("fresh");
+    assert_eq!(
+        repositories.add_worktree(&text(&repo), &text(&fresh)),
+        Ok(())
+    );
+    assert!(fresh.join(".git").exists());
+    let listed = repositories
+        .list_worktrees(&text(&repo))
+        .expect("a listing");
+    assert!(
+        listed.iter().all(|path| !path.ends_with("/stale")),
+        "{listed:?}"
+    );
+    let raw = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&repo)
+        .args(["worktree", "list", "--porcelain"])
+        .output()
+        .expect("git");
+    assert!(
+        !String::from_utf8_lossy(&raw.stdout).contains("stale"),
+        "the entry is gone for good"
+    );
+    assert!(
+        String::from_utf8_lossy(&raw.stdout).contains("live"),
+        "the locked live worktree stays"
+    );
+
+    // The same holds for a worktree on a branch of its own.
+    let again = sandbox.path.join("again");
+    git(
+        &repo,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "gateway/stale2",
+            &text(&sandbox.path.join("stale2")),
+            "HEAD",
+        ],
+    );
+    git(
+        &repo,
+        &[
+            "worktree",
+            "lock",
+            "--reason",
+            "initializing",
+            &text(&sandbox.path.join("stale2")),
+        ],
+    );
+    std::fs::remove_dir_all(sandbox.path.join("stale2")).expect("the directory is gone");
+    assert_eq!(
+        repositories.create_worktree(&text(&repo), &text(&again), "gateway/again", "main"),
+        Ok(())
+    );
+}
+
+#[test]
+fn a_failed_worktree_creation_leaves_no_entry_and_no_directory_behind() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let repositories = SystemGit {
+        env: env_with_path(&real_path()),
+        timeout_ms: TIMEOUT_MS,
+    };
+    let target = sandbox.path.join("never");
+    let error = repositories
+        .create_worktree(&text(&repo), &text(&target), "gateway/never", "no-such-ref")
+        .expect_err("no such base");
+    assert!(error.contains("no-such-ref"), "{error}");
+    assert!(!target.exists());
+    let raw = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&repo)
+        .args(["worktree", "list", "--porcelain"])
+        .output()
+        .expect("git");
+    assert!(!String::from_utf8_lossy(&raw.stdout).contains("never"));
+}
+
+#[test]
+fn clearing_stale_worktree_entries_reports_what_git_could_not_do() {
+    let sandbox = Sandbox::new();
+    let _guard = serialised();
+    let repo = repository_with_a_commit(&sandbox);
+    let target = text(&sandbox.path.join("t"));
+    let with = |name: &str, body: &str| {
+        let bin = sandbox.path.join(name);
+        std::fs::create_dir_all(&bin).expect("bin folder");
+        script(&bin, "git", body);
+        SystemGit {
+            env: env_with_path(&text(&bin)),
+            timeout_ms: TIMEOUT_MS,
+        }
+    };
+    let no_listing = with("a", "#!/bin/sh\necho \"fatal: $*\" >&2\nexit 128\n");
+    assert_eq!(
+        no_listing.add_worktree(&text(&repo), &target),
+        Err(format!(
+            "fatal: -C {} worktree list --porcelain",
+            text(&repo)
+        ))
+    );
+
+    let no_unlock = with("b", "#!/bin/sh\ncase \"$*\" in *list*) printf 'worktree /nowhere/stale\\nlocked initializing\\n';; *) echo \"fatal: $*\" >&2; exit 128;; esac\n");
+    assert_eq!(
+        no_unlock.create_worktree(&text(&repo), &target, "b", "main"),
+        Err(format!(
+            "fatal: -C {} worktree unlock /nowhere/stale",
+            text(&repo)
+        ))
+    );
+
+    let no_prune = with("c", "#!/bin/sh\ncase \"$*\" in *list*) printf 'worktree /here\\n\\n';; *) echo \"fatal: $*\" >&2; exit 128;; esac\n");
+    assert_eq!(
+        no_prune.add_worktree(&text(&repo), &target),
+        Err(format!("fatal: -C {} worktree prune", text(&repo)))
+    );
+}
