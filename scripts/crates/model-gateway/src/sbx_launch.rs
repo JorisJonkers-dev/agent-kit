@@ -11,7 +11,7 @@ use crate::json::{self, Value};
 use crate::launchers::{OPENCODE_KEYED, SECRET_TOOL};
 use crate::pi_launch::url_port;
 use crate::ports::{Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult};
-use crate::run::{RunClient, RunMode};
+use crate::run::RunClient;
 use crate::sandbox::{Mount, SbxPlan};
 use crate::text::join;
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/
 const HOST_FROM_SANDBOX: &str = "host.docker.internal";
 
 /// The client's program in its image, which is also the client's name: Pi and OpenCode are the only clients the
-/// sbx backend runs so far. A write run and every other client are refused before anything is made.
+/// sbx backend runs so far. Every other client is refused before anything is made.
 pub fn program_of(client: RunClient) -> Option<&'static str> {
     match client {
         RunClient::Pi => Some("pi"),
@@ -39,14 +39,12 @@ pub fn program_of(client: RunClient) -> Option<&'static str> {
     }
 }
 
-/// What must hold before a launch makes anything: a client the backend runs, a read-only run, and an `sbx` that
-/// answers. Refused with the reason and the command that fixes it.
-pub fn preflight(process: &dyn Process, client: RunClient, mode: Option<RunMode>) -> Result<(), GatewayError> {
+/// What must hold before a launch makes anything: a client the backend runs and an `sbx` that answers. A writing
+/// run is the same launch as a read-only one: its worktree and the git directories it writes are the written mounts
+/// of its grants. Refused with the reason and the command that fixes it.
+pub fn preflight(process: &dyn Process, client: RunClient) -> Result<(), GatewayError> {
     if program_of(client).is_none() {
         return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only pi and opencode so far; use confine or sbx-dry-run for this client", client.as_str())));
-    }
-    if mode == Some(RunMode::Write) {
-        return Err(GatewayError::new("sandbox-unsupported", format!("{}: the sbx backend runs only read-only launches so far; a write run needs the next slice", client.as_str())));
     }
     match process.exec(SBX, &["version"], Some(SBX_TIMEOUT_MS)) {
         Ok(result) if result.exit_code == 0 && !result.timed_out => Ok(()),
@@ -63,6 +61,31 @@ fn unavailable(reason: &str) -> GatewayError {
 pub fn sandbox_name() -> String {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |time| time.as_nanos());
     format!("mg-{}-{:x}", std::process::id(), nanos)
+}
+
+/// Removes every `mg-*` sandbox whose gateway is gone: a gateway killed before it could remove its run's sandbox
+/// leaves it behind, and its name (`mg-<gateway pid>-<time>`) says which gateway made it. A sandbox of this very
+/// process or of a gateway still alive is another run's and is kept. Nothing here fails a launch: what cannot be
+/// listed or removed is returned as warnings.
+pub fn prune_orphans(process: &dyn Process) -> Vec<String> {
+    let listed = match process.exec(SBX, &["ls", "-q"], Some(SBX_TIMEOUT_MS)) {
+        Ok(result) if result.exit_code == 0 => result.stdout,
+        _ => return Vec::new(),
+    };
+    let own = std::process::id();
+    let mut warnings = Vec::new();
+    for name in listed.lines().map(str::trim) {
+        let Some(pid) = name.strip_prefix("mg-").and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<u32>().ok()) else {
+            continue;
+        };
+        if pid == own || process.is_alive(pid) {
+            continue;
+        }
+        if !matches!(process.exec(SBX, &["rm", "--force", name], Some(SBX_TIMEOUT_MS)), Ok(result) if result.exit_code == 0) {
+            warnings.push(format!("the sandbox {name} of an ended run was not removed; remove it with sbx rm --force {name}"));
+        }
+    }
+    warnings
 }
 
 /// The sandbox side of one launch, translated from its confined command and checked.
