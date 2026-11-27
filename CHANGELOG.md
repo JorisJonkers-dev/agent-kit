@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.13.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.12.1...v6.13.0) (2026-11-27)
+
+
+### Features
+
+* **model-gateway:** run OpenCode's own free models in the sandbox, for public data only ([#987](https://github.com/JorisJonkers-dev/agent-kit/issues/987)) ([50ae424](https://github.com/JorisJonkers-dev/agent-kit/commit/50ae42468b0ac704c1ad9d782a36b899a75c5f36))
+
 ## [6.12.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.12.0...v6.12.1) (2026-11-27)
 
 
