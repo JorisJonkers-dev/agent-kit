@@ -1126,3 +1126,19 @@ fn a_litellm_routed_vibe_launch_gets_the_proxy_and_the_package_proxy_in_one_rule
     let create = calls.iter().position(|call| call.starts_with("sbx create ")).expect("created");
     assert!(ls < create, "{calls:?}");
 }
+
+#[test]
+fn an_opencode_free_model_reaches_only_opencodes_own_service_and_any_other_route_still_needs_a_base_url() {
+    let translate = |command: &ProcessCommand| sbx_launch::translate(RunClient::Opencode, "mg-test", command, "{}", &|_| Ok(String::new()));
+    let free = ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "opencode", "run", "--standalone", "--model", "opencode/hy4-flash-free", "--format", "json", "hi"]);
+    assert_eq!(translate(&free).expect("a launch").allow, ["opencode.ai:443"]);
+    // A paid OpenCode model, a model flag with no value, and no flag at all name no such host.
+    for command in [
+        ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "opencode", "run", "--model", "opencode/deepseek-v4-pro", "hi"]),
+        ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "opencode", "run", "--model"]),
+        ProcessCommand::new("sbx-plan", &["grants", "--write", "/run/export", "--", "opencode", "run", "hi"]),
+    ] {
+        assert!(translate(&command).expect_err("refused").message.contains("names no base URL"));
+    }
+    assert_eq!(crate::sbx_clients::zen_hosts(RunClient::Pi, &["--model".to_string(), "opencode/hy4-flash-free".to_string()]), None);
+}

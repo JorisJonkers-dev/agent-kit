@@ -670,3 +670,19 @@ fn a_client_with_no_critic_client_is_never_proven_whatever_the_files_hold() {
     }
 }
 
+
+#[test]
+fn only_an_opencode_free_model_is_let_onto_the_pay_per_token_provider() {
+    assert!(is_zen_free("opencode/deepseek-v4.1-flash-free"));
+    assert!(is_zen_free("opencode/beam-free"));
+    for paid in ["opencode/deepseek-v4-pro", "opencode/big-pickle", "opencode/-free", "opencode/free", "opencode-go/x-free", "x-free", "opencode/"] {
+        assert!(!is_zen_free(paid), "{paid}");
+    }
+    // A -free id passes whatever the machine allows; a paid id is refused with the existing message.
+    assert_eq!(require_allowed_provider("opencode/hy4-flash-free", None), Ok(()));
+    assert_eq!(require_allowed_provider("opencode/hy4-flash-free", Some(&allowed(&["zai"]))), Ok(()));
+    let paid = refused(require_allowed_provider("opencode/deepseek-v4-pro", None));
+    assert_eq!(paid.code, "provider-not-allowed");
+    assert!(paid.message.contains("OpenCode\u{2019}s pay-per-token models are never reached"), "{}", paid.message);
+    assert_eq!(refused(require_allowed_provider("opencode/big-pickle", Some(&allowed(&["opencode"])))).code, "provider-not-allowed");
+}

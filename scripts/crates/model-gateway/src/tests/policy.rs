@@ -470,3 +470,18 @@ fn a_scope_is_compared_whole() {
     assert_ne!(DataScope::Outside, DataScope::NoRemote);
     assert_eq!(Value::Null.as_object(), None);
 }
+
+#[test]
+fn the_policy_holds_an_opencode_free_model_to_public_repositories_but_not_the_other_opencode_models() {
+    let mut config = config();
+    config.clients.insert("opencode".to_string(), config.clients["claude"].clone());
+    let private = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["deepseek", "zhipu"], true, true)) };
+    let permission = |scope: &DataScope, model: &str, family: &str| {
+        let subject = PolicySubject { client: "opencode".to_string(), model: model.to_string(), family: family.to_string() };
+        decide_policy(&config, scope, &[subject]).permissions.remove(0)
+    };
+    assert!(!permission(&private, "opencode/deepseek-v4.1-flash-free", "deepseek").permitted);
+    assert!(permission(&private, "opencode-go/glm-5.3", "zhipu").permitted);
+    assert!(permission(&public_repository(), "opencode/deepseek-v4.1-flash-free", "deepseek").permitted);
+    assert!(permission(&DataScope::Outside, "opencode/deepseek-v4.1-flash-free", "deepseek").inline_only);
+}

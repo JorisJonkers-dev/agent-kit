@@ -977,3 +977,17 @@ fn list_models_names_the_machines_own_opencode_providers_when_they_drop_every_mo
     assert_eq!(reasons.len(), 1);
     assert!(reasons[0].starts_with("OpenCode listed 1 models and none is on an allowed provider (zai)"), "{}", reasons[0]);
 }
+
+#[test]
+fn list_models_lists_opencodes_free_models_as_free_and_never_its_paid_ones() {
+    let mixed = models_of(vec![
+        provider_model("opencode/deepseek-v4.1-flash-free", "opencode"),
+        provider_model("opencode/deepseek-v4-pro", "opencode"),
+        provider_model("opencode/big-pickle", "opencode"),
+        provider_model("opencode-go/glm-5.3", "opencode-go"),
+    ]);
+    let listing = list_models(&config(), &installed(&["opencode"]), &listings(vec![("opencode", mixed)]), &[]);
+    let listed: Vec<(&str, CostClass)> = listing.models.iter().map(|entry| (entry.model.as_str(), entry.cost_class)).collect();
+    assert_eq!(listed, [("opencode-go/glm-5.3", CostClass::Subsidised), ("opencode/deepseek-v4.1-flash-free", CostClass::Free)]);
+    assert_eq!(cost_class_for(&client("opencode", CostClass::MeteredPersonal, ModelSource::Live), Some("opencode")), CostClass::Free);
+}

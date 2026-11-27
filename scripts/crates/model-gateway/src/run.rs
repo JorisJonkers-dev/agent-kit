@@ -603,6 +603,12 @@ pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = ["opencode-go", "litellm-openc
 /// owner's rule is that a run never reaches one, so no allowlist can open it.
 const PAY_PER_TOKEN_PROVIDERS: [&str; 1] = ["opencode"];
 
+/// Whether a model is one of OpenCode's own free models: `opencode/<id>` with an id ending in `-free`. Its
+/// pay-per-token models (every other `opencode/` id, a zero-cost one without the suffix included) stay refused.
+pub fn is_zen_free(model: &str) -> bool {
+    model.strip_prefix("opencode/").and_then(|id| id.strip_suffix("-free")).is_some_and(|name| !name.is_empty())
+}
+
 /// The provider of an OpenCode model named `<provider>/<model>`; `None` when it names none.
 pub fn open_code_provider(model: &str) -> Option<&str> {
     let slash = model.find('/')?;
@@ -648,7 +654,7 @@ pub fn opencode_pi_model<'a>(config: &crate::config::GatewayConfig, client: &str
 
 /// Refuses an OpenCode model whose provider the machine's
 /// `clients.opencode.providers` (else `opencode-go` alone) does not name, and
-/// every pay-per-token one whatever it names.
+/// every pay-per-token one whatever it names; OpenCode's own `-free` models are the one way onto its `opencode` provider.
 pub fn require_allowed_provider(model: &str, allowed: Option<&[String]>) -> Result<(), GatewayError> {
     let providers = match allowed {
         Some(allowed) => allowed.join(", "),
@@ -660,7 +666,7 @@ pub fn require_allowed_provider(model: &str, allowed: Option<&[String]>) -> Resu
             format!("{model}: an OpenCode model is named <provider>/<model>, and the allowed providers are {providers}"),
         ));
     };
-    if !is_provider_allowed(Some(provider), allowed) {
+    if !is_zen_free(model) && !is_provider_allowed(Some(provider), allowed) {
         return Err(GatewayError::new(
             "provider-not-allowed",
             format!(

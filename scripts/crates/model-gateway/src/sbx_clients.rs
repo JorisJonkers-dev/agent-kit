@@ -12,6 +12,16 @@ const CLAUDE_HOSTS: [&str; 1] = ["api.anthropic.com:443"];
 /// Codex's ChatGPT backend, the OpenAI API and the host a login's tokens refresh at.
 const CODEX_HOSTS: [&str; 3] = ["chatgpt.com:443", "api.openai.com:443", "auth.openai.com:443"];
 
+/// OpenCode's own service, which its free models are served from.
+const ZEN_HOSTS: [&str; 1] = ["opencode.ai:443"];
+
+/// The hosts of an OpenCode launch on one of its own free models, which names no LiteLLM base URL; `None` for any
+/// other launch.
+pub fn zen_hosts(client: RunClient, args: &[String]) -> Option<Vec<String>> {
+    let model = after(args, "--model")?;
+    (client == RunClient::Opencode && crate::run::is_zen_free(model)).then(|| ZEN_HOSTS.iter().map(|host| (*host).to_string()).collect())
+}
+
 /// The hosts of a client that has no route file, as `host:port` rules; `None` for a client whose route names its own.
 pub fn fixed_hosts(client: RunClient) -> Option<Vec<String>> {
     let hosts: &[&str] = match client {

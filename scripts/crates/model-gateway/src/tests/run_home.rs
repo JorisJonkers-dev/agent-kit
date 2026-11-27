@@ -9,7 +9,7 @@ use crate::launchers::{GitView, LaunchPaths, LaunchRequest, VIBE_ENV};
 use crate::ports::{Files, FsError, Process, ProcessCommand, ProcessResult};
 use crate::run::{RunClient, RunMode};
 use crate::tests::confined::{unwrapped};
-use crate::run_home::{opencode_config, prepare_hermes, prepare_opencode, run_home_dir};
+use crate::run_home::{opencode_config, prepare_hermes, prepare_opencode, prepare_opencode_with, run_home_dir};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
@@ -596,4 +596,26 @@ fn vibe_turns_mcp_on_only_for_a_server_the_caller_attaches() {
     assert_eq!(launch(RunExtras::default()).get("VIBE_ENABLE_MCP").map(String::as_str), Some("false"));
     let attached = RunExtras { mcp_servers: Some(vec![AttachedServer { name: "packet".into(), command: "node".into(), args: vec![] }]), ..RunExtras::default() };
     assert_eq!(launch(attached).get("VIBE_ENABLE_MCP").map(String::as_str), Some("true"));
+}
+
+#[test]
+fn an_opencode_free_model_runs_in_a_bare_home_with_no_login_database_and_no_web_search() {
+    // The owner's data directory exists, with the sign-in of its other providers; a free model is never given it.
+    let disk = owner().with("/home/me/.local/share/opencode", "");
+    let home = prepare_opencode(&disk, &env(), "opencode/hy4-flash-free", Some(RunMode::ReadOnly), "/run/h").expect("a home");
+    assert!(!home.env.contains_key("OPENCODE_DB") && home.writes.is_empty() && home.login.is_none());
+    assert_eq!(home.env["XDG_DATA_HOME"], "/run/h/.local/share");
+    assert_eq!(disk.files.lock().unwrap().keys().filter(|path| path.starts_with("/run/h")).collect::<Vec<_>>(), ["/run/h/opencode.json"]);
+    let text = disk.text("/run/h/opencode.json").unwrap();
+    assert!(!text.contains("websearch\": \"allow") && text.contains("webfetch"), "{text}");
+    assert!(!text.contains("\"websearch\"") || text.contains("\"websearch\": \"deny\""), "{text}");
+    // A run with the open web gets the search tool and its backend chosen, so OpenCode never asks which to use; any
+    // other run is not offered the tool, whatever its provider or mode.
+    let web = prepare_opencode_with(&disk, &env(), "litellm-vibe/glm-5.3", Some(RunMode::ReadOnly), "/run/h2", true).expect("a home");
+    let text = disk.text("/run/h2/opencode.json").unwrap();
+    assert!(text.contains("\"websearch\": \"allow\"") && text.contains("\"provider\": \"random\""), "{text}");
+    let routed = prepare_opencode(&disk, &env(), "litellm-vibe/glm-5.3", Some(RunMode::ReadOnly), "/run/h3").expect("a home");
+    assert!(!disk.text("/run/h3/opencode.json").unwrap().contains("websearch"));
+    assert!(web.login.is_none());
+    assert!(routed.login.is_none());
 }
