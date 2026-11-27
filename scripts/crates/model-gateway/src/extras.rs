@@ -22,7 +22,7 @@ pub enum SandboxProfile {
 }
 
 /// Every extra a run may name, in the order a refusal lists them.
-pub const EXTRA_NAMES: [&str; 7] = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
+pub const EXTRA_NAMES: [&str; 8] = ["agent", "disable_home_mcp", "env", "mcp_servers", "network_allow", "sandbox", "schema", "tools"];
 
 /// What a caller adds to one run, every part of it optional.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -35,6 +35,12 @@ pub struct RunExtras {
     pub env: Option<BTreeMap<String, String>>,
     /// The MCP servers to attach to the client.
     pub mcp_servers: Option<Vec<AttachedServer>>,
+    /// Hosts the task names, as `host` or `host:port` (port 443 when none), added to the run's network reach in a
+    /// Docker Sandbox. Only the sbx backend can apply them, and it refuses a pattern that opens every host.
+    pub network_allow: Option<Vec<String>>,
+    /// The reach and the sbx secrets the run's delegation profile gives it; set by the run itself, not a caller's
+    /// extra. A run with no profile gets the narrowest reach.
+    pub network: Option<crate::network::NetworkScope>,
     /// The sandbox profile the launcher maps to the client's own flags.
     pub sandbox: Option<SandboxProfile>,
     /// A JSON schema the client enforces on its structured output, where it can.

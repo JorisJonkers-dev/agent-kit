@@ -38,6 +38,8 @@ FIELD_ORDER = (
     "tools",
     "max_spend_usd",
     "unenforced_clients",
+    "network",
+    "sbx_secrets",
 )
 
 # The block of defaults.json the render owns: from its key to the line before "settings".

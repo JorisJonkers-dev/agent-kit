@@ -390,7 +390,7 @@ fn a_client_a_run_cannot_launch_is_a_launch_failure() {
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"m","prompt":"p"}"#).expect("JSON")).expect("input");
     let input = crate::run::RunInput { client: "foo".into(), ..input };
     let paths = crate::launchers::LaunchPaths::default();
-    let ((result, ending), _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", (None, false), &crate::ports::Unwatched);
+    let ((result, ending), _output, failure, _warnings, routing) = RunCommand { runtime: &machine.runtime, decision: None }.launch("foo", &input, &paths, "p", (None, false, Default::default()), &crate::ports::Unwatched);
     assert_eq!(ending, crate::ports::Ending::default());
     assert_eq!((failure.as_deref(), result.exit_code), (Some("launch-failed"), 1));
     assert_eq!(result.stderr, "foo is not a client a run can launch");

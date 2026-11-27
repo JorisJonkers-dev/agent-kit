@@ -15,6 +15,7 @@ use crate::pi_launch::prepare_pi;
 use crate::ports::{Clock, Ending, Files, LaunchWatch, Launched, Process, ProcessCommand, ProcessResult, Unwatched};
 use crate::text::join;
 use crate::run::RunClient;
+use crate::network::NetworkScope;
 use crate::sandbox::{dry_run, SandboxBackend};
 use crate::sbx_images;
 use crate::sbx_launch;
@@ -75,6 +76,7 @@ fn names(extras: &RunExtras, name: &str) -> bool {
         "disable_home_mcp" => extras.disable_home_mcp.is_some(),
         "env" => extras.env.is_some(),
         "mcp_servers" => extras.mcp_servers.is_some(),
+        "network_allow" => extras.network_allow.is_some(),
         "sandbox" => extras.sandbox.is_some(),
         "schema" => extras.schema.is_some(),
         _ => extras.tools.is_some(),
@@ -147,8 +149,11 @@ impl ClientRun<'_> {
         if !backend.is_host() {
             sbx_launch::require_client(request.client)?;
         }
+        if request.extras.network_allow.is_some() && backend != SandboxBackend::Sbx {
+            return Err(GatewayError::new("extras-not-supported", "network_allow needs the sbx backend: only a Docker Sandbox holds per-run host rules").into());
+        }
         if backend == SandboxBackend::Sbx {
-            sbx_launch::preflight(self.process)?;
+            sbx_launch::preflight(self.process, &request.extras.network.clone().unwrap_or_default())?;
             // A sandbox an ended gateway left behind goes before this run makes its own.
             image_warnings.extend(sbx_launch::prune_orphans(self.process));
         }
@@ -172,7 +177,7 @@ impl ClientRun<'_> {
         }
         let sandboxed = if backend == SandboxBackend::Sbx {
             let dir = confine.as_ref().map(|confine| confine.agent_dir.clone()).or_else(|| home.as_ref().map(|home| home.dir.clone())).unwrap_or_default();
-            match self.sandboxed(request.client, &command, &dir) {
+            match self.sandboxed(request.client, &command, &dir, &request.extras.network.clone().unwrap_or_default(), request.extras.network_allow.as_deref().unwrap_or_default()) {
                 Ok((sandboxed, warnings)) => {
                     image_warnings.extend(warnings);
                     Some(sandboxed)
@@ -219,7 +224,7 @@ impl ClientRun<'_> {
     /// `sbx`. The refusal is the one a launch would end with, so a caller that asks before it launches says the same.
     pub fn sandbox_ready(process: &dyn Process, env: &HashMap<String, String>) -> Result<(), GatewayError> {
         match SandboxBackend::select(env)? {
-            SandboxBackend::Sbx => sbx_launch::preflight(process),
+            SandboxBackend::Sbx => sbx_launch::preflight(process, &NetworkScope::default()),
             _ => Ok(()),
         }
     }
@@ -227,7 +232,7 @@ impl ClientRun<'_> {
     /// One launch of a caller that makes its own plan command (`sbx-plan grants ... -- client args`, with the
     /// client's own directory `dir` holding its route's config), as a critique critic does: the same backend
     /// selection, the same sbx preflight, image, sandbox and cleanup as `launch`, and the client's result.
-    pub fn launch_planned(&self, client: RunClient, command: &ProcessCommand, dir: &str) -> Result<Launched, ClientRunError> {
+    pub fn launch_planned(&self, client: RunClient, command: &ProcessCommand, dir: &str, network: &NetworkScope) -> Result<Launched, ClientRunError> {
         let backend = SandboxBackend::select(self.env)?;
         if !backend.is_host() {
             sbx_launch::require_client(client)?;
@@ -238,17 +243,17 @@ impl ClientRun<'_> {
         if backend.is_host() {
             return self.process.run_watched(command, &Unwatched).map_err(ClientRunError::Spawn);
         }
-        sbx_launch::preflight(self.process)?;
+        sbx_launch::preflight(self.process, network)?;
         // A sandbox an ended gateway left behind goes first; what cannot be listed or removed is not this launch's to report.
         let _ = sbx_launch::prune_orphans(self.process);
-        let (sandboxed, _) = self.sandboxed(client, command, dir)?;
+        let (sandboxed, _) = self.sandboxed(client, command, dir, network, &[])?;
         sbx_launch::run(self.process, self.files, &sandboxed, command, &Unwatched).ran.map_err(ClientRunError::Spawn)
     }
 
     /// The sbx side of a launch: its image is the client's current record (refreshed first when it is stale), its
     /// route is read from the launch's own config, which the sandbox must reach through the host name it sees, so a
     /// loopback base URL is rewritten in that file once the rule for it is taken. The image's warnings come with it.
-    fn sandboxed(&self, client: RunClient, command: &ProcessCommand, dir: &str) -> Result<(sbx_launch::SbxLaunch, Vec<String>), GatewayError> {
+    fn sandboxed(&self, client: RunClient, command: &ProcessCommand, dir: &str, network: &NetworkScope, network_allow: &[String]) -> Result<(sbx_launch::SbxLaunch, Vec<String>), GatewayError> {
         let (reference, warnings) = sbx_images::ensure(self.process, self.files, self.clock, self.env, client.as_str())?;
         let path = sbx_launch::config_path(client, dir);
         // Claude Code and Codex reach their own provider at fixed hosts: they have no route file to read.
@@ -256,6 +261,7 @@ impl ClientRun<'_> {
         let mut sandboxed = sbx_launch::translate(client, &sbx_launch::sandbox_name(), command, &text, &|key| sbx_launch::read_key(self.process, key))?;
         sandboxed.image = reference;
         sandboxed.env_file = join(&[dir, "sbx.env"]);
+        sbx_launch::apply_network(&mut sandboxed, self.process, self.files, self.env, network, network_allow, &join(&[dir, "packages.npmrc"]))?;
         let config = crate::sbx_clients::with_model(client, &text, &sandboxed.args);
         let config = sbx_launch::rewritten_config(client, &config).unwrap_or(config);
         if config != text {

@@ -21,6 +21,7 @@ use crate::runtime::Runtime;
 use crate::vibe_client::{js_string, on_path};
 use model_gateway::client_run::{ClientRun, ClientRunError};
 use model_gateway::json::{self, Object, Value};
+use model_gateway::network::NetworkScope;
 use model_gateway::ports::{Launched as Ran, ProcessCommand, ProcessResult};
 use model_gateway::run::RunClient;
 use model_gateway::sandbox::{SandboxBackend, PLAN_PROGRAM, PLAN_VERB};
@@ -319,7 +320,7 @@ pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: St
 /// choice, `sbx` preflight, image and cleanup. A refusal (no working sbx) is the reason nothing ran.
 fn run_in_sandbox(runtime: &Runtime, command: &ProcessCommand, agent_dir: &str) -> Launched {
     let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), clock: runtime.clock.as_ref(), env: &runtime.gateway.env };
-    match gateway.launch_planned(RunClient::Pi, command, agent_dir) {
+    match gateway.launch_planned(RunClient::Pi, command, agent_dir, &NetworkScope::default()) {
         Ok(Ran { result, .. }) => Launched::Ran(Ok(result)),
         Err(ClientRunError::Gateway(error)) => Launched::Refused(error.message),
         Err(ClientRunError::Spawn(message)) => Launched::Ran(Err(message)),

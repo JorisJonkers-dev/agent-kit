@@ -551,13 +551,15 @@ fn checks_every_extra_name_against_the_client() {
         disable_home_mcp: Some(true),
         env: Some(BTreeMap::new()),
         mcp_servers: Some(Vec::new()),
+        network_allow: Some(Vec::new()),
+        network: None,
         sandbox: Some(SandboxProfile::ReadOnly),
         schema: Some("s".to_string()),
         tools: Some(Vec::new()),
     };
     // Each client's first refusal is the first extra it cannot apply, in the order the names are listed.
     for (client, first) in [
-        (RunClient::Vibe, "sandbox"),
+        (RunClient::Vibe, "network_allow"),
         (RunClient::Agy, "agent"),
         (RunClient::Claude, "agent"),
         (RunClient::Opencode, "agent"),
