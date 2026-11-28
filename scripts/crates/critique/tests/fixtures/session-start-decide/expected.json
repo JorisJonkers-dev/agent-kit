@@ -38,7 +38,7 @@
     },
     {
       "exit": 0,
-      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (23 of 23 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
+      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (20 of 20 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
       "stderr": "",
       "files": {
         "home/": null,
@@ -50,7 +50,7 @@
     },
     {
       "exit": 0,
-      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (22 of 23 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
+      "stdout": "{\n  \"line\": \"Critique: /flow setup has not checked this machine yet (19 of 20 checks never ran). Run /flow setup.\",\n  \"reason\": \"setup-missing\",\n  \"status\": \"suggest\"\n}\n",
       "stderr": "",
       "files": {
         "home/": null,
@@ -84,7 +84,7 @@
     },
     {
       "exit": 0,
-      "stdout": "{\n  \"line\": \"Critique: /flow setup's critic:vibe-glm-flash check failed on this machine, and 21 more. Run /flow setup.\",\n  \"reason\": \"setup-failing\",\n  \"status\": \"suggest\"\n}\n",
+      "stdout": "{\n  \"line\": \"Critique: /flow setup's critic:vibe-glm-flash check failed on this machine, and 18 more. Run /flow setup.\",\n  \"reason\": \"setup-failing\",\n  \"status\": \"suggest\"\n}\n",
       "stderr": "",
       "files": {
         "home/": null,

@@ -20,7 +20,7 @@
     },
     {
       "exit": 0,
-      "stdout": "Critique: /flow setup has not checked this machine yet (23 of 23 checks never ran). Run /flow setup.\n",
+      "stdout": "Critique: /flow setup has not checked this machine yet (20 of 20 checks never ran). Run /flow setup.\n",
       "stderr": "",
       "files": {
         "home/": null,
