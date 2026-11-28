@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.16.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.15.0...v6.16.0) (2026-11-28)
+
+
+### Features
+
+* **model-gateway:** read each harness's stream into message, tool and usage events ([#1000](https://github.com/JorisJonkers-dev/agent-kit/issues/1000)) ([531d5f7](https://github.com/JorisJonkers-dev/agent-kit/commit/531d5f709a9ae930a045ed5a8b6f5eb8a0dcf17d))
+* **model-gateway:** run index, status commands, stall policy and live tail ([#999](https://github.com/JorisJonkers-dev/agent-kit/issues/999)) ([be89848](https://github.com/JorisJonkers-dev/agent-kit/commit/be898485648cb5613fecf5bf69786abc2a555606))
+* **model-gateway:** wait out a short free-model limit, record the serving route and take pinned harness addresses ([#998](https://github.com/JorisJonkers-dev/agent-kit/issues/998)) ([28a33d7](https://github.com/JorisJonkers-dev/agent-kit/commit/28a33d79c0ca723e8d602438114b694fefd2241a))
+
+
+### Bug Fixes
+
+* **model-gateway:** name a Cloudflare 524 in a run's failure and record that every LiteLLM client streams ([#996](https://github.com/JorisJonkers-dev/agent-kit/issues/996)) ([d3fc49a](https://github.com/JorisJonkers-dev/agent-kit/commit/d3fc49ad54f0f8a4a089ae9b5d017945206e1a89))
+
 ## [6.15.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.14.0...v6.15.0) (2026-11-27)
 
 
