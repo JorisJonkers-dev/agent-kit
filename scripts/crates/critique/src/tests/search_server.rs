@@ -77,3 +77,10 @@ fn the_http_search_server_answers_the_same_calls_as_stdio_over_the_packet_alone(
     assert!(crate::search_server::serve_http("/nonexistent/critique-http", crate::packet_search::default_search_limits()).is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_listener_that_cannot_open_or_name_itself_says_so() {
+    let error = || std::io::Error::other("boom");
+    assert_eq!(crate::search_server::listen_error(error()), "the search server cannot listen: boom");
+    assert_eq!(crate::search_server::address_error(error()), "the search server has no address: boom");
+}

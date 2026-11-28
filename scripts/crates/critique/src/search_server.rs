@@ -420,11 +420,21 @@ impl Drop for HttpSearch {
     }
 }
 
+/// What a listener that cannot be opened says.
+pub(crate) fn listen_error(error: std::io::Error) -> String {
+    format!("the search server cannot listen: {error}")
+}
+
+/// What a listener that has no address says.
+pub(crate) fn address_error(error: std::io::Error) -> String {
+    format!("the search server has no address: {error}")
+}
+
 /// Starts the HTTP search server on `root` at a free loopback port.
 pub fn serve_http(root: &str, limits: SearchLimits) -> Result<HttpSearch, String> {
     let engine = Arc::new(Engine::open(root, limits)?);
-    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|error| format!("the search server cannot listen: {error}"))?;
-    let port = listener.local_addr().map_err(|error| format!("the search server has no address: {error}"))?.port();
+    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(listen_error)?;
+    let port = listener.local_addr().map_err(address_error)?.port();
     let stop = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&stop);
     let thread = std::thread::spawn(move || {
