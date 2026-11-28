@@ -1830,6 +1830,25 @@ fn the_paid_key_is_a_team_holding_paid_alone_and_is_minted_like_the_tiers() {
 }
 
 #[test]
+fn the_auto_key_is_a_team_holding_public_repo_free_and_paid() {
+    let state: SharedProxy = Arc::new(Mutex::new(ProxyState::default()));
+    let url = proxy_server(&state);
+    let mut entry = litellm_entry(&url, "LITELLM_AUTO_KEY", "auto", None);
+    entry["litellm"]["team"]["models"] = json!(["public-repo", "free", "paid"]);
+    let w = World::new(&url, &json!([entry]));
+    mint(&w, &["LITELLM_AUTO_KEY"], ADMIN, false);
+    let s = state.lock().unwrap();
+    let team = s
+        .teams
+        .iter()
+        .find(|t| t["team_alias"] == "auto")
+        .expect("a team named auto");
+    assert_eq!(team["models"], json!(["public-repo", "free", "paid"]));
+    let stored = w.stored();
+    assert_eq!(s.keys[&stored["LITELLM_AUTO_KEY"]]["key_alias"], "auto@box");
+}
+
+#[test]
 fn the_old_shared_key_is_deleted_and_a_drifted_budget_is_put_back() {
     let (w, proxy) = litellm_world();
     {

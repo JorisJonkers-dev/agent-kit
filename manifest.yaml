@@ -299,10 +299,10 @@ model_gateway:
       sha256: d758df780f25b290e4c83e841b595b43f9f6e50f23579846d148f00191ec862f
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.json
-      sha256: 106457c5d3e78b040992a12029a0dec5fd4df8c87968eeccb929aea5ee945507
+      sha256: faa9e81739b4be96c15dfabc6ccb0791c60ef42a47c0e83f328b4fb022e183fb
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
-      sha256: dbdb28beb23562a61df3dcaa4efa610b5ba06bf99a500c090de08f455f668eb4
+      sha256: e0c2ed04b5f56942a0799cd25e43e903201fe388bf11af0a4222ad9362aaf8d3
       mode: "0644"
     - path: skills/workstation/model-gateway/events-and-status.md
       sha256: 9fb11357ae1bf4b32d12d65295b6d8cf52d46e78f8f8acb0d61c38f79e2ea4e5
@@ -314,7 +314,7 @@ model_gateway:
       sha256: 57336bf58b342919fe9c81ee77898001375c1cabf07fe3c2f1e7f4a9772e7d2c
       mode: "0644"
     - path: skills/workstation/model-gateway/models.md
-      sha256: c7eb7fc27b6e8ca586dc3cd33ff8af549c9b005ab0455dced2979c173e4c59f0
+      sha256: a72770c4cace1ef8612f703eafe623e431a0a549b30b932baceba199ba5bd653
       mode: "0644"
     - path: skills/workstation/model-gateway/policy.md
       sha256: 1d575336d44fb45b4577228a28627d06d3d39ae0961b0ddfe407f63953291a72

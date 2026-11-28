@@ -10,6 +10,10 @@ use crate::run::is_pi_client;
 /// The word for a price the catalogue and the defaults do not give.
 const UNKNOWN: &str = "unknown";
 
+/// What `cost.class` says of an `auto/<model>` group: the proxy tries the free copies first and then `paid/<model>`,
+/// so the run may spend. The client's own class (`subsidised`) still decides the caps and the plan limit.
+const FREE_THEN_PAID: &str = "free, then paid";
+
 /// The deployments that serve a Pi model, in fallback order (lowest `order` first, the catalogue's order among equals).
 fn deployments<'a>(catalogue: Option<&'a LiteLlmCatalogue>, model: &str) -> Vec<&'a CatalogueDeployment> {
     let mut found: Vec<&CatalogueDeployment> = catalogue.and_then(|catalogue| catalogue.groups.get(model)).map(|group| group.deployments.iter().collect()).unwrap_or_default();
@@ -42,8 +46,9 @@ pub fn facts(config: &GatewayConfig, catalogue: Option<&LiteLlmCatalogue>, clien
     let pi = is_pi_client(client);
     let served = if pi { deployments(catalogue, model) } else { Vec::new() };
     let known = prices(config, &served, client, model, free);
+    let class = if pi && model.starts_with("auto/") { FREE_THEN_PAID } else { cost_class };
     let cost = object(vec![
-        ("class", Value::str(cost_class)),
+        ("class", Value::str(class)),
         ("input_per_mtok", price(known.map(|(input, _)| input))),
         ("output_per_mtok", price(known.map(|(_, output)| output))),
     ]);

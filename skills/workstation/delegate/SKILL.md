@@ -90,11 +90,12 @@ falling back.
   whose model covers the tier: Pi runs in a Docker Sandbox with only its working directory, on a
   LiteLLM route's own budget. Take another client only when no Pi model covers
   the tier or the family the task needs. `pi-free` is the Pi client the data
-  policy never lists for a repository GitHub does not say is public: use it
-  only for public-data work, a task with no private `repo` and nothing private
-  in the prompt. `pi-free` runs free models only, each named `free/<model>` (the proxy
+  policy never lists for a repository GitHub does not say is public: use it only for public-data work,
+  a task with no private `repo` and nothing private in the prompt. `pi-free` runs free models only, each named `free/<model>` (the proxy
   tries every free copy, never a paid one): the first choice for such a task, and the
   gateway refuses a billed model on it.
+- `pi-auto` (`pi:auto/<model>`, or a family alias `auto/glm-flash`) tries every free copy, then `paid/<model>`:
+  public data only, when an answer is needed after the free copies are gone and paid spend is fine.
 - Within one class, choose by the models' capability notes, excluding any `opencode/...` model (only `litellm-opencode-go/...`) and any free model that is not
   `pi-free`'s `free/<model>`, except OpenCode's `opencode/<id>-free` models (public data
   only; prefer `opencode:free/deepseek-v4.1-flash` and `opencode:free/hy4-flash`, which

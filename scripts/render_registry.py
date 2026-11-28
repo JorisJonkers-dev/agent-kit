@@ -6451,6 +6451,7 @@ LITELLM_PUBLIC_GROUPS = (LITELLM_FREE_GROUP,)
 # The prefix of every free model name the proxy serves: a free model is reached as `free/<model>`
 # and in no other way.
 LITELLM_FREE_PREFIX = "free/"
+LITELLM_AUTO_PREFIX = "auto/"
 # The access groups that once reached free models by another name (`openrouter/<x>`, `public/<x>`,
 # `google-free/<x>`, `opencode-go-free/<x>`, `<provider>/<x>`). No route may hold one again.
 LITELLM_RETIRED_FREE_GROUP = re.compile(r"[a-z0-9-]+-free-public")
@@ -6689,15 +6690,22 @@ def litellm_route_models(
     for entry in litellm_catalogue.canonical_groups(catalogue, held, gates):
         if entry.modality != "chat" or entry.name not in usable:
             continue
+        auto = entry.name.startswith(LITELLM_AUTO_PREFIX)
+        # The auto route lists `auto/<model>` groups alone (free copies first, then paid), never the
+        # free/ or paid/ groups the same key also reaches: a caller names those on their own keys.
+        if route is not None and route.get("agent") == "auto" and not auto:
+            continue
+        if auto and route is not None and route.get("agent") != "auto":
+            continue
         if route is not None:
-            if route.get("data_scope") == "public" and not entry.public:
+            if route.get("data_scope") == "public" and not entry.public and not auto:
                 continue
             if route.get("agent") == "local" and "local" not in entry.routes:
                 continue
         # A public group is a free model, and a free model is reached only by its `free/<model>` name:
         # a provider's own `<provider>/<model>`, `public/<model>` or `<route>-free/<model>` group is
         # never listed, whatever access group still reaches it.
-        if entry.public and not entry.name.startswith(LITELLM_FREE_PREFIX):
+        if entry.public and not entry.name.startswith(LITELLM_FREE_PREFIX) and not auto:
             continue
         model: dict[str, Any] = {"id": entry.name}
         if entry.context_length is not None:
@@ -6705,7 +6713,8 @@ def litellm_route_models(
         # Pi's default is 16384 output tokens, and a reasoning model spends its thinking from them, so a long
         # review was cut short. Twice that, never more than half the context.
         model["maxTokens"] = min(PI_MAX_TOKENS, entry.context_length // 2) if entry.context_length else PI_MAX_TOKENS
-        if entry.free:
+        # An auto group may fall through to paid, so it never claims a zero cost.
+        if entry.free and not auto:
             model["cost"] = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
         models.append(model)
     # A tier a key holds is callable by name; a free tier costs nothing, whatever the models behind it.

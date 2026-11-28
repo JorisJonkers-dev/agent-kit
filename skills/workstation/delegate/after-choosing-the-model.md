@@ -78,9 +78,9 @@ the owner's opt-in to the Workflow tool for those tasks.
 ## Money rules
 
 - Codex is metered-employer: never without a live grant.
-- Free models only as `pi-free`'s `free/<model>`, public data only, never
-  through any other client, name or provider (OpenRouter is refused on every
-  client) and never a billed model.
+- Free models only as `pi-free`'s `free/<model>`, public data only, never through any other
+  client, name or provider (OpenRouter is refused on every client) and never a billed model.
+- `auto/<model>` (`pi-auto`) may spend: public data only, held to the caps of any paid run.
 - OpenCode reaches OpenCode Go through `litellm-opencode-go/...` (budgeted, via the LiteLLM
   proxy), never `opencode/...` (pay-per-token Zen). `opencode-go/<id>` is run as
   `litellm-opencode-go/<id>` (result says `rewritten`); with no LiteLLM copy it is refused,
