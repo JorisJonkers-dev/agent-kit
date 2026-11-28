@@ -200,6 +200,7 @@ fn codex_items_in_every_phase_and_every_failure_are_read() {
         r#"{"type":"item.started","item":{"id":"i4","type":"agent_message"}}"#,
         r#"{"type":"item.completed","item":{"id":"i5","type":"reasoning","text":"thinking"}}"#,
         r#"{"type":"item.completed","item":{"id":"i6","type":"error","message":"item failed"}}"#,
+        r#"{"type":"item.started","item":{"id":"i8","type":"file_change","changes":[]}}"#,
         r#"{"type":"item.completed","item":{"id":"i7","type":"an-item-nobody-wrote"}}"#,
         r#"{"type":"item.completed"}"#,
         r#"{"type":"turn.failed","error":{"message":"turn broke"}}"#,
@@ -208,7 +209,7 @@ fn codex_items_in_every_phase_and_every_failure_are_read() {
     ] {
         events.extend(adapter.line(line));
     }
-    assert_eq!(kinds(&events), ["tool.started", "tool.finished", "tool.finished", "tool.finished", "message", "diagnostic", "diagnostic", "diagnostic", "diagnostic", "diagnostic", "diagnostic"]);
+    assert_eq!(kinds(&events), ["tool.started", "tool.finished", "tool.finished", "tool.finished", "message", "diagnostic", "tool.started", "diagnostic", "diagnostic", "diagnostic", "diagnostic", "diagnostic"]);
     let status = |at: usize| events[at].data.as_object().and_then(|data| data.get("status")).and_then(Value::as_str).map(str::to_string);
     assert_eq!((status(1), status(2), status(3)), (Some("error".to_string()), Some("error".to_string()), Some("ok".to_string())));
     assert_eq!(events[0].data.as_object().and_then(|data| data.get("gen_ai.tool.name")).and_then(Value::as_str), Some("docs.search"));

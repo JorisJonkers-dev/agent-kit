@@ -139,9 +139,7 @@ impl SystemProcess {
         let writer = Arc::clone(&stdin);
         std::thread::spawn(move || {
             let mut pipe = writer.lock().unwrap_or_else(PoisonError::into_inner);
-            if let Some(open) = pipe.as_mut() {
-                let _ = open.write_all(input.as_bytes());
-            }
+            let _ = pipe.as_mut().map(|open| open.write_all(input.as_bytes()));
             if !interactive {
                 *pipe = None;
             }
@@ -226,9 +224,7 @@ fn pump(mut source: impl Read, stream: Stream, watch: &dyn LaunchWatch, stdin: O
                 if let Some(stdin) = stdin {
                     let reply = watch.reply(&buffer[..read]);
                     let mut pipe = stdin.lock().unwrap_or_else(PoisonError::into_inner);
-                    if let Some(open) = pipe.as_mut() {
-                        let _ = open.write_all(reply.text.as_bytes());
-                    }
+                    let _ = pipe.as_mut().map(|open| open.write_all(reply.text.as_bytes()));
                     if reply.close {
                         *pipe = None;
                     }
