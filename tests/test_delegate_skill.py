@@ -473,3 +473,76 @@ def test_the_gateway_skill_points_at_the_guide_and_documents_the_optional_mcp_an
     assert "`mcp` serves `ps`, `status`, `logs` and `tail` as a read-only MCP server" in flat
     assert "AGENT_KIT_RUN_STATE_MCP=1" in flat
     assert "message and tool text (`text`, `input`, `output`) never leaves the machine" in flat
+
+
+# ---------------------------------------------------------------------------
+# Every skill body stays short; skills name models only through addresses
+# ---------------------------------------------------------------------------
+
+WORKSTATION = KIT_ROOT / "skills" / "workstation"
+SKILL_FILES = sorted((KIT_ROOT / "skills").rglob("SKILL.md"))
+MAX_BODY_BYTES = 10_000
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_the_skill_body_is_under_ten_kilobytes(skill: Path) -> None:
+    """A SKILL.md is read whole every time its skill loads; the rest lives in linked part files."""
+    assert len(skill.read_bytes()) < MAX_BODY_BYTES, f"{skill.relative_to(KIT_ROOT)}: split into part files"
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_every_part_file_a_skill_links_exists_and_every_part_is_linked(skill: Path) -> None:
+    linked = set(re.findall(r"\]\(([A-Za-z0-9_.-]+\.md)\)", skill.read_text()))
+    for name in linked:
+        assert (skill.parent / name).is_file(), f"{skill.parent.name} links {name}, which is missing"
+    parts = {p.name for p in skill.parent.glob("*.md")} - {"SKILL.md", "INSTALL.md", "README.md"}
+    assert parts <= linked, f"{skill.parent.name}: part files not linked from SKILL.md: {sorted(parts - linked)}"
+
+
+# An address is `free/<model>`, `paid/<model>`, `auto/<model>`, `<harness>:<pricing>/<model>` or a
+# `tier-*` name. A provider's own model id belongs in the registry and the gateway defaults, never
+# in these skills. Family names (`deepseek`, `zhipu`, `mistral`, `google`) are routing keys.
+ADDRESS_SKILL_DIRS = sorted(
+    [
+        WORKSTATION / "delegate",
+        WORKSTATION / "critique",
+        WORKSTATION / "critique-adrs",
+        WORKSTATION / "critique-plan",
+        *WORKSTATION.glob("review-*"),
+    ],
+)
+# critique/ also holds the runner's README and prompts, which document the routed provider ids by
+# design (routing.json is their source); only its SKILL.md is a skill body an orchestrator reads.
+ADDRESS_FILES = [
+    p for d in ADDRESS_SKILL_DIRS for p in sorted(d.rglob("*.md")) if d.name != "critique" or p.name == "SKILL.md"
+]
+PROVIDER_ID = re.compile(
+    r"\b(?:claude-(?:opus|sonnet|haiku)-[\w.-]+|gpt-\d[\w.-]*|gemini-\d[\w.-]*|glm-\d[\w.-]*|kimi-[kv]?\d[\w.-]*"
+    r"|deepseek-v?\d[\w.-]*|mistral-(?:small|large|medium)[\w.-]*|codestral[\w.-]*|qwen\d[\w.-]*"
+    r"|minimax-m?\d[\w.-]*)",
+    re.I,
+)
+ADDRESS = re.compile(r"(?:[a-z-]+:)?(?:free|paid|auto)/\S+", re.I)
+CLIENT_MODEL = re.compile(
+    r"\b(?:claude|codex|vibe|antigravity|opencode|pi|pi-vibe|hermes):(?!free/|paid/|auto/)[\w.-]*\d", re.I
+)
+# What must stay, and why: (file name, matched text) -> reason. Nothing has to stay today.
+ADDRESS_ALLOWED: dict[tuple[str, str], str] = {}
+
+
+def _provider_hits(text: str) -> list[str]:
+    stripped = ADDRESS.sub("", text)
+    return PROVIDER_ID.findall(stripped) + CLIENT_MODEL.findall(stripped)
+
+
+@pytest.mark.parametrize("path", ADDRESS_FILES, ids=lambda p: f"{p.parent.name}/{p.name}")
+def test_the_skill_names_models_only_through_addresses(path: Path) -> None:
+    found = [h for h in _provider_hits(path.read_text()) if (path.name, h) not in ADDRESS_ALLOWED]
+    assert not found, f"{path.relative_to(KIT_ROOT)} names a provider model id {found}; use an address or a tier-*"
+
+
+def test_the_address_check_would_catch_a_provider_id() -> None:
+    assert _provider_hits('"model": "claude-sonnet-5-5"')
+    assert _provider_hits('"client": "pi-vibe", "model": "glm-5.3"')
+    assert _provider_hits("use codex:gpt-5.5 here")
+    assert not _provider_hits("use `pi:free/glm-4.7-flash` or `paid/glm-5.3` or `tier-vibe`")
