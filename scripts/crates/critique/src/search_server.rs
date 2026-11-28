@@ -428,13 +428,20 @@ pub fn serve_http(root: &str, limits: SearchLimits) -> Result<HttpSearch, String
     let stop = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&stop);
     let thread = std::thread::spawn(move || {
+        let mut open = Vec::new();
         for stream in listener.incoming() {
             if flag.load(Ordering::SeqCst) {
                 break;
             }
             let Ok(stream) = stream else { continue };
+            let Ok(handle) = stream.try_clone() else { continue };
             let engine = Arc::clone(&engine);
-            std::thread::spawn(move || connection(stream, &engine));
+            open.push((handle, std::thread::spawn(move || connection(stream, &engine))));
+        }
+        // Stopping ends every open connection and waits for its thread, so none outlives the handle.
+        for (handle, thread) in open {
+            let _ = handle.shutdown(Shutdown::Both);
+            let _ = thread.join();
         }
     });
     Ok(HttpSearch { port, stop, thread: Some(thread) })
