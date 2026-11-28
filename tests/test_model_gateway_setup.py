@@ -361,12 +361,13 @@ def test_the_schema_requires_every_key_and_allows_no_others() -> None:
 
 def test_the_runner_and_defaults_are_pinned_in_the_manifest() -> None:
     files = {f["path"]: f for f in _manifest()["model_gateway"]["files"]}
-    assert set(files) == {
-        "skills/workstation/model-gateway/defaults.json",
-        "skills/workstation/model-gateway/defaults.schema.json",
+    # Every shipped file but SKILL.md is pinned: the defaults, their schema and each part file.
+    shipped = {
+        p.relative_to(KIT_ROOT).as_posix() for p in SKILL.rglob("*") if p.is_file() and p.name != "SKILL.md"
     }
-    for path in ("skills/workstation/model-gateway/defaults.json",
-                 "skills/workstation/model-gateway/defaults.schema.json"):
+    assert set(files) == shipped
+    assert "skills/workstation/model-gateway/watching-a-batch.md" in files
+    for path in files:
         assert files[path]["mode"] == "0644", path
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()

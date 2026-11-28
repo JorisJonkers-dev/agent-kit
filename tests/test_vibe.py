@@ -25,6 +25,7 @@ def _vibe_servers(data: dict) -> list[dict]:
         for s in data["mcp_servers"]
         if s.get("enabled") is not False
         and "workstation" in (s.get("surfaces") or [])
+        and not s.get("opt_in_env")
         and (not s.get("session_only") or "vibe" in (s.get("enabled_for") or []))
     ]
 
