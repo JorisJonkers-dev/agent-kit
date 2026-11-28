@@ -1258,14 +1258,16 @@ def test_only_public_keys_reach_the_free_groups_and_never_canonical() -> None:
     """A free/<model> deployment sits in the access group `free` alone; only public keys hold it."""
     routes = _litellm_table()["routes"]
     # auto/<model> holds a free/<model> copy first, so the auto key is a public key too.
-    assert sorted(r["agent"] for r in routes if _can_reach(routes, r["agent"], {"free"})) == ["auto", "free", "tier-review"]
+    reach_free = sorted(r["agent"] for r in routes if _can_reach(routes, r["agent"], {"free"}))
+    assert reach_free == ["auto", "free", "tier-review"]
     assert not _can_reach(routes, "free", {"canonical"})
     for agent in ("vibe", "vibe-study", "opencode-go", "local"):
         assert not _can_reach(routes, agent, {"free"}), agent
         assert _can_reach(routes, agent, {"canonical"}), agent
     secrets = json.loads((KIT_ROOT / "registry" / "generated" / "workstation-secrets.json").read_text())
     teams = [e["litellm"]["team"] for e in secrets if e.get("mint") == "litellm"]
-    assert sorted(t["team_alias"] for t in teams if "free" in t["models"]) == ["auto", "free", "tier-review"]
+    free_teams = sorted(t["team_alias"] for t in teams if "free" in t["models"])
+    assert free_teams == ["auto", "free", "tier-review"]
 
 
 def test_no_key_or_team_holds_a_retired_free_group() -> None:
