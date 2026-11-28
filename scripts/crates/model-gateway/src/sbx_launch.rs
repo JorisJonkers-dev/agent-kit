@@ -30,7 +30,7 @@ pub(crate) const SBX_TIMEOUT_MS: u64 = 120_000;
 pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/sbx, then sign in with sbx login";
 
 /// The host name a sandbox reaches the host's loopback by.
-pub(crate) const HOST_FROM_SANDBOX: &str = "host.docker.internal";
+pub const HOST_FROM_SANDBOX: &str = "host.docker.internal";
 
 /// The client's program in its image, which is also the client's name: Pi, OpenCode, Vibe, Claude Code, Codex and Hermes
 /// are the clients the sbx backend runs. Every other client (Antigravity) is refused before anything is made.

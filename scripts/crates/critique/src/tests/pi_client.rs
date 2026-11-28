@@ -72,7 +72,7 @@ fn every_call_that_left_the_packet_is_named_once() {
 use super::vibe_client::{runtime_with, FakeFiles};
 use crate::critic_tools::{CriticToolset, SearchServerLaunch, READ_ONLY_TOOLSET};
 use crate::packet_search::{default_search_limits, SearchToolName};
-use crate::pi_client::{allowed_tools, mcp_servers};
+use crate::pi_client::{allowed_tools, mcp_servers, SearchAccess};
 use crate::clients::{CriticLaunch, CriticReport};
 use crate::pi_client::{
     confined_command, grants, home_agent_dir, key, pi_command, pi_readiness, pi_review, prepare, route, route_of, sandbox_readiness, url_port, PiRoute,
@@ -325,12 +325,12 @@ fn the_launchs_mcp_json_holds_the_search_server_alone_and_the_grants_let_pi_run_
     assert_eq!(written, expected);
     let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
     files.put("/opt/server.js", "");
-    let grants = grants(&runtime, &config(), &route_for(443), Some(("/p", "/a")), Some(&server));
+    let grants = grants(&runtime, &config(), &route_for(443), Some(("/p", "/a")), Some(&SearchAccess::Program(&server)));
     assert_eq!(
         grants,
         ["--read", "/p", "--run-from", "pi", "--run-from", "/opt/critique", "--read", "/opt/server.js", "--write", "/a", "--net-connect", "443", "--env", "PI_CODING_AGENT_DIR"].map(String::from)
     );
-    prepare(&runtime, &config(), "/c/pi-agent", Some(&server)).unwrap().unwrap();
+    prepare(&runtime, &config(), "/c/pi-agent", Some(&SearchAccess::Program(&server))).unwrap().unwrap();
     assert_eq!(parse(&files.read_text("/c/pi-agent/mcp.json").unwrap()).unwrap(), expected);
     let (plain_files, plain) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
     prepare(&plain, &config(), "/c/pi-agent", None).unwrap().unwrap();
@@ -385,26 +385,44 @@ fn a_provider_error_that_names_a_rate_limit_or_a_quota_is_a_rate_limit_and_any_o
 }
 
 #[test]
-fn under_sbx_a_searching_critic_does_not_start_and_a_machine_without_sbx_refuses_every_pi_critic() {
+fn under_sbx_a_searching_critic_calls_the_search_server_over_http_and_a_machine_without_sbx_refuses_every_pi_critic() {
     let sbx = [("AGENT_KIT_SANDBOX", "sbx")];
     let roster = roster_critic();
     let server = SearchServerLaunch { command: "/opt/critique".to_string(), args: vec![] };
-    // The server is a host program no sandbox image holds, so the critic that needs it is refused before anything is made.
-    let process = Scripted::default();
-    let (files, runtime) = machine(Some(&home_models(SECRET)), process.clone(), &sbx);
-    files.put("/c/prompt.md", "prompt");
-    let report = pi_review(&runtime, &searching_launch(&roster, &server), &config()).unwrap();
-    assert_eq!(failure(report.outcome).0, "unconfined");
-    assert!(process.seen().is_empty(), "{:?}", process.seen());
-    // Any other Pi critic goes through the gateway's sbx path, and a machine without sbx refuses it with the install command.
+    // The server is served by the runner on the host, so the critic is no longer refused for it: it goes the way every
+    // sandboxed Pi critic goes, and a machine without sbx refuses it with the install command.
+    let packet = std::env::temp_dir().join(format!("critique-pi-sbx-{}", std::process::id()));
+    std::fs::create_dir_all(&packet).unwrap();
     let missing = Scripted::default().on("sbx version", Err("spawn sbx ENOENT".to_string()));
     let (files, runtime) = machine(Some(&home_models(SECRET)), missing.clone(), &sbx);
     files.put("/c/prompt.md", "prompt");
-    let launch = CriticLaunch { critic: &roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
-    let report = pi_review(&runtime, &launch, &config());
-    let message = format!("{report:?}");
-    assert!(message.contains("brew trust docker/tap && brew install docker/tap/sbx"), "{message}");
+    let launch = CriticLaunch { packet_dir: packet.to_string_lossy().into_owned(), ..searching_launch(&roster, &server) };
+    let message = format!("{:?}", pi_review(&runtime, &launch, &config()));
+    assert!(message.contains("brew trust docker/tap && brew install docker/tap/sbx") && !message.contains("cannot run inside"), "{message}");
     assert!(missing.seen().iter().all(|line| line.starts_with("sbx version") || line.starts_with("/bin/agent-kit-secret")), "{:?}", missing.seen());
+    // A packet the host cannot open is the reason, not a silent search-less critic.
+    let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &sbx);
+    files.put("/c/prompt.md", "prompt");
+    let report = pi_review(&runtime, &searching_launch(&roster, &server), &config()).unwrap();
+    assert!(failure(report.outcome).1.contains("could not start on the host"));
+    // A critic that does not search needs no server and is handled the same way.
+    let (files, runtime) = machine(Some(&home_models(SECRET)), missing, &sbx);
+    files.put("/c/prompt.md", "prompt");
+    let plain = CriticLaunch { critic: &roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
+    assert!(format!("{:?}", pi_review(&runtime, &plain, &config())).contains("brew trust docker/tap"));
+    let _ = std::fs::remove_dir_all(&packet);
+}
+
+#[test]
+fn a_sandboxed_critics_mcp_json_names_the_hosts_url_and_its_grants_hold_no_server_program() {
+    let url = SearchAccess::Http(4711);
+    let expected = parse(r#"{"mcpServers":{"packet":{"url":"http://host.docker.internal:4711/mcp","exposure":"direct","description":"Search the files of your working directory"}}}"#).unwrap();
+    assert_eq!(url.mcp_servers(), expected);
+    let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
+    prepare(&runtime, &config(), "/c/pi-agent", Some(&url)).unwrap().unwrap();
+    assert_eq!(parse(&files.read_text("/c/pi-agent/mcp.json").unwrap()).unwrap(), expected);
+    let grants = grants(&runtime, &config(), &route_for(443), Some(("/p", "/a")), Some(&url));
+    assert_eq!(grants, ["--read", "/p", "--run-from", "pi", "--write", "/a", "--net-connect", "443", "--env", "PI_CODING_AGENT_DIR"].map(String::from));
 }
 
 #[test]
@@ -416,4 +434,34 @@ fn a_plan_command_the_process_could_not_start_is_the_critics_unexpected_error() 
     let launch = CriticLaunch { critic: &roster, packet_dir: "/c/packet".to_string(), prompt_path: "/c/prompt.md".to_string(), critic_dir: "/c".to_string(), schema_path: String::new(), toolset: READ_ONLY_TOOLSET };
     let error = pi_review(&runtime, &launch, &config()).expect_err("not started");
     assert!(format!("{error:?}").contains("spawn sbx-plan ENOENT"), "{error:?}");
+}
+
+/// A live check, run by hand on a machine with sbx, Pi and a LiteLLM key for the free route:
+/// `cargo test -p critique -- --ignored a_searching_pi_critic_answers_in_a_real_sandbox_through_the_host_search_server`.
+/// A free model is asked to call the packet search tool once; its call and the host server's answer must show in the stream.
+#[test]
+#[ignore = "needs sbx, pi and the free LiteLLM route on this machine"]
+fn a_searching_pi_critic_answers_in_a_real_sandbox_through_the_host_search_server() {
+    let runtime = crate::runtime::default_runtime();
+    let dir = std::env::temp_dir().join(format!("critique-live-{}", std::process::id()));
+    let packet = dir.join("packet");
+    std::fs::create_dir_all(packet.join("tree")).unwrap();
+    std::fs::write(packet.join("tree/notes.txt"), "alpha\nSENTINEL_976 is the line the host search server finds\nomega\n").unwrap();
+    let prompt = dir.join("prompt.md");
+    std::fs::write(&prompt, "Call the tool mcp__packet__grep exactly once with the pattern SENTINEL_976 and no other argument. Then reply with the single word DONE and nothing else.").unwrap();
+    let config = crate::routing::PiCriticClient { binary: "pi".to_string(), provider: "litellm-free".to_string(), model: "free/gemma-4-31b-it".to_string(), family: "google".to_string(), data_scope: "public".to_string(), free: true, tier: None };
+    let roster = RosterCritic { client: "live".to_string(), role: "r".to_string(), lenses: vec![], max_price_usd: 0.0, time_limit_s: 300.0, critic_id: "live".to_string(), client_config: CriticClient::Pi(config.clone()), fallbacks: vec![] };
+    let toolset = CriticToolset::PiSearch {
+        search: vec![SearchToolName::Grep, SearchToolName::List],
+        limits: default_search_limits(),
+        server: SearchServerLaunch { command: "unused".to_string(), args: vec![] },
+    };
+    let launch = CriticLaunch { critic: &roster, packet_dir: packet.to_string_lossy().into_owned(), prompt_path: prompt.to_string_lossy().into_owned(), critic_dir: dir.to_string_lossy().into_owned(), schema_path: String::new(), toolset };
+    let report = pi_review(&runtime, &launch, &config).expect("a report");
+    // The tool's own events: its start, and its end with what the host server answered.
+    let events: Vec<&str> = report.stdout.lines().filter(|line| line.contains("tool_execution_") || line.contains("\"toolResult\"")).collect();
+    let called = events.iter().any(|line| line.contains("\"toolName\":\"mcp__packet__grep\""));
+    let answered = events.iter().any(|line| line.contains("SENTINEL_976 is the line the host search server finds"));
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(called && answered && report.exit_code == 0, "exit {} called {called} answered {answered}: {}", report.exit_code, events.join("\n").chars().take(3000).collect::<String>());
 }

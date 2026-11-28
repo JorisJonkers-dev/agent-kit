@@ -233,6 +233,11 @@ impl ClientRun<'_> {
     /// client's own directory `dir` holding its route's config), as a critique critic does: the same backend
     /// selection, the same sbx preflight, image, sandbox and cleanup as `launch`, and the client's result.
     pub fn launch_planned(&self, client: RunClient, command: &ProcessCommand, dir: &str, network: &NetworkScope) -> Result<Launched, ClientRunError> {
+        self.launch_planned_allowing(client, command, dir, network, &[])
+    }
+
+    /// `launch_planned` with `network_allow` hosts (`host:port`) the sandbox may also reach, as a task's own hosts are.
+    pub fn launch_planned_allowing(&self, client: RunClient, command: &ProcessCommand, dir: &str, network: &NetworkScope, network_allow: &[String]) -> Result<Launched, ClientRunError> {
         let backend = SandboxBackend::select(self.env)?;
         if !backend.is_host() {
             sbx_launch::require_client(client)?;
@@ -246,7 +251,7 @@ impl ClientRun<'_> {
         sbx_launch::preflight(self.process, network)?;
         // A sandbox an ended gateway left behind goes first; what cannot be listed or removed is not this launch's to report.
         let _ = sbx_launch::prune_orphans(self.process);
-        let (sandboxed, _) = self.sandboxed(client, command, dir, network, &[])?;
+        let (sandboxed, _) = self.sandboxed(client, command, dir, network, network_allow)?;
         sbx_launch::run(self.process, self.files, &sandboxed, command, &Unwatched).ran.map_err(ClientRunError::Spawn)
     }
 

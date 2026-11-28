@@ -14,10 +14,14 @@ use model_gateway::extras::{RunExtras, SandboxProfile};
 use model_gateway::json::{self, Object, Value};
 use model_gateway::launchers::LaunchRequest;
 use model_gateway::ports::ProcessResult;
+use model_gateway::sandbox::SandboxBackend;
 use model_gateway::text::js_trim;
 
 /// Setup's own warning for a machine where `agy models` asks for a sign-in.
 const SIGN_IN: &str = "antigravity: needs sign-in: run agy and sign in with your Google account";
+
+/// Why an Antigravity critic is skipped while sandboxes are required, as the run records it.
+pub const SANDBOX_SKIP: &str = "antigravity: skipped: Antigravity cannot run in a Docker Sandbox (its login is the macOS keychain, which no sandbox holds) and every critic runs in one";
 
 /// The longest `agy models` may take. Signed in it answers in about a second; stdin is closed, so it cannot wait on a
 /// prompt either.
@@ -38,6 +42,11 @@ const AGY_ERROR_PREFIX: &str = "AGY_ERROR:";
 /// Setup's own check: `agy` must be on `PATH`, and `agy models` must list the routed model. Listing the models needs a
 /// signed-in account but calls no model, so it spends no quota and answers even while the quota is spent.
 pub fn agy_readiness(runtime: &Runtime, config: &AgyCriticClient) -> Result<ClientReadiness, CritiqueError> {
+    // Every gateway worker runs in a Docker Sandbox, and none holds Antigravity's login (the macOS keychain), so the
+    // critic is skipped before anything is spent; the roster gives its slot to a fallback of another family.
+    if !SandboxBackend::select(&runtime.gateway.env).is_ok_and(SandboxBackend::is_host) {
+        return Ok(ClientReadiness { ready: false, detail: Some(SANDBOX_SKIP.to_string()) });
+    }
     if !on_path(runtime, &config.binary) {
         return Ok(ClientReadiness { ready: false, detail: Some(format!("antigravity: {} is not on PATH", config.binary)) });
     }

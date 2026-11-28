@@ -420,6 +420,10 @@ that fired either way.
   the stage runs. At 100% of any window Vibe counts as unable to start, so a
   Vibe critic is dropped with the reason `quota` and the stage runs with the
   critics left. A fallback retry is checked again.
+- **Antigravity under sandboxes**: Antigravity's login is the macOS keychain, which no
+  sandbox holds, so while sandboxes are required (always, outside tests) its critic is
+  dropped with the reason `unavailable` and the detail `antigravity: skipped: …`, and its
+  slot takes the first fallback of a family not yet in the review.
 - **Antigravity per day**: 20 invocations a UTC day
   (`antigravity_quota.daily_cap`). After 10 (`reserve_threshold`), the rest
   are kept for the spec and feature-review stages; other stages drop Gemini
@@ -550,9 +554,13 @@ pi -p --mode json --no-session --offline --provider litellm-vibe-study --model g
 The sandboxed Pi gets only the variables the launch names (`PI_CODING_AGENT_DIR`,
 `TMPDIR` and `PATH`), passed through an env file that is removed after the run.
 
-A Pi critic gets no packet search server under sbx: the server is a program of the
-host's, which no sandbox image holds, so a critic that needs it does not start
-(`unconfined`, with that reason). Use a Vibe critic for search, or a Pi critic without it.
+A Pi critic in a sandbox searches its packet through the runner's own search server, which
+the runner serves on the host: no sandbox image holds the program, so the server speaks MCP
+over HTTP on the host's loopback instead, on a free port, for the length of the critic. The
+sandbox is allowed that one `host.docker.internal:<port>` rule (and `localhost:<port>`), as it
+is for the LiteLLM proxy. The server answers only for the critic's packet copy, the files
+already mounted into the sandbox. A host that cannot start it fails the critic as
+`unconfined`, with that reason.
 `CRITIQUE_SEARCH_OFF=1` gives no critic a search server.
 
 Pi's `read`, `grep`, `find` and `ls` run inside the Pi process itself, so a
