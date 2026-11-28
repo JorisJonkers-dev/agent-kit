@@ -30,7 +30,7 @@ pub(crate) const SBX_TIMEOUT_MS: u64 = 120_000;
 pub const SBX_INSTALL: &str = "brew trust docker/tap && brew install docker/tap/sbx, then sign in with sbx login";
 
 /// The host name a sandbox reaches the host's loopback by.
-pub(crate) const HOST_FROM_SANDBOX: &str = "host.docker.internal";
+pub const HOST_FROM_SANDBOX: &str = "host.docker.internal";
 
 /// The client's program in its image, which is also the client's name: Pi, OpenCode, Vibe, Claude Code, Codex and Hermes
 /// are the clients the sbx backend runs. Every other client (Antigravity) is refused before anything is made.
@@ -304,7 +304,7 @@ fn allowed_hosts(route_text: &str) -> Result<Vec<String>, GatewayError> {
 }
 
 /// The rules for one base URL: the host and port, with a loopback host named both ways.
-pub(crate) fn host_rules(url: &str) -> Result<Vec<String>, GatewayError> {
+pub fn host_rules(url: &str) -> Result<Vec<String>, GatewayError> {
     let (host, port) = split_host(url).ok_or_else(|| GatewayError::new("sandbox-unsupported", "the route's base URL names no host the sbx policy can allow"))?;
     Ok(if host == "localhost" || host == "127.0.0.1" { vec![format!("{HOST_FROM_SANDBOX}:{port}"), format!("localhost:{port}")] } else { vec![format!("{host}:{port}")] })
 }

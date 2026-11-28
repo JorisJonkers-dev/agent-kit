@@ -1,6 +1,7 @@
 //! `critique search-server`: the runner's MCP stdio server for one critic's packet copy (ADR-0006). It answers
 //! `initialize`, `ping`, `tools/list` and `tools/call` until stdin closes, then exits 0. It reads the packet and nothing
-//! else: it writes no file, runs no command and opens no socket. Arguments it cannot use exit 2; a root it cannot open
+//! else: it writes no file and runs no command, and over stdio opens no socket (`serve_http` below is the one place a
+//! socket is opened: see ADR-0006's amendment on sandboxed critics). Arguments it cannot use exit 2; a root it cannot open
 //! exits 1. The node runner's `adapters/search/server.ts` and `engine.ts`, and the answers of `domain/packet-search.ts`.
 //!
 //! A critic's `grep` pattern is a JavaScript regular expression, run on the crate's JavaScript-semantics engine. A
@@ -14,7 +15,11 @@ use crate::triage::matches_glob;
 use model_gateway::adapters::fs::fail;
 use model_gateway::json::{self, Object, Value};
 use model_gateway::text::{is_js_whitespace, join, js_slice, js_trim};
-use std::io::{BufRead, Write};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// The MCP version the server speaks when the client asks for none.
 const PROTOCOL_VERSION: &str = "2025-06-18";
@@ -381,4 +386,112 @@ pub(crate) fn symbol_matches(repo_map: &str, name: &str) -> Vec<String> {
     let lower = name.to_lowercase();
     let found = if exact.is_empty() { symbols.iter().filter(|(_, symbol, _, _)| symbol.to_lowercase().contains(&lower)).collect() } else { exact };
     found.into_iter().map(|(path, _, line, text)| format!("tree/{path}:{line}: {}", clip_line(text))).collect()
+}
+
+/// The longest request body the HTTP transport reads: a JSON-RPC call is a few hundred bytes.
+const HTTP_BODY_MAX: usize = 1 << 20;
+
+/// How long a connection may sit silent before the server drops it.
+const HTTP_IDLE: Duration = Duration::from_secs(60);
+
+/// The search server over HTTP, for a critic in a Docker Sandbox, which cannot start a program of the host's: the
+/// same engine and the same answers as stdio, one JSON-RPC message per POST (MCP's streamable HTTP, without streams).
+/// It listens on the loopback address only, which a sandbox reaches as `host.docker.internal`, and searches the one
+/// packet copy it was opened on. Dropping the handle stops it.
+pub struct HttpSearch {
+    port: u16,
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl HttpSearch {
+    /// The port the server listens on.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+}
+
+impl Drop for HttpSearch {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        // A connection to ourselves wakes the accept loop so it sees the flag.
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+/// Starts the HTTP search server on `root` at a free loopback port.
+pub fn serve_http(root: &str, limits: SearchLimits) -> Result<HttpSearch, String> {
+    let engine = Arc::new(Engine::open(root, limits)?);
+    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|error| format!("the search server cannot listen: {error}"))?;
+    let port = listener.local_addr().map_err(|error| format!("the search server has no address: {error}"))?.port();
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&stop);
+    let thread = std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            if flag.load(Ordering::SeqCst) {
+                break;
+            }
+            let Ok(stream) = stream else { continue };
+            let engine = Arc::clone(&engine);
+            std::thread::spawn(move || connection(stream, &engine));
+        }
+    });
+    Ok(HttpSearch { port, stop, thread: Some(thread) })
+}
+
+/// One connection: requests are answered in turn until the client closes it, goes quiet or sends what is not HTTP.
+fn connection(stream: TcpStream, engine: &Engine) {
+    let _ = stream.set_read_timeout(Some(HTTP_IDLE));
+    let Ok(mut writer) = stream.try_clone() else { return };
+    let mut reader = BufReader::new(stream);
+    while let Some((method, body)) = read_request(&mut reader) {
+        let (status, payload) = if method == "POST" {
+            match answer(&body, engine) {
+                Some(reply) => ("200 OK", json::compact(&reply)),
+                None => ("202 Accepted", String::new()),
+            }
+        } else {
+            ("405 Method Not Allowed", String::new())
+        };
+        let allow = if status.starts_with("405") { "Allow: POST\r\n" } else { "" };
+        let head = format!("HTTP/1.1 {status}\r\n{allow}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n", payload.len());
+        if writer.write_all(head.as_bytes()).and_then(|()| writer.write_all(payload.as_bytes())).and_then(|()| writer.flush()).is_err() {
+            return;
+        }
+    }
+    let _ = writer.shutdown(Shutdown::Both);
+}
+
+/// The method and body of the next request, or none when the connection ended or the request cannot be read.
+fn read_request(reader: &mut BufReader<TcpStream>) -> Option<(String, String)> {
+    let mut line = String::new();
+    if reader.read_line(&mut line).ok()? == 0 {
+        return None;
+    }
+    let method = line.split_whitespace().next()?.to_string();
+    let mut length = 0usize;
+    loop {
+        line.clear();
+        if reader.read_line(&mut line).ok()? == 0 {
+            return None;
+        }
+        let header = line.trim_end();
+        if header.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':') {
+            if name.eq_ignore_ascii_case("content-length") {
+                length = value.trim().parse().ok()?;
+            }
+        }
+    }
+    if length > HTTP_BODY_MAX {
+        return None;
+    }
+    let mut body = vec![0u8; length];
+    reader.read_exact(&mut body).ok()?;
+    Some((method, String::from_utf8_lossy(&body).into_owned()))
 }

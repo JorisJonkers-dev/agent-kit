@@ -354,3 +354,47 @@ fn every_critic_client_makes_the_export_directory_its_confinement_writes_before_
         assert_eq!(files.made().first().map(String::as_str), Some("/run/c1/export"));
     }
 }
+
+#[test]
+fn an_antigravity_critic_is_skipped_with_its_reason_while_sandboxes_are_required_and_its_slot_goes_to_another_family() {
+    use crate::agy_client::SANDBOX_SKIP;
+    use crate::roster_resolve::{resolve_roster, Availability, RosterRequest};
+    use crate::routing::parse_routing;
+    use std::collections::HashMap;
+
+    let files = FakeFiles::default();
+    files.put("/bin/agy", "");
+    let process = FakeProcess::answering(said(0, "gemini-3\tGemini\n", ""));
+    let env = [("PATH", "/bin"), ("HOME", "/home/owner"), ("AGENT_KIT_SANDBOX", "sbx")];
+    let runtime = fake_runtime(&files, &process, &env);
+    let skipped = client_readiness(&runtime, &CriticClient::Agy(agy_config())).expect("a readiness");
+    assert_eq!(skipped, ClientReadiness { ready: false, detail: Some(SANDBOX_SKIP.to_string()) });
+    assert!(process.commands().is_empty(), "nothing is asked of agy: {:?}", process.commands());
+
+    // The shipped roster: every Antigravity client is unavailable, and each of its slots goes to a client of another family,
+    // so the stage keeps its critic count and the drop records why.
+    let routing = parse_routing(&parse(include_str!("../../../../../skills/workstation/critique/routing.json")).expect("json")).expect("routing");
+    let readiness: HashMap<String, Availability> = routing
+        .clients
+        .iter()
+        .filter(|(_, client)| matches!(client, CriticClient::Agy(_)))
+        .map(|(name, _)| (name.clone(), Availability { ready: false, detail: SANDBOX_SKIP.to_string(), reason: None }))
+        .collect();
+    assert!(!readiness.is_empty(), "the shipped routing names an Antigravity client");
+    let families: Vec<String> = ["mistral", "zhipu", "deepseek", "google"].map(String::from).to_vec();
+    let request = |free| RosterRequest { stage: "spec", depth: "base", allowed_families: &families, orchestrator_family: "anthropic", adr: false, public_repository: true, free };
+    let slots = crate::routing::stage_routing(&routing, "spec").expect("spec").base.len();
+    let roster = resolve_roster(&routing, &request(false), &readiness).expect("a roster");
+    assert_eq!(roster.critics.len(), slots, "{:?}", roster.dropped);
+    assert!(roster.critics.iter().all(|critic| !matches!(critic.client_config, CriticClient::Agy(_))));
+    let family = |critic: &RosterCritic| critic.client_config.family().to_string();
+    let mut distinct: Vec<String> = roster.critics.iter().map(family).collect();
+    distinct.dedup();
+    assert_eq!(distinct.len(), roster.critics.len(), "no family twice");
+    let drops: Vec<_> = roster.dropped.iter().filter(|drop| readiness.contains_key(&drop.client)).collect();
+    assert!(!drops.is_empty());
+    for drop in drops {
+        assert_eq!((drop.reason.as_str(), drop.detail.as_deref()), ("unavailable", Some(SANDBOX_SKIP)));
+        assert!(drop.replaced_by.is_some(), "{drop:?}");
+    }
+}

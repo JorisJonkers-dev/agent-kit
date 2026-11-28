@@ -72,3 +72,14 @@ and process starts come back `tool_denied`. Setup's read-only proof for each
 Vibe client shows those refusals live: one confirmed prompt, alongside the
 search-reach proof. A client the proof fails stays on `read_file` alone
 until it passes.
+
+## Amended (2026-11-28): a sandboxed Pi critic reaches the server over HTTP
+
+Every critic runs in a Docker Sandbox (ADR-0019), and no sandbox image holds the
+runner's search program, so a Pi critic could not start it itself. The runner now
+serves the same engine over MCP's HTTP transport on the host's loopback, at a free
+port, for the length of the critic, and the critic's `mcp.json` names that URL as
+`host.docker.internal:<port>`. The sandbox is allowed that one host and port, as it is
+for the LiteLLM proxy. Shipping the program in the run's mounts was the other way: it
+would need a Linux build of the runner beside the host's. The server still searches only
+the critic's packet copy, which is already mounted in the sandbox.

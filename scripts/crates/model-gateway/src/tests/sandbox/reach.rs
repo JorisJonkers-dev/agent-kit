@@ -479,3 +479,14 @@ fn a_planned_launch_gets_the_same_network_reach_as_any_launch_and_the_same_refus
 fn file_text(disk: &Disk, path: &str) -> String {
     disk.files.lock().expect("files").get(path).cloned().unwrap_or_default()
 }
+
+#[test]
+fn a_planned_launch_may_name_hosts_the_sandbox_also_reaches() {
+    let disk = planned_disk();
+    let sbx = Sbx::new(healthy);
+    let allowed = vec!["host.docker.internal:4711".to_string(), "localhost:4711".to_string()];
+    ClientRun { process: &sbx, files: &disk, clock: &Fixed, env: &sbx_env() }.launch_planned_allowing(RunClient::Pi, &plan_of_pi(), "/run/export/pi-agent", &NetworkScope::default(), &allowed).expect("a run");
+    let calls = sbx.calls();
+    let name = sbx_name_in(&calls);
+    assert!(calls.contains(&format!("sbx policy allow network --sandbox {name} host.docker.internal:4000,localhost:4000,packages.jorisjonkers.dev:443,host.docker.internal:4711,localhost:4711")), "{calls:?}");
+}

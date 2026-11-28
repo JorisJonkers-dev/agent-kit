@@ -18,12 +18,14 @@ use crate::tier_routing::TierRouting;
 use crate::tier_review::GATEWAY_CLIENT;
 use model_gateway::routing::recorded;
 use crate::runtime::Runtime;
+use crate::search_server::serve_http;
 use crate::vibe_client::{js_string, on_path};
 use model_gateway::client_run::{ClientRun, ClientRunError};
 use model_gateway::json::{self, Object, Value};
 use model_gateway::network::NetworkScope;
 use model_gateway::ports::{Launched as Ran, ProcessCommand, ProcessResult};
 use model_gateway::run::RunClient;
+use model_gateway::sbx_launch;
 use model_gateway::sandbox::{SandboxBackend, PLAN_PROGRAM, PLAN_VERB};
 use model_gateway::text::js_trim;
 
@@ -179,13 +181,13 @@ pub(crate) fn key(runtime: &Runtime, config: &PiCriticClient, api_key: &str) -> 
 
 /// The grants of a sandboxed launch: the packet and the agent directory when there is a launch, Pi, its tools and the
 /// proxy's port.
-pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute, launch: Option<(&str, &str)>, server: Option<&SearchServerLaunch>) -> Vec<String> {
+pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute, launch: Option<(&str, &str)>, server: Option<&SearchAccess>) -> Vec<String> {
     let mut grants = Vec::new();
     if let Some((packet_dir, _)) = launch {
         grants.extend(["--read".to_string(), packet_dir.to_string()]);
     }
     grants.extend(["--run-from".to_string(), config.binary.clone()]);
-    if let Some(server) = server {
+    if let Some(SearchAccess::Program(server)) = server {
         // Pi starts the search server itself, inside the confinement: it runs from its own program, and reads the
         // files its arguments name (a script it is started with), the packet being granted already.
         grants.extend(["--run-from".to_string(), server.command.clone()]);
@@ -207,7 +209,7 @@ pub(crate) fn grants(runtime: &Runtime, config: &PiCriticClient, route: &PiRoute
 
 /// The launch's own agent directory: a `models.json` holding only the route's provider, its key read from the secret
 /// store just now and written in plain (mode 0600), and an empty `settings.json`; the route, or why not.
-pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, server: Option<&SearchServerLaunch>) -> Result<Result<PiRoute, String>, CritiqueError> {
+pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, server: Option<&SearchAccess>) -> Result<Result<PiRoute, String>, CritiqueError> {
     let route = match route(runtime, config) {
         Ok(route) => route,
         Err(detail) => return Ok(Err(detail)),
@@ -223,7 +225,7 @@ pub(crate) fn prepare(runtime: &Runtime, config: &PiCriticClient, agent_dir: &st
 /// The files of a launch's own agent directory: a `models.json` holding only the route's provider with the key given (the
 /// real key, or the token of the recording proxy) and the one model of the launch, an empty `settings.json`, and the search
 /// server's `mcp.json` when the critic has one. The key goes in last, so a write that fails leaves no key behind.
-fn write_home(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, (route, key): (&PiRoute, &str), server: Option<&SearchServerLaunch>) -> Result<(), CritiqueError> {
+fn write_home(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, (route, key): (&PiRoute, &str), server: Option<&SearchAccess>) -> Result<(), CritiqueError> {
     let provider = json::object(vec![
         ("api", Value::str(&route.api)),
         ("apiKey", Value::str(key)),
@@ -233,22 +235,43 @@ fn write_home(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, (rout
     let models = json::object(vec![("providers", json::object(vec![(config.provider.as_str(), provider)]))]);
     runtime.files.write_private(&join(&[agent_dir, "settings.json"]), "{}\n").map_err(CritiqueError::from_fs)?;
     if let Some(server) = server {
-        runtime.files.write_private(&join(&[agent_dir, "mcp.json"]), &format!("{}\n", json::pretty(&mcp_servers(server)))).map_err(CritiqueError::from_fs)?;
+        runtime.files.write_private(&join(&[agent_dir, "mcp.json"]), &format!("{}\n", json::pretty(&server.mcp_servers()))).map_err(CritiqueError::from_fs)?;
     }
     runtime.files.write_private(&join(&[agent_dir, "models.json"]), &format!("{}\n", json::pretty(&models))).map_err(CritiqueError::from_fs)
+}
+
+/// How a Pi critic reaches the runner's search server: by starting it (a confined launch on the host) or by calling the
+/// one the runner serves on the host over HTTP, which is how a critic in a Docker Sandbox reaches it, since no
+/// sandbox image holds the program (ADR-0006, amended).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SearchAccess<'a> {
+    Program(&'a SearchServerLaunch),
+    Url(String),
+}
+
+impl SearchAccess<'_> {
+    /// The launch's `mcp.json` for this way of reaching the server.
+    pub fn mcp_servers(&self) -> Value {
+        match self {
+            SearchAccess::Program(server) => mcp_servers(server),
+            SearchAccess::Url(url) => mcp_entry(vec![("url", Value::str(url))]),
+        }
+    }
 }
 
 /// The launch's `mcp.json`: the runner's search server as the only MCP server, its tools called directly by name. Pi
 /// reads MCP servers from its configuration alone, and the launch's agent directory is the one it reads.
 pub fn mcp_servers(server: &SearchServerLaunch) -> Value {
     let args = server.args.iter().map(|argument| Value::str(argument)).collect();
-    let entry = json::object(vec![
-        ("command", Value::str(&server.command)),
-        ("args", Value::Arr(args)),
-        ("exposure", Value::str("direct")),
-        ("description", Value::str("Search the files of your working directory")),
-    ]);
-    json::object(vec![("mcpServers", json::object(vec![(VIBE_SEARCH_SERVER, entry)]))])
+    mcp_entry(vec![("command", Value::str(&server.command)), ("args", Value::Arr(args))])
+}
+
+/// `mcp.json` with the search server as its one entry: how it is reached, then how its tools are shown.
+fn mcp_entry(reach: Vec<(&str, Value)>) -> Value {
+    let mut pairs = reach;
+    pairs.push(("exposure", Value::str("direct")));
+    pairs.push(("description", Value::str("Search the files of your working directory")));
+    json::object(vec![("mcpServers", json::object(vec![(VIBE_SEARCH_SERVER, json::object(pairs))]))])
 }
 
 /// The Pi launch as a plan command, which the gateway reads and runs in a sandbox: the grants, then `--` and Pi's own
@@ -318,9 +341,17 @@ pub fn pi_command(config: &PiCriticClient, launch: &CriticLaunch<'_>, prompt: St
 
 /// The plan command run in a sandbox through the gateway's launch path, the one every worker takes: the same backend
 /// choice, `sbx` preflight, image and cleanup. A refusal (no working sbx) is the reason nothing ran.
-fn run_in_sandbox(runtime: &Runtime, command: &ProcessCommand, agent_dir: &str) -> Launched {
+fn run_in_sandbox(runtime: &Runtime, command: &ProcessCommand, agent_dir: &str, server: Option<&SearchAccess>) -> Launched {
     let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), clock: runtime.clock.as_ref(), env: &runtime.gateway.env };
-    match gateway.launch_planned(RunClient::Pi, command, agent_dir, &NetworkScope::default()) {
+    // A critic that searches over HTTP is allowed that one host and port, as the route's proxy is.
+    let allow = match server {
+        Some(SearchAccess::Url(url)) => match sbx_launch::host_rules(&url.replacen(sbx_launch::HOST_FROM_SANDBOX, "127.0.0.1", 1)) {
+            Ok(rules) => rules,
+            Err(error) => return Launched::Refused(error.message),
+        },
+        _ => Vec::new(),
+    };
+    match gateway.launch_planned_allowing(RunClient::Pi, command, agent_dir, &NetworkScope::default(), &allow) {
         Ok(Ran { result, .. }) => Launched::Ran(Ok(result)),
         Err(ClientRunError::Gateway(error)) => Launched::Refused(error.message),
         Err(ClientRunError::Spawn(message)) => Launched::Ran(Err(message)),
@@ -335,7 +366,7 @@ enum Launched {
 }
 
 /// The launch in its sandbox, through the route's key as the home holds it.
-fn launch_direct(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<Launched, CritiqueError> {
+fn launch_direct(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchAccess>) -> Result<Launched, CritiqueError> {
     let route = match prepare(runtime, config, agent_dir, server)? {
         Ok(route) => route,
         Err(detail) => return Ok(Launched::Refused(detail)),
@@ -343,7 +374,7 @@ fn launch_direct(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
     let grants = grants(runtime, config, &route, Some((&launch.packet_dir, agent_dir)), server);
     let bin = home_bin(runtime);
     let command = confined_command(grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
-    let launched = run_in_sandbox(runtime, &command, agent_dir);
+    let launched = run_in_sandbox(runtime, &command, agent_dir, server);
     let _ = runtime.files.remove(agent_dir);
     Ok(launched)
 }
@@ -351,19 +382,19 @@ fn launch_direct(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
 /// The launch in its sandbox, in the per-run home the recording proxy made: its provider's base URL is the proxy and its key is
 /// the run's token, so the real key never reaches the critic. The home is written again to list only the step model the
 /// reviewer asks for.
-fn launch_proxied(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<Launched, CritiqueError> {
+fn launch_proxied(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, agent_dir: &str, prompt: String, server: Option<&SearchAccess>) -> Result<Launched, CritiqueError> {
     let mut route = route_in(runtime, config, agent_dir).map_err(CritiqueError::unexpected)?;
     route.model = json::object(vec![("id", Value::str(&config.model))]);
     write_home(runtime, config, agent_dir, (&route, &route.api_key), server)?;
     let grants = grants(runtime, config, &route, Some((&launch.packet_dir, agent_dir)), server);
     let bin = home_bin(runtime);
     let command = confined_command(grants, pi_command(config, launch, prompt), runtime.env.get("PATH").map(String::as_str), agent_dir, bin.as_deref());
-    Ok(run_in_sandbox(runtime, &command, agent_dir))
+    Ok(run_in_sandbox(runtime, &command, agent_dir, server))
 }
 
 /// A tier reviewer's launch behind the recording proxy: the launch and what LiteLLM's headers said of it. When the proxy
 /// cannot be set up the launch runs as any Pi critic does, and its routing is `hidden`, which does not prove its family.
-fn launch_recorded(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, tier: &str, agent_dir: &str, prompt: String, server: Option<&SearchServerLaunch>) -> Result<(Launched, TierRouting), CritiqueError> {
+fn launch_recorded(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient, tier: &str, agent_dir: &str, prompt: String, server: Option<&SearchAccess>) -> Result<(Launched, TierRouting), CritiqueError> {
     let mut launched: Option<Result<Launched, CritiqueError>> = None;
     let routing = recorded(&runtime.gateway, "curl", agent_dir, &config.provider, GATEWAY_CLIENT, &mut |env| {
         let proxied = env.get("PI_CODING_AGENT_DIR").map(String::as_str) == Some(agent_dir);
@@ -378,14 +409,25 @@ fn launch_recorded(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCrit
 pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCriticClient) -> Result<CriticReport, CritiqueError> {
     let prompt = runtime.files.read_text(&launch.prompt_path).map_err(CritiqueError::from_fs)?;
     let agent_dir = join(&[&launch.critic_dir, "pi-agent"]);
-    let server = match &launch.toolset {
+    let program = match &launch.toolset {
         CriticToolset::PiSearch { server, .. } => Some(server),
         _ => None,
     };
-    // The search server is a program of the host's, which no sandbox's image holds: a critic that needs it does not start.
-    if server.is_some() && !SandboxBackend::select(&runtime.gateway.env).is_ok_and(SandboxBackend::is_host) {
-        return Ok(unconfined_report(launch, "pi: the packet search server cannot run inside a Docker Sandbox, so a searching Pi critic does not start; use a Vibe critic for search".to_string()));
-    }
+    // No sandbox image holds the search server's program, so a critic in a Docker Sandbox calls the runner's own server
+    // over HTTP: it listens on the host's loopback for the length of the critic and the sandbox is allowed that one port.
+    let in_sandbox = !SandboxBackend::select(&runtime.gateway.env).is_ok_and(SandboxBackend::is_host);
+    let (http, access) = match (program, &launch.toolset) {
+        (Some(_), CriticToolset::PiSearch { limits, .. }) if in_sandbox => match serve_http(&launch.packet_dir, limits.clone()) {
+            Ok(http) => {
+                let url = format!("http://{}:{}/mcp", sbx_launch::HOST_FROM_SANDBOX, http.port());
+                (Some(http), Some(SearchAccess::Url(url)))
+            }
+            Err(detail) => return Ok(unconfined_report(launch, format!("pi: the packet search server could not start on the host: {detail}"))),
+        },
+        (Some(server), _) => (None, Some(SearchAccess::Program(server))),
+        _ => (None, None),
+    };
+    let server = access.as_ref();
     let (launched, routing) = match &config.tier {
         Some(tier) => {
             let (launched, routing) = launch_recorded(runtime, launch, config, tier, &agent_dir, prompt, server)?;
@@ -397,6 +439,7 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
         Launched::Refused(detail) => return Ok(CriticReport { routing, ..unconfined_report(launch, detail) }),
         Launched::Ran(ran) => ran,
     };
+    drop(http);
     let result = ran.map_err(CritiqueError::unexpected)?;
     let stream = read_pi_stream(&result.stdout);
     let export_path = join(&[&launch.critic_dir, "result.json"]);
