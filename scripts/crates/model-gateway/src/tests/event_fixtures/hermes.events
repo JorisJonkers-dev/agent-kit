@@ -1,0 +1,4 @@
+{"type":"message","data":{"role":"assistant","kind":"thinking","text":"The user explicitly asks me to use my file reading tool (read_file) to read AGENTS.md and reply with its first heading in one line.\n\nLet me read the file."}}
+{"type":"tool.started","data":{"gen_ai.tool.call.id":"tc-ebd13a26fc4f","gen_ai.tool.name":"read: /home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md","input":"[{\"path\":\"/home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md\"}]"}}
+{"type":"message","data":{"role":"assistant","kind":"text","text":"\n\n# Agents"}}
+{"type":"usage","data":{"gen_ai.usage.input_tokens":159079,"gen_ai.usage.output_tokens":106,"cached_input_tokens":74496,"cost_usd":null}}

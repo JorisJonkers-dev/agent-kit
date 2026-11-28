@@ -1,0 +1,12 @@
+{"type":"thread.started","thread_id":"0199a213-81c0-7800-8aa1-bbab2a035a53"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"Looking for the first heading of AGENTS.md"}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"bash -lc 'head -n 1 AGENTS.md'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"bash -lc 'head -n 1 AGENTS.md'","aggregated_output":"# Agents\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"bash -lc 'cat missing.md'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"bash -lc 'cat missing.md'","aggregated_output":"cat: missing.md: No such file or directory\n","exit_code":1,"status":"failed"}}
+{"type":"item.updated","item":{"id":"item_3","type":"todo_list","items":[{"text":"read the file","completed":true},{"text":"answer","completed":false}]}}
+{"type":"item.completed","item":{"id":"item_4","type":"error","message":"a recoverable error"}}
+{"type":"item.completed","item":{"id":"item_5","type":"agent_message","text":"The first heading is Agents."}}
+{"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"output_tokens":122}}
+{"type":"error","message":"stream disconnected before completion"}
