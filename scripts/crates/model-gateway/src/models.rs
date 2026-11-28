@@ -620,7 +620,7 @@ fn compare(left: &str, right: &str) -> Ordering {
 /// The providers an OpenCode run may reach when the machine names none: OpenCode Go's own provider, and the
 /// `litellm-<route>` providers setup writes into OpenCode's config for the LiteLLM routes that take any data
 /// (`opencode-go`, `vibe`, `vibe-study`, `local`). The public-only routes stay on Pi, which holds runs to them.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = crate::run::DEFAULT_OPENCODE_PROVIDERS;
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 6] = crate::run::DEFAULT_OPENCODE_PROVIDERS;
 
 /// OpenCode's own provider (its Zen): pay-per-token except for the `-free` models.
 const ZEN_PROVIDER: &str = "opencode";

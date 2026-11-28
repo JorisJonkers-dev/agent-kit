@@ -86,3 +86,12 @@ fn the_proxys_own_address_is_a_pricing_prefix_and_a_model() {
     assert!(is_proxy_address("free/hy4-flash") && is_proxy_address("paid/a/b") && is_proxy_address("auto/x"));
     assert!(!is_proxy_address("free/") && !is_proxy_address("tier-free") && !is_proxy_address("cheap/x") && !is_proxy_address("ministral-8b"));
 }
+
+#[test]
+fn a_pinned_paid_address_names_a_provider_opencode_may_use_and_a_free_one_stays_refused() {
+    let opencode = resolve("opencode:paid/deepseek-v4.1-flash").expect("an address");
+    assert_eq!(crate::run::require_allowed_provider(&opencode.model, None), Ok(()));
+    // The free chain is for public work only, which the data policy of a Pi route enforces and OpenCode's provider list does not.
+    let free = resolve("opencode:free/hy4-flash").expect("an address");
+    assert_eq!(crate::run::require_allowed_provider(&free.model, None).expect_err("refused").code, "provider-not-allowed");
+}

@@ -965,7 +965,7 @@ fn list_models_names_an_opencode_client_whose_every_model_its_allowlist_drops_as
     assert_eq!(listing.models, vec![]);
     let reasons: Vec<&str> = listing.missing.iter().filter(|entry| entry.client == "opencode").map(|entry| entry.reason.as_str()).collect();
     assert_eq!(reasons.len(), 1);
-    assert!(reasons[0].starts_with("OpenCode listed 2 models and none is on an allowed provider (opencode-go, litellm-opencode-go, litellm-vibe, litellm-vibe-study, litellm-local)"), "{}", reasons[0]);
+    assert!(reasons[0].starts_with("OpenCode listed 2 models and none is on an allowed provider (opencode-go, litellm-opencode-go, litellm-paid, litellm-vibe, litellm-vibe-study, litellm-local)"), "{}", reasons[0]);
 }
 
 

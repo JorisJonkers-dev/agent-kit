@@ -50,7 +50,7 @@ def test_the_defaults_carry_exactly_what_the_registry_renders():
     assert rendered == DEFAULTS.read_text()
     section = json.loads(rendered)["profiles"]
     assert section["cheap-research"]["tools"] == {"mcp": [], "skills": [], "plugins": []}
-    assert section["implement-cheap"]["ladder"][0] == "pi-vibe:deepseek-v4.1-flash"
+    assert section["implement-cheap"]["ladder"][0] == "pi-paid:paid/deepseek-v4.1-flash"
 
 
 def test_the_render_check_covers_the_profiles_section():

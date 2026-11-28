@@ -5,7 +5,7 @@ work. Each cell is `model-gateway run --profile <role> --harness <harness>` on a
 (`Reply with the single word ok.`, read-only, no tools), so the proof exercises the path a delegation takes:
 the profile's models cut by the data policy, the harness choice, the launch and the result parse.
 
-`pi` is every Pi route (the default of a role); `pi-opencode-go` is OpenCode Go through Pi; `claude`, `codex`,
+`pi` is every Pi route (the default of a role); `pi-paid` is the proxy's `paid/<model>` chain through Pi; `claude`, `codex`,
 `agy`, `vibe` and `hermes` name themselves.
 
 ## The matrix on the owner's machine
@@ -14,7 +14,7 @@ A cell is `pass` (the run answered), `blocked` (it cannot run here for a stated 
 prerequisite and not a bug) or `fail` (it should work and does not). Blocked cells are listed, never hidden.
 
 <!-- matrix:start -->
-| role | pi | pi-opencode-go | claude | codex | agy | vibe | hermes | opencode |
+| role | pi | pi-paid | claude | codex | agy | vibe | hermes | opencode |
 |---|---|---|---|---|---|---|---|---|
 | research | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
 | implement | pass | pass | pass | blocked [1] | pass | blocked [2] | pass | pass |
@@ -33,13 +33,13 @@ the table above equal to it. The table is what the cells are expected to do, not
 
 ### Last live run (2026-11-16, Pi cells, every role)
 
-All twelve `pi` and `pi-opencode-go` cells pass live (`model-gateway matrix --json '{"live": true,
-"harnesses": ["pi", "pi-opencode-go"]}'`), each in 4 to 9 s at $0:
+All twelve `pi` and `pi-paid` cells (then `pi-vibe` and `pi-opencode-go`, before the paid chain) pass live (`model-gateway matrix --json '{"live": true,
+"harnesses": ["pi", "pi-paid"]}'`), each in 4 to 9 s at $0:
 
 | harness | roles | models used |
 |---|---|---|
-| pi | all six pass | pi-vibe:ministral-8b, deepseek-v4.1-flash, glm-5.3 |
-| pi-opencode-go | all six pass | pi-opencode-go:qwen3.8-flash, kimi-k2.7-code |
+| pi | all six pass | pi-paid:paid/ministral-8b, paid/deepseek-v4.1-flash, paid/glm-5.3 |
+| pi-paid | all six pass | pi-paid:paid/qwen3.8-flash, paid/kimi-k2.7-code |
 
 The `research` row for claude, agy and vibe passed earlier the same day. The codex cells
 and the non-Pi harnesses of the other roles were not re-run.
@@ -150,7 +150,7 @@ where its skills are; Codex's probe cell cannot run on this machine.
 ## Why the blocked cells are blocked
 
 - **hermes** runs the profile's Pi-route models: `--harness hermes` takes the cheapest model the profile
-  leaves on a Pi route for any data (`pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, never the
+  leaves on a Pi route for any data (`pi-paid`, `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`, `pi-local`, never the
   public-only or free-only routes) and runs it as `hermes -m <model> --provider litellm-<route>`, the provider
   setup writes into `~/.hermes/config.yaml`. The profile check holds the run to that Pi entry, and every role
   holds a deny-all scope through its per-run home, so it is not named in `unenforced_clients` any more (#903). The run is in its own

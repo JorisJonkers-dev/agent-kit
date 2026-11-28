@@ -118,9 +118,9 @@ fn every_seed_profile_has_a_model_with_no_repository_or_a_public_one_and_none_fo
 fn a_seed_profile_lists_its_models_cheapest_first_inside_its_own_models() {
     let config = shipped();
     let listed = pi_models(&config, "implement-cheap", &repository(&EVERY_FAMILY), None);
-    assert_eq!(keys(&listed.models), vec!["pi-vibe:deepseek-v4.1-flash", "pi-vibe:glm-5.3-flash", "pi-vibe:mistral-large-4", "pi-vibe:glm-5.3"]);
-    let narrow = Narrowing { models: Some(vec!["pi-vibe:glm-5.3".to_string()]), ..Narrowing::default() };
-    assert_eq!(keys(&pi_models(&config, "implement-cheap", &repository(&EVERY_FAMILY), Some(&narrow)).models), vec!["pi-vibe:glm-5.3"]);
+    assert_eq!(keys(&listed.models), vec!["pi-paid:paid/deepseek-v4.1-flash", "pi-paid:paid/glm-5.3-flash", "pi-paid:paid/mistral-large-4", "pi-paid:paid/glm-5.3"]);
+    let narrow = Narrowing { models: Some(vec!["pi-paid:paid/glm-5.3".to_string()]), ..Narrowing::default() };
+    assert_eq!(keys(&pi_models(&config, "implement-cheap", &repository(&EVERY_FAMILY), Some(&narrow)).models), vec!["pi-paid:paid/glm-5.3"]);
 }
 
 #[test]
@@ -325,7 +325,7 @@ fn every_role_is_deny_all_capped_and_names_the_harnesses_that_run_it_unenforced(
         assert!(profile.max_spend_usd.is_some(), "{role}");
         let unenforced = profile.unenforced_clients.as_ref().expect("a role names its non-Pi harnesses");
         assert!(unenforced.iter().all(|client| !crate::run::is_pi_client(client)), "{role}");
-        assert!(profile.models.iter().any(|key| key.starts_with("pi-vibe:")), "{role} runs on Pi");
+        assert!(profile.models.iter().any(|key| key.starts_with("pi-paid:")), "{role} runs on Pi");
     }
     for role in ["critique", "red-team", "refute"] {
         assert_eq!(config.profiles[role].exclude_writer_family, Some(true), "{role}");
@@ -419,6 +419,7 @@ fn the_opencode_harness_takes_the_first_model_opencode_can_run() {
     let config = shipped();
     let pick = |models: Vec<ProfileModel>| crate::harness::opencode_pick(&config, models).map(|model| format!("{}:{}", model.client, model.model));
     assert_eq!(pick(vec![profile_model("pi-free", "small"), profile_model("pi-vibe", "glm-5.3")]).as_deref(), Some("opencode:litellm-vibe/glm-5.3"));
+    assert_eq!(pick(vec![profile_model("pi-paid", "paid/glm-5.3-flash")]).as_deref(), Some("opencode:litellm-paid/paid/glm-5.3-flash"));
     assert_eq!(pick(vec![profile_model("opencode", "litellm-opencode-go/kimi")]).as_deref(), Some("opencode:litellm-opencode-go/kimi"));
     assert_eq!(pick(vec![profile_model("claude", "haiku"), profile_model("pi-free", "free/small")]), None);
 }

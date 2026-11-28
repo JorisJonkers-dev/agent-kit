@@ -442,7 +442,7 @@ violator fails, a listed template that now passes fails with "remove it from
 `known-critique-failures.txt`", and a line without a ticket fails. Today: `to-spec`,
 `to-tickets`, `brainstorming`, `grill-me` and `grill-with-docs` have no critic (#795).
 `workflow-c` and `workflow-c-work` passed `critic-family` once their writers and orchestrators
-were bound to one family (#796; before it a Mistral writer met `pi-vibe-mistral-small` and a
+were bound to one family (#796; before it a Mistral writer met `pi-paid-mistral-small` and a
 Claude writer met `claude-work`). `workflow-b` and the critique templates pass both rules.
 
 `agent-kit-merge converge gold-band-workflows` runs the same check in process, with the
@@ -1132,7 +1132,7 @@ orchestrators that rule on their review (`spec-verdicts`, `tickets-verdicts`, Vi
 The runner leaves the orchestrator's family out of the critics' roster, so no
 critic the runner picks is of the writer's family (#796; `workflow-lint --critique`
 and the run-start `critic-family` check hold it). Before #796 the drafts were
-Mistral and met `pi-vibe-mistral-small` in the roster. No node writes memory and
+Mistral and met `pi-paid-mistral-small` in the roster. No node writes memory and
 none binds Codex or Opus; the grill rounds use Vibe GLM. The work-instance variant is
 `workflow-c-work.json` (next section); this file is not changed by it.
 

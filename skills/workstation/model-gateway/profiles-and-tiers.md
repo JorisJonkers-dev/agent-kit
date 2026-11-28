@@ -58,14 +58,14 @@ A role runs on Pi by default, and any harness can be chosen per run:
 
 ```sh
 model-gateway run --profile red-team --harness pi --json '{"workflow": "w", "mode": "read-only", "prompt": "...", "narrow": {"writer_family": "anthropic"}}'
-model-gateway run --profile research --harness pi-opencode-go --json '{...}'
+model-gateway run --profile research --harness pi-paid --json '{...}'
 ```
 
 `--profile ROLE` and `--harness H` (or `profile` and `harness` in the input;
 the flags win) replace `client` and `model`: the gateway resolves the profile's
 models for the repository exactly as `models` lists them, keeps those on the
 harness and runs the cheapest. `pi` is every Pi route, `pi-<route>` one route
-(`pi-opencode-go` is OpenCode Go through Pi), and `claude`, `codex`, `agy` and
+(`pi-paid` is the proxy's `paid/<model>` chain through Pi), and `claude`, `codex`, `agy` and
 `vibe` name themselves. When the profile leaves no model on the harness the run
 is `profile-refused` and the message lists what it does leave. `hermes` has no
 model in any profile (its model is its own configuration, not the catalogue's),
@@ -75,7 +75,7 @@ be given with `client` or `model`.
 `opencode` runs every role too. It takes the first of the profile's models that
 OpenCode can run: a `litellm-opencode-go/<id>` model, or a Pi route's model
 on OpenCode's own LiteLLM provider of that route
-(`pi-vibe:glm-5.3` runs as `opencode:litellm-vibe/glm-5.3`), for the routes that
+(`pi-paid:paid/glm-5.3` runs as `opencode:litellm-paid/paid/glm-5.3`), for the routes that
 take any data. The route's key is read from the secret store into OpenCode's
 environment for the run, as for Hermes. Pi stays the default. A free model
 (`pi-free`) is never run on OpenCode: the public-only routes stay on Pi.

@@ -49,7 +49,7 @@ model-gateway usage --json '{}'
   gateway picks the cheapest model the role leaves on that harness:
   `model-gateway run --profile red-team --harness pi --json '{"workflow": "...", "mode": "read-only", "prompt": "...", "repo": "<repo root>", "narrow": {"writer_family": "<the writer's family>"}}'`.
   Pi is the default harness; `--harness` takes `claude`, `codex`, `agy`, `vibe`
-  or `hermes`, or a Pi route such as `pi-opencode-go` (OpenCode Go through Pi).
+  or `hermes`, or a Pi route such as `pi-paid` (the `paid/<model>` chain through Pi).
   A role with `exclude_writer_family` (`critique`, `red-team`, `refute`) needs
   `narrow.writer_family`. `red-team` is adversarial and read-only: it reports
   evidence of what breaks, not fixes. Every role is deny-all on tools, capped per
