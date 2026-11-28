@@ -156,3 +156,20 @@ def setup_run(
         calls=calls.read_text().splitlines() if calls.exists() else [],
         returncode=result.returncode,
     )
+
+
+def skill_text(skill_md: Path) -> str:
+    """A skill's whole text: its SKILL.md, then each part file it links, in link order.
+
+    A skill body stays under 10 KB, so the rest of its rules live in part files in
+    the same folder; a test that checks a rule reads the skill through this.
+    """
+    import re as _re
+
+    text = skill_md.read_text()
+    parts: list[str] = []
+    for name in _re.findall(r"\]\(([A-Za-z0-9_.-]+\.md)\)", text):
+        path = skill_md.parent / name
+        if name not in parts and path.is_file() and name != "SKILL.md":
+            parts.append(name)
+    return "\n".join([text, *(skill_md.parent.joinpath(n).read_text() for n in parts)])

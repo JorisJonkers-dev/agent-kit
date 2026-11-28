@@ -17,9 +17,10 @@ the vibe critic agents keep their pinned models.
 | `scripts/crates/model-gateway/` | The Rust gateway. The `model-gateway` command on PATH (`installer/model-gateway`) runs the binary setup builds. |
 | `skills/workstation/model-gateway/defaults.json` | The shipped defaults. |
 | `skills/workstation/model-gateway/defaults.schema.json` | The schema `defaults.json` is validated against by `scripts/validate_manifest.py`. |
-| `skills/workstation/model-gateway/SKILL.md` | The skill's text. Setup installs the whole folder in every agent home. |
+| `skills/workstation/model-gateway/SKILL.md` | The skill's short body: what it is, the core commands and links to the part files. Setup installs the whole folder in every agent home. |
+| `skills/workstation/model-gateway/*.md` | The part files `SKILL.md` links (`models.md`, `run.md`, `sandbox.md`, `batch.md`, ...), pinned in `model_gateway.files`. |
 
-`model_gateway.files` pins both JSON files and leaves `SKILL.md` out, exactly as
+`model_gateway.files` pins both JSON files and every part file and leaves `SKILL.md` out, exactly as
 `build_tracker.files` does.
 
 ## The command
@@ -31,7 +32,7 @@ prints `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 `catalog` is the one exception to the JSON rule: it prints a plain table by
 default and takes flags instead of an object (`--json` prints the object).
 
-The subcommands, as `skills/workstation/model-gateway/SKILL.md` describes each:
+The subcommands, as the part files of `skills/workstation/model-gateway/` describe each:
 
 | Subcommand | What it does |
 | --- | --- |

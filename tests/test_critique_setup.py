@@ -26,7 +26,7 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 import render_registry  # noqa: E402
-from setup_harness import Run, setup_run  # noqa: E402
+from setup_harness import Run, setup_run, skill_text  # noqa: E402
 
 ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 AGENTS_DIR = render_registry.VIBE_CRITIC_AGENTS_DIR
@@ -177,7 +177,7 @@ def test_check_tickets_is_declared_for_every_agent_and_built() -> None:
 
 
 def test_check_tickets_says_it_applies_after_to_tickets_and_before_the_first_implement() -> None:
-    text = (KIT_ROOT / "skills" / "workstation" / "review-tickets" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "review-tickets" / "SKILL.md")
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-tickets"
     assert front["description"].startswith("Use after /to-tickets and before the first /implement.")
@@ -260,7 +260,7 @@ def test_review_feature_is_declared_for_every_agent() -> None:
 
 
 def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_pr() -> None:
-    text = (KIT_ROOT / "skills" / "workstation" / "review-pr" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "review-pr" / "SKILL.md")
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-pr"
     assert front["description"].startswith("Reviews the whole feature diff before the pull request;")
@@ -295,12 +295,12 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
 
 
 def _critique_adrs() -> str:
-    return " ".join((KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").read_text().split())
+    return " ".join(skill_text(KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").split())
 
 
 def _ruling_rows() -> dict[str, str]:
     """The ruling table's rows of /critique-adrs, finding cell to verdict cell."""
-    text = (KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md")
     table = text[text.index("| Finding | Verdict |") :].split("\n\n", 1)[0]
     rows = [line.strip("|").split(" | ") for line in table.splitlines()[2:]]
     return {cells[0].strip(): cells[1].strip() for cells in rows}
@@ -316,7 +316,7 @@ def test_critique_adrs_is_declared_for_every_agent_and_built() -> None:
 
 
 def test_critique_adrs_loads_when_the_owner_asks_for_a_review_of_the_decision_log() -> None:
-    text = (KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md")
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "critique-adrs"
     assert front["description"].startswith("Use when the owner asks to review a repository's ADRs or decision log.")
@@ -513,7 +513,7 @@ def test_shipped_routing_caps_a_repository_packets_manifest_inside_the_packet_ca
 
 
 def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
-    flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
+    flow = skill_text(KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md")
     assert "| `/flow reviews` |" in flow
     entry = flow[flow.index("## /flow reviews") :]
     end = entry.find("\n## ", 1)
@@ -547,7 +547,7 @@ def test_review_ticket_is_declared_for_every_agent() -> None:
 
 
 def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit() -> None:
-    text = (KIT_ROOT / "skills" / "workstation" / "review-implementation" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "review-implementation" / "SKILL.md")
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-implementation"
     assert front["description"].startswith("Reviews one ticket's staged change before its commit;")
@@ -555,7 +555,7 @@ def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit()
 
 def test_review_ticket_says_a_degraded_run_leaves_the_commit_blocked() -> None:
     """#259: a run in which no critic reported vouches for nothing, so its summary must not read as a pass."""
-    text = (KIT_ROOT / "skills" / "workstation" / "review-implementation" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "review-implementation" / "SKILL.md")
     step = text.split("### 9. Return")[1]
     assert "**No critic reported, so the review is degraded**" in step
     assert "the commit gate stays shut" in step
@@ -581,7 +581,7 @@ def test_flow_is_declared_for_every_agent() -> None:
 
 
 def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> None:
-    text = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md")
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "flow"
     assert front["description"].startswith(
@@ -592,7 +592,7 @@ def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> No
 
 def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() -> None:
     """/flow explain answers from skills/workstation/critique/README.md, so each section it names must be there."""
-    flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
+    flow = skill_text(KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md")
     explain = flow[flow.index("## /flow explain") :]
     end = explain.find("\n## ", 1)
     explain = explain if end < 0 else explain[:end]
@@ -607,7 +607,7 @@ def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() ->
 @pytest.mark.parametrize("skill", ["flow", "review-spec", "review-grill"])
 def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(skill: str) -> None:
     """The allowlist entry's history permission (commit messages, issue text) is off until the owner turns it on."""
-    text = " ".join((KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_text().split())
+    text = " ".join(skill_text(KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").split())
     assert "history permission" in text, skill
     assert "off by default" in text, skill
     assert '"history": true' in text, skill
@@ -626,7 +626,7 @@ REFUTING_SKILLS = [
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)
 def test_the_stage_skill_runs_the_refute_round_right_after_its_verdicts(skill: str) -> None:
     """#224: refute comes after the ruling and before any fix, follow-up or owner question."""
-    text = (KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_text()
+    text = skill_text(KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md")
     headings = [line for line in text.splitlines() if line.startswith("### ")]
     numbers = [int(re.match(r"### (\d+)\. ", h).group(1)) for h in headings]
     assert numbers == list(range(1, len(headings) + 1)), headings
@@ -638,7 +638,7 @@ def test_the_stage_skill_runs_the_refute_round_right_after_its_verdicts(skill: s
 
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)
 def test_the_stage_skill_says_how_the_refute_round_changes_a_verdict(skill: str) -> None:
-    text = " ".join((KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_text().split())
+    text = " ".join(skill_text(KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").split())
     assert '`rejected` with `reason_code: "refuted"`' in text, skill
     assert "- `downgrade`:" in text, skill
     assert "A skipped refute is reported, not retried" in text, skill
@@ -670,7 +670,7 @@ def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_r
 
 
 def _flow_text() -> str:
-    return (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
+    return skill_text(KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md")
 
 
 def _flow_part(heading: str) -> str:
