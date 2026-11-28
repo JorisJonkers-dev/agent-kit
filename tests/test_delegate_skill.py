@@ -25,6 +25,7 @@ from setup_harness import Run, setup_run  # noqa: E402
 SKILL = KIT_ROOT / "skills" / "workstation" / "delegate"
 SKILL_MD = SKILL / "SKILL.md"
 GATEWAY_SKILL = KIT_ROOT / "skills" / "workstation" / "model-gateway" / "SKILL.md"
+GATEWAY_PARTS = sorted(GATEWAY_SKILL.parent.glob("*.md"))
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 SECTIONS = [
     "Plan first: `models` and `usage`",
@@ -40,8 +41,26 @@ SECTIONS = [
 ]
 
 
+def _gateway_text() -> str:
+    """The gateway skill: SKILL.md and the part files it links."""
+    return "\n".join(p.read_text() for p in GATEWAY_PARTS)
+
+
 def _text() -> str:
-    return SKILL_MD.read_text()
+    """The whole skill in its reading order: the front matter and intro, then each
+    `## ` section from SKILL.md or its part files, in SECTIONS order."""
+    sections: dict[str, str] = {}
+    head = ""
+    for path in [SKILL_MD, *sorted(SKILL.glob("*.md"))]:
+        if path == SKILL_MD and sections:
+            continue
+        pieces = re.split(r"(?m)^(?=## )", path.read_text())
+        if path == SKILL_MD:
+            head = pieces[0]
+        for piece in pieces[1 if path == SKILL_MD else 0 :]:
+            title = piece.split("\n", 1)[0][3:]
+            sections.setdefault(title, piece)
+    return head + "".join(sections[title] for title in SECTIONS)
 
 
 def _flat() -> str:
@@ -243,7 +262,8 @@ def test_the_batch_command_is_named_with_an_example_plan() -> None:
     assert [d["id"] for d in delegations] == ["find", "fix"]
     assert delegations[1]["depends_on"] == ["find"]
     for d in delegations:
-        assert {"id", "client", "model", "mode", "prompt"} <= set(d)
+        assert {"id", "mode", "prompt"} <= set(d)
+        assert ("model" in d) != ("tier" in d), d["id"]
     writing = next(d for d in delegations if d["mode"] == "write")
     assert {"repo", "base", "check"} <= set(writing)
     assert "A writing delegation needs `repo`, `base` and `check`" in section
@@ -264,14 +284,13 @@ def test_only_the_short_results_are_read() -> None:
     assert "Open an output file only when the summary is not enough" in section
 
 
-def test_the_example_models_are_ones_the_shipped_catalogue_declares() -> None:
-    shipped = json.loads((KIT_ROOT / "skills" / "workstation" / "model-gateway" / "defaults.json").read_text())
-    models, clients = shipped["models"], shipped["clients"]
-    declared = {(m["client"], m["model"]) for m in models}
-    # An entry for client "pi" describes the model for every pi-<route> client.
-    declared |= {(c, m["model"]) for m in models if m["client"] == "pi" for c in clients if c.startswith("pi-")}
+def test_the_example_models_are_named_by_address_or_tier() -> None:
+    """An example never names a provider's model id; the address audit test covers the rest."""
     for d in _example_plan()["delegations"]:
-        assert (d["client"], d["model"]) in declared, d["id"]
+        if "model" in d:
+            assert re.fullmatch(r"(?:[a-z-]+:)?(?:free|paid|auto)/[\w.-]+", d["model"]), d["id"]
+        else:
+            assert d["tier"].startswith("tier-"), d["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +455,7 @@ def test_the_delegate_skill_names_models_by_address_and_pins_the_harness_with_a_
 def test_the_watching_guide_stays_small_and_its_commands_are_the_gateways_own() -> None:
     text = WATCHING.read_text()
     assert len(text.encode()) < 10_000
-    gateway = GATEWAY_SKILL.read_text()
+    gateway = _gateway_text()
     # Every flag the guide uses on tail, ps, status, logs and cancel is one the gateway documents.
     for command in re.findall(r"^model-gateway (?:tail|ps|status|logs|cancel|batch)[^\n]*$", text, re.M):
         for flag in re.findall(r"(?<!\w)(--[a-z-]+|-f|-n)\b", command):
@@ -448,9 +467,82 @@ def test_the_watching_guide_stays_small_and_its_commands_are_the_gateways_own() 
 
 
 def test_the_gateway_skill_points_at_the_guide_and_documents_the_optional_mcp_and_export() -> None:
-    text = GATEWAY_SKILL.read_text()
+    text = _gateway_text()
     assert "(watching-a-batch.md)" in text
     flat = " ".join(text.split())
     assert "`mcp` serves `ps`, `status`, `logs` and `tail` as a read-only MCP server" in flat
     assert "AGENT_KIT_RUN_STATE_MCP=1" in flat
     assert "message and tool text (`text`, `input`, `output`) never leaves the machine" in flat
+
+
+# ---------------------------------------------------------------------------
+# Every skill body stays short; skills name models only through addresses
+# ---------------------------------------------------------------------------
+
+WORKSTATION = KIT_ROOT / "skills" / "workstation"
+SKILL_FILES = sorted((KIT_ROOT / "skills").rglob("SKILL.md"))
+MAX_BODY_BYTES = 10_000
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_the_skill_body_is_under_ten_kilobytes(skill: Path) -> None:
+    """A SKILL.md is read whole every time its skill loads; the rest lives in linked part files."""
+    assert len(skill.read_bytes()) < MAX_BODY_BYTES, f"{skill.relative_to(KIT_ROOT)}: split into part files"
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_every_part_file_a_skill_links_exists_and_every_part_is_linked(skill: Path) -> None:
+    linked = set(re.findall(r"\]\(([A-Za-z0-9_.-]+\.md)\)", skill.read_text()))
+    for name in linked:
+        assert (skill.parent / name).is_file(), f"{skill.parent.name} links {name}, which is missing"
+    parts = {p.name for p in skill.parent.glob("*.md")} - {"SKILL.md", "INSTALL.md", "README.md"}
+    assert parts <= linked, f"{skill.parent.name}: part files not linked from SKILL.md: {sorted(parts - linked)}"
+
+
+# An address is `free/<model>`, `paid/<model>`, `auto/<model>`, `<harness>:<pricing>/<model>` or a
+# `tier-*` name. A provider's own model id belongs in the registry and the gateway defaults, never
+# in these skills. Family names (`deepseek`, `zhipu`, `mistral`, `google`) are routing keys.
+ADDRESS_SKILL_DIRS = sorted(
+    [
+        WORKSTATION / "delegate",
+        WORKSTATION / "critique",
+        WORKSTATION / "critique-adrs",
+        WORKSTATION / "critique-plan",
+        *WORKSTATION.glob("review-*"),
+    ],
+)
+# critique/ also holds the runner's README and prompts, which document the routed provider ids by
+# design (routing.json is their source); only its SKILL.md is a skill body an orchestrator reads.
+ADDRESS_FILES = [
+    p for d in ADDRESS_SKILL_DIRS for p in sorted(d.rglob("*.md")) if d.name != "critique" or p.name == "SKILL.md"
+]
+PROVIDER_ID = re.compile(
+    r"\b(?:claude-(?:opus|sonnet|haiku)-[\w.-]+|gpt-\d[\w.-]*|gemini-\d[\w.-]*|glm-\d[\w.-]*|kimi-[kv]?\d[\w.-]*"
+    r"|deepseek-v?\d[\w.-]*|mistral-(?:small|large|medium)[\w.-]*|codestral[\w.-]*|qwen\d[\w.-]*"
+    r"|minimax-m?\d[\w.-]*)",
+    re.I,
+)
+ADDRESS = re.compile(r"(?:[a-z-]+:)?(?:free|paid|auto)/\S+", re.I)
+CLIENT_MODEL = re.compile(
+    r"\b(?:claude|codex|vibe|antigravity|opencode|pi|pi-vibe|hermes):(?!free/|paid/|auto/)[\w.-]*\d", re.I
+)
+# What must stay, and why: (file name, matched text) -> reason. Nothing has to stay today.
+ADDRESS_ALLOWED: dict[tuple[str, str], str] = {}
+
+
+def _provider_hits(text: str) -> list[str]:
+    stripped = ADDRESS.sub("", text)
+    return PROVIDER_ID.findall(stripped) + CLIENT_MODEL.findall(stripped)
+
+
+@pytest.mark.parametrize("path", ADDRESS_FILES, ids=lambda p: f"{p.parent.name}/{p.name}")
+def test_the_skill_names_models_only_through_addresses(path: Path) -> None:
+    found = [h for h in _provider_hits(path.read_text()) if (path.name, h) not in ADDRESS_ALLOWED]
+    assert not found, f"{path.relative_to(KIT_ROOT)} names a provider model id {found}; use an address or a tier-*"
+
+
+def test_the_address_check_would_catch_a_provider_id() -> None:
+    assert _provider_hits('"model": "claude-sonnet-5-5"')
+    assert _provider_hits('"client": "pi-vibe", "model": "glm-5.3"')
+    assert _provider_hits("use codex:gpt-5.5 here")
+    assert not _provider_hits("use `pi:free/glm-4.7-flash` or `paid/glm-5.3` or `tier-vibe`")

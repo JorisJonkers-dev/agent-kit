@@ -588,6 +588,7 @@ def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
 
     _validate_vibe_critic_agents(data)
     _validate_vibe_delegate_agents(data)
+    _validate_claude_agents(data)
 
     for key in ("clis", "plugins", "language_servers", "mcp_servers"):
         for item in _entries(data, key):
@@ -2200,6 +2201,72 @@ def _delegate_agents_step(data: dict[str, Any], w: Any) -> None:
         w("  else")
         w('    rm -f "${dest}"')
         w(f'    ok "removed retired Vibe delegate agent {name}"')
+        w("  fi")
+    w("  return 0")
+    w("}")
+    w("")
+
+
+CLAUDE_AGENT_KEYS = {"name", "path", "surfaces"}
+
+
+def _validate_claude_agents(data: dict[str, Any]) -> None:
+    seen: set[str] = set()
+    for agent in _entries(data, "claude_agents"):
+        name = str(agent.get("name") or "")
+        if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", name):
+            raise RegistryError(f"claude agent {name!r} must be named in lower case with hyphens")
+        if name in seen:
+            raise RegistryError(f"claude agent {name} is declared twice")
+        seen.add(name)
+        unknown = set(agent) - CLAUDE_AGENT_KEYS
+        if unknown:
+            raise RegistryError(f"claude agent {name} sets {sorted(unknown)}; an entry names itself and its file")
+        if not (KIT_ROOT / str(agent.get("path") or "")).is_file():
+            raise RegistryError(f"claude agent {name} path {agent.get('path')!r} is not a file in the kit")
+        if agent.get("surfaces") not in ([], ["workstation"]):
+            raise RegistryError(f"claude agent {name} surfaces must be [workstation], or [] to retire it")
+
+
+def claude_agents(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The declared Claude Code agents; a retired one has ``surfaces: []``."""
+    return [a for a in _entries(data, "claude_agents") if on_surface(a, "workstation")]
+
+
+def retired_claude_agents(data: dict[str, Any]) -> list[str]:
+    return [str(a["name"]) for a in _entries(data, "claude_agents") if not on_surface(a, "workstation")]
+
+
+def _claude_agents_step(data: dict[str, Any], w: Any) -> None:
+    """The shell function that converges Claude Code's agents in one home.
+
+    Each declared agent's file is replaced, so a hand edit is undone; a retired
+    one's is removed; any other agent in the directory is the owner's and is
+    left alone.
+    """
+    w("# The Claude Code agents this kit ships (`agents/` of a Claude home).")
+    w("_claude_agents() {")
+    w('  local home="$1" src dest')
+    for agent in claude_agents(data):
+        name = agent["name"]
+        w(f'  src="${{KIT_ROOT}}/{agent["path"]}"')
+        w(f'  dest="${{home}}/agents/{name}.md"')
+        w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would write ${dest}"')
+        w('  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then')
+        w(f'    ok "Claude agent {name} -> ${{dest}}"')
+        w("  else")
+        w(f'    fail "Claude agent {name}: ${{dest}} does not match ${{src}}"')
+        w("  fi")
+    for name in retired_claude_agents(data):
+        w(f'  dest="${{home}}/agents/{name}.md"')
+        w('  if [ ! -e "${dest}" ]; then')
+        w("    :")
+        w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would remove ${dest}"')
+        w("  else")
+        w('    rm -f "${dest}"')
+        w(f'    ok "removed retired Claude agent {name}"')
         w("  fi")
     w("  return 0")
     w("}")
@@ -4409,6 +4476,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     _critic_agents_step(data, w)
     _delegate_agents_step(data, w)
+    _claude_agents_step(data, w)
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
     w("run_sh() {")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
@@ -6024,6 +6092,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w('  log "Vibe delegate agents"')
         w('  _vibe_delegate_agents "${VIBE_HOME}"')
         w("fi")
+        w("")
+
+    # --- the Claude Code agents this kit ships ---
+    if _entries(data, "claude_agents"):
+        w('log "Claude agents"')
+        w('_claude_agents "${CLAUDE_HOME}"')
         w("")
 
     # --- vendored third-party skills (skill_sources on the workstation surface) ---

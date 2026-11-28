@@ -17,7 +17,7 @@ import yaml
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
-from setup_harness import Run, setup_run  # noqa: E402
+from setup_harness import Run, setup_run, skill_text  # noqa: E402
 
 CRITIQUE = KIT_ROOT / "skills" / "workstation" / "critique"
 SKILL = KIT_ROOT / "skills" / "workstation" / "critique-plan" / "SKILL.md"
@@ -36,7 +36,7 @@ ANCHORING = (
 
 
 def _text() -> str:
-    return " ".join(SKILL.read_text().split())
+    return " ".join(skill_text(SKILL).split())
 
 
 def _checks(path: Path) -> list[tuple[str, str | None]]:
@@ -59,7 +59,7 @@ def test_critique_plan_is_a_built_local_skill_for_every_agent() -> None:
 
 
 def test_its_description_says_when_to_load_it() -> None:
-    front = yaml.safe_load(SKILL.read_text().split("---")[1])
+    front = yaml.safe_load(skill_text(SKILL).split("---")[1])
     assert front["name"] == "critique-plan"
     assert front["description"].startswith("Use after /improve-codebase-architecture has grilled a refactor candidate")
     assert front["disable-model-invocation"] is True
@@ -91,7 +91,7 @@ def test_it_drafts_the_plan_when_none_exists_and_never_commits_it() -> None:
 
 
 def test_it_rules_by_a_table_and_asks_one_question_for_an_adr_clash() -> None:
-    text = SKILL.read_text()
+    text = skill_text(SKILL)
     assert "| Verdict | When |" in text
     for code in ("`taste`", "`fact-misread`", "`needs-human`", "`accepted`"):
         assert code in text, code
@@ -120,7 +120,7 @@ def test_the_pipeline_readme_has_the_stage_row_for_plan() -> None:
 
 
 def test_the_flow_skill_names_the_plan_stage_skill() -> None:
-    flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
+    flow = skill_text(KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md")
     assert "| `plan` | `critique-plan` |" in flow
 
 

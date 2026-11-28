@@ -18,7 +18,7 @@ import yaml
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
-from setup_harness import Run, setup_run  # noqa: E402
+from setup_harness import Run, setup_run, skill_text  # noqa: E402
 
 CRITIQUE = KIT_ROOT / "skills" / "workstation" / "critique"
 SKILL = KIT_ROOT / "skills" / "workstation" / "recover-decisions" / "SKILL.md"
@@ -26,18 +26,18 @@ HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemi
 
 
 def _text() -> str:
-    return " ".join(SKILL.read_text().split())
+    return " ".join(skill_text(SKILL).split())
 
 
 def _ruling_rows() -> dict[str, str]:
-    text = SKILL.read_text()
+    text = skill_text(SKILL)
     table = text[text.index("| Candidate | Verdict |") :].split("\n\n", 1)[0]
     rows = [line.strip("|").split(" | ") for line in table.splitlines()[2:]]
     return {cells[0].strip(): cells[1].strip() for cells in rows}
 
 
 def _record_template() -> str:
-    text = SKILL.read_text()
+    text = skill_text(SKILL)
     block = re.search(r"```markdown\n(.*?)```", text, flags=re.DOTALL)
     assert block is not None, "the skill shows the record's house format"
     return "\n".join(line.removeprefix("  ") for line in block.group(1).splitlines())
@@ -59,7 +59,7 @@ def test_recover_decisions_is_a_built_local_skill_for_every_agent() -> None:
 
 
 def test_its_description_says_when_to_load_it() -> None:
-    front = yaml.safe_load(SKILL.read_text().split("---")[1])
+    front = yaml.safe_load(skill_text(SKILL).split("---")[1])
     assert front["name"] == "recover-decisions"
     assert front["description"].startswith("Use when the owner asks to recover the decisions")
     assert front["disable-model-invocation"] is True

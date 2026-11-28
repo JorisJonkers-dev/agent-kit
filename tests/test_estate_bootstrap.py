@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from setup_harness import Run, setup_run
+from setup_harness import Run, setup_run, skill_text
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
@@ -29,7 +29,7 @@ SOURCES = SKILL / "sources.yaml"
 
 
 def _section(heading: str) -> str:
-    text = SKILL_MD.read_text()
+    text = skill_text(SKILL_MD)
     start = text.index(heading)
     nxt = text.find("\n## ", start + 1)
     return text[start:] if nxt == -1 else text[start:nxt]
@@ -74,7 +74,7 @@ def test_every_disagreement_bullet_is_covered_by_the_table() -> None:
 
 
 def test_skill_md_points_at_docs_instead_of_restating_their_numbers() -> None:
-    text = SKILL_MD.read_text()
+    text = skill_text(SKILL_MD)
     assert "14 days" not in text
     assert "80%" not in text
     assert "100%" not in text
@@ -98,7 +98,7 @@ def test_skill_md_labels_the_fleet_yaml_check_as_unverified() -> None:
 
 
 def test_skill_md_files_issues_only_after_yes_and_never_opens_template_prs() -> None:
-    text = SKILL_MD.read_text()
+    text = skill_text(SKILL_MD)
     rules = _section("## Rules")
     assert "File an issue only after the owner says yes" in rules
     assert "Never open a pull request against a template or library repository" in rules
