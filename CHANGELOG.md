@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.17.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.16.0...v6.17.0) (2026-11-28)
+
+
+### Features
+
+* **model-gateway:** offer and run auto/&lt;model&gt; groups with a public-only pi-auto client ([#1003](https://github.com/JorisJonkers-dev/agent-kit/issues/1003)) ([e9afa7b](https://github.com/JorisJonkers-dev/agent-kit/commit/e9afa7b5a03afc8ffc0ae89382d884b9484d12ea))
+* **model-gateway:** serve run state over MCP, export event logs as OpenTelemetry traces and teach the delegate skill to watch a batch ([#1001](https://github.com/JorisJonkers-dev/agent-kit/issues/1001)) ([96872d0](https://github.com/JorisJonkers-dev/agent-kit/commit/96872d0451493acbbafdcca80c34dd129fccb38e))
+* **skills:** split long skill bodies, add the gateway-watch agent and name models by address ([#1005](https://github.com/JorisJonkers-dev/agent-kit/issues/1005)) ([058af87](https://github.com/JorisJonkers-dev/agent-kit/commit/058af871a799a58203eafa062266c6138f758c09))
+
 ## [6.16.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.15.0...v6.16.0) (2026-11-28)
 
 
