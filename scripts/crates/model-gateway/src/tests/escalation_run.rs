@@ -2,10 +2,11 @@
 //! a client that cannot start and the results a delegation ends on. The runs are
 //! scripted, so nothing is launched.
 
-use super::machine::{Machine, DEFAULTS};
+use super::machine::{sleeping, Machine, DEFAULTS};
 use crate::error::GatewayError;
 use crate::escalation::{AttemptLink, EscalationEnd, UnavailableResult};
 use crate::free_fallback::FallbackReport;
+use crate::retry_wait::RetryReport;
 use crate::escalation_run::{AttemptError, AttemptedRun, Delegation, Escalated, EscalatedRun};
 use crate::json::parse;
 use crate::ports::ProcessResult;
@@ -81,6 +82,7 @@ struct Seen {
     link: Option<AttemptLink>,
     had_check: bool,
     fallback: Option<FallbackReport>,
+    retry: Option<RetryReport>,
 }
 
 fn input(extra: &str) -> RunInput {
@@ -93,7 +95,7 @@ fn drive(machine: &Machine, run: &RunInput, steps: Vec<Step>) -> (Result<Delegat
     let mut seen = Vec::new();
     let root = machine.sandbox.text();
     let result = (EscalatedRun { runtime: &machine.runtime }).run(run, &mut |attempt, options| {
-        seen.push(Seen { input: attempt.clone(), link: options.link.clone(), had_check: options.start_check.is_some(), fallback: options.fallback.clone() });
+        seen.push(Seen { input: attempt.clone(), link: options.link.clone(), had_check: options.start_check.is_some(), fallback: options.fallback.clone(), retry: options.retry.clone() });
         let number = seen.len();
         let mut refusal = None;
         let (ok, reason) = match steps.pop_front().expect("a scripted step") {
@@ -521,4 +523,89 @@ fn a_fallback_the_catalogue_or_the_policy_cannot_place_leaves_the_run_failed() {
     let broken = Machine::new("this is not json");
     let (_, seen) = drive(&broken, &free_input(r#","escalate":false"#), vec![Step::Refused(NO_FREE_COPY)]);
     assert_eq!(seen.len(), 1);
+}
+
+fn waits(slept: &std::sync::Arc<std::sync::Mutex<Vec<u64>>>) -> Vec<u64> {
+    slept.lock().expect("the sleeps").clone()
+}
+
+fn refused_for(seconds: u32) -> &'static str {
+    Box::leak(format!("429: free limits [limiter refusal, no provider was called]: every free deployment of deepseek-v4.1-flash is limited; the first is back in {seconds}s").into_boxed_str())
+}
+
+#[test]
+fn a_short_wait_the_proxy_names_is_waited_out_and_the_same_model_runs_again() {
+    let (machine, slept) = sleeping(free_machine());
+    let (result, seen) = drive(&machine, &free_input(""), vec![Step::Refused(refused_for(5)), Step::Pass]);
+    let escalated = ran(result);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash"]);
+    assert!(seen[0].retry.is_none() && seen[1].fallback.is_none());
+    let retry = seen[1].retry.as_ref().expect("the retry is handed to the attempt");
+    assert_eq!((retry.retry, retry.of_run_id.as_str(), retry.back_in_s, retry.waited_s, retry.total_waited_s), (1, "run-1", 5, 6.0, 6.0));
+    assert_eq!(waits(&slept), [6000]);
+    assert_eq!(statuses(&escalated), [(true, None)]);
+}
+
+#[test]
+fn the_retries_are_bounded_and_the_free_fallback_takes_over_when_they_run_out() {
+    let (machine, slept) = sleeping(free_machine());
+    let steps = vec![Step::Refused(refused_for(5)), Step::Refused(refused_for(5)), Step::Refused(refused_for(5)), Step::Refused(refused_for(5)), Step::Pass];
+    let (result, seen) = drive(&machine, &free_input(r#","escalate":false"#), steps);
+    ran(result);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+    assert_eq!(waits(&slept), [6000, 6000, 6000]);
+    assert_eq!(seen[3].retry.as_ref().map(|retry| (retry.retry, retry.total_waited_s)), Some((3, 18.0)));
+    assert!(seen[4].retry.is_none() && seen[4].fallback.is_some());
+}
+
+#[test]
+fn a_wait_that_does_not_fit_the_total_cap_is_not_taken_and_the_fallback_runs_at_once() {
+    let (machine, slept) = sleeping(free_machine());
+    // 41s fits the 60s cap once; the second 41s would make 82s.
+    let (result, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Refused(refused_for(40)), Step::Refused(refused_for(40)), Step::Pass]);
+    ran(result);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+    assert_eq!(waits(&slept), [41_000]);
+    // A first wait that is already too long is never slept at all.
+    let (machine, slept) = sleeping(free_machine());
+    let (_, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Refused(NO_FREE_COPY), Step::Pass]);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+    assert!(waits(&slept).is_empty());
+}
+
+#[test]
+fn other_refusals_and_other_failures_are_not_waited_for() {
+    let (machine, slept) = sleeping(free_machine());
+    // A 429 that names no time, a daily limit and a plain failure.
+    for step in [Step::Refused("429: slow down"), Step::Refused("daily limit reached; resets at 00:00 UTC"), Step::Fail("exit-1")] {
+        let (_, seen) = drive(&machine, &free_input(r#","escalate":false,"free_fallback":false"#), vec![step]);
+        assert_eq!(seen.len(), 1);
+    }
+    assert!(waits(&slept).is_empty());
+}
+
+#[test]
+fn a_run_that_named_its_client_is_waited_for_too_since_the_same_model_runs_again() {
+    let (machine, slept) = sleeping(free_machine());
+    let (_, seen) = drive(&machine, &free_input(r#","escalate":false,"client_pinned":true"#), vec![Step::Refused(refused_for(5)), Step::Pass]);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash"]);
+    assert_eq!(waits(&slept), [6000]);
+}
+
+#[test]
+fn a_retry_that_cannot_start_leaves_the_refusal_to_the_fallback() {
+    let (machine, _) = sleeping(free_machine());
+    let steps = vec![Step::Refused(refused_for(5)), Step::Error(AttemptError::Other("cannot".into())), Step::Pass];
+    let (_, seen) = drive(&machine, &free_input(r#","escalate":false"#), steps);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+}
+
+#[test]
+fn the_wait_is_the_machines_to_set_and_turned_off_with_zero_retries() {
+    let off = FREE_DEFAULTS.replace("\"settings\": {", "\"settings\": {\n    \"retry_wait\": {\"max_retries\": 0},");
+    let (machine, slept) = sleeping(Machine::new(&off));
+    machine.process.answer("opencode", Ok(ProcessResult { stdout: "opencode/deepseek-v4.1-flash-free\n".to_string(), stderr: String::new(), exit_code: 0, timed_out: false }));
+    let (_, seen) = drive(&machine, &free_input(r#","escalate":false"#), vec![Step::Refused(refused_for(5)), Step::Pass]);
+    assert_eq!(models(&seen), ["free/deepseek-v4.1-flash", "opencode/deepseek-v4.1-flash-free"]);
+    assert!(waits(&slept).is_empty());
 }

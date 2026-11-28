@@ -122,6 +122,55 @@ fn the_rendered_table_has_routes_with_providers_and_holds_no_key() {
     assert!(!body.contains("sk-"));
 }
 
+/// The model ids each harness is configured with for one route, from the config `configure` wrote.
+fn configured_models(tmp: &Tmp, table: &str, harness: &str, config: &str, route: &Value) -> std::collections::BTreeSet<String> {
+    let provider = route["provider"].as_str().unwrap();
+    let body = std::fs::read_to_string(config).unwrap();
+    match harness {
+        "opencode" => {
+            let data: Value = serde_json::from_str(&body).unwrap();
+            data["provider"][provider]["models"].as_object().map(|models| models.keys().cloned().collect()).unwrap_or_default()
+        }
+        "hermes" => {
+            let data = yaml(&body);
+            data["providers"][provider]["models"].as_mapping().map(|models| models.keys().map(|key| key.as_str().unwrap().to_string()).collect()).unwrap_or_default()
+        }
+        "vibe" => {
+            let doc: DocumentMut = body.parse().unwrap();
+            let prefix = format!("{provider}/");
+            doc["models"].as_array_of_tables().map(|models| models.iter().filter_map(|model| model["alias"].as_str().and_then(|alias| alias.strip_prefix(&prefix)).map(str::to_string)).collect()).unwrap_or_default()
+        }
+        other => panic!("{other}: {table} {}", tmp.0.display()),
+    }
+}
+
+#[test]
+fn setup_lists_the_same_models_for_every_harness_as_the_generated_config() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../registry/generated");
+    let table_path = root.join("litellm/harnesses.json");
+    let table: Value = serde_json::from_str(&std::fs::read_to_string(&table_path).unwrap()).unwrap();
+    let pi: Value = serde_json::from_str(&std::fs::read_to_string(root.join("pi/providers.json")).unwrap()).unwrap();
+    let tmp = Tmp::new();
+    let table_arg = table_path.display().to_string();
+    for (harness, name, seed) in [("opencode", "opencode.json", "{}"), ("hermes", "config.yaml", "model: x\n"), ("vibe", "vibe-litellm/config.toml", "")] {
+        let config = tmp.file(name, seed);
+        let (code, _, err, _) = main_run(&tmp, &["--table", &table_arg, "configure", harness, "--config", config.to_str().unwrap()]);
+        assert_eq!(code, 0, "{harness}: {err}");
+        for route in routes(&table) {
+            let wanted: std::collections::BTreeSet<String> = model_ids(route).unwrap().into_iter().collect();
+            assert_eq!(configured_models(&tmp, &table_arg, harness, config.to_str().unwrap(), route), wanted, "{harness} lists other models than the generated config for {}", route["provider"]);
+        }
+    }
+    // Pi's providers are rendered from the same registry: the same routes and the same model ids.
+    for route in routes(&table) {
+        let provider = route["provider"].as_str().unwrap();
+        let wanted: std::collections::BTreeSet<String> = model_ids(route).unwrap().into_iter().collect();
+        let found = pi["providers"].as_array().unwrap().iter().find(|entry| entry["name"] == provider);
+        let listed: std::collections::BTreeSet<String> = found.map(|entry| entry["models"].as_array().unwrap().iter().map(|model| model["id"].as_str().unwrap().to_string()).collect()).unwrap_or_default();
+        assert_eq!(listed, wanted, "pi lists other models than the generated config for {provider}");
+    }
+}
+
 // ----- configure ----------------------------------------------------------------
 
 #[test]

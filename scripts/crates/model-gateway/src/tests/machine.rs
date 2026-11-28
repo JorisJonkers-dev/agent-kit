@@ -264,3 +264,29 @@ pub const DEFAULTS: &str = r#"{
     "summary_max_chars": 1500
   }
 }"#;
+
+/// A clock that never waits: it records each sleep and moves its time on by it.
+pub struct SleepClock {
+    pub now: std::sync::atomic::AtomicI64,
+    pub slept: std::sync::Arc<std::sync::Mutex<Vec<u64>>>,
+}
+
+impl crate::ports::Clock for SleepClock {
+    fn now_ms(&self) -> i64 {
+        self.now.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    fn monotonic_ms(&self) -> f64 {
+        0.0
+    }
+    fn sleep_ms(&self, ms: u64) {
+        self.now.fetch_add(ms as i64, std::sync::atomic::Ordering::SeqCst);
+        self.slept.lock().expect("the sleeps").push(ms);
+    }
+}
+
+pub fn sleeping(mut machine: Machine) -> (Machine, std::sync::Arc<std::sync::Mutex<Vec<u64>>>) {
+    let slept = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    machine.runtime.clock = Box::new(SleepClock { now: std::sync::atomic::AtomicI64::new(1_793_786_400_000), slept: slept.clone() });
+    (machine, slept)
+}
+

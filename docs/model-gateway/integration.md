@@ -97,8 +97,10 @@ the gateway cannot use and why), `skipped` (each model it cannot offer and why),
   client no longer lists is named in `skipped`.
 - **The defaults carry the caps and thresholds** a delegation is held to:
   `plan_warning_ratio`, `summary_max_chars`, `max_parallel_per_client`,
-  `availability_window_minutes` and `metered_personal_caps`
-  (`per_workflow_usd` 2, `per_day_usd` 5).
+  `availability_window_minutes`, `metered_personal_caps`
+  (`per_workflow_usd` 2, `per_day_usd` 5) and `retry_wait` (`max_retries` 3,
+  `max_total_wait_s` 60, `margin_s` 1: how long a run waits for a free model
+  the proxy says is back in N seconds before it falls back).
 
 ## Family binding and stated escalation (#494, #535)
 

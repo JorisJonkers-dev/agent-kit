@@ -906,6 +906,7 @@ fn a_writing_run_result_prints_its_members_in_the_order_the_node_runner_writes_t
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
         fallback: None,
+        retry: None,
         rewrite: None,
         routing: crate::routing::Routing::unseen("claude"),
     };

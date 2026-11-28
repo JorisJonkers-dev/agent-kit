@@ -204,6 +204,8 @@ pub struct Settings {
     /// What `run --tier` reads before it chooses a tier, and how many runs a tier takes at once. Every field has a
     /// default, so the shipped defaults and a machine file need not state it.
     pub quota: crate::quota::QuotaSettings,
+    /// How long a run waits for a free model the proxy says is back in seconds, and how often it retries.
+    pub retry_wait: crate::retry_wait::RetryWaitSettings,
 }
 
 impl Settings {

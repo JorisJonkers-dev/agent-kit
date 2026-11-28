@@ -252,6 +252,16 @@
           "minimum": 1,
           "description": "How long a passively found availability reading counts as current."
         },
+        "retry_wait": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "How a run waits for a free model the proxy says is back in N seconds: it waits N plus margin_s and runs the same model again, at most max_retries times and max_total_wait_s seconds in all. A wait that no longer fits goes on to the free fallback; 0 for either number turns the wait off.",
+          "properties": {
+            "max_retries": { "type": "integer", "minimum": 0 },
+            "max_total_wait_s": { "type": "number", "minimum": 0 },
+            "margin_s": { "type": "number", "minimum": 0 }
+          }
+        },
         "metered_personal_caps": {
           "type": "object",
           "required": ["per_workflow_usd", "per_day_usd"],

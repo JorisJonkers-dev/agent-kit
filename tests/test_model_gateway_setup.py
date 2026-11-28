@@ -199,6 +199,7 @@ def test_the_shipped_defaults_carry_the_settings_a_delegation_is_held_to() -> No
         "max_batch_delegations": 50,
         "availability_window_minutes": 60,
         "metered_personal_caps": {"per_workflow_usd": 2, "per_day_usd": 5},
+        "retry_wait": {"max_retries": 3, "max_total_wait_s": 60, "margin_s": 1},
         "output_allowance_tokens": {"trivial": 500, "routine": 2000, "hard": 6000, "frontier": 16000},
     }
 
