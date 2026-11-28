@@ -79,6 +79,15 @@ pub struct RunView {
     pub client_pid: Option<u32>,
     pub sandbox: Option<String>,
     pub events: usize,
+    /// What served the run, from its `routing` event: the model that answered, the LiteLLM deployment and base URL.
+    pub served_model: Option<String>,
+    pub litellm_model_id: Option<String>,
+    pub api_base: Option<String>,
+    /// Whether LiteLLM fell back to another deployment (`None` when the gateway could not see), whether the gateway
+    /// itself fell back from a limited free model (a `fallback` event), and whether this run is a retry.
+    pub fallback_fired: Option<bool>,
+    pub gateway_fallback: bool,
+    pub retry: bool,
 }
 
 impl RunView {
@@ -109,6 +118,12 @@ impl RunView {
             ("tokens_out", Value::Num(self.tokens_out)),
             ("cost_usd", Value::Num(self.cost_usd)),
             ("events", Value::count(self.events)),
+            ("served_model", self.served_model.as_deref().map_or(Value::Null, Value::str)),
+            ("litellm_model_id", self.litellm_model_id.as_deref().map_or(Value::Null, Value::str)),
+            ("api_base", self.api_base.as_deref().map_or(Value::Null, Value::str)),
+            ("fallback_fired", self.fallback_fired.map_or(Value::Null, Value::Bool)),
+            ("gateway_fallback", Value::Bool(self.gateway_fallback)),
+            ("retry", Value::Bool(self.retry)),
             ("run_dir", Value::str(&self.run_dir)),
         ];
         members.extend(self.ended_ms.map(|at| ("ended_at", Value::str(&to_iso(at)))));
@@ -175,6 +190,12 @@ pub fn view_of(runtime: &Runtime, run: &IndexedRun, now_ms: i64) -> RunView {
         client_pid: None,
         sandbox: None,
         events: events.len(),
+        served_model: None,
+        litellm_model_id: None,
+        api_base: None,
+        fallback_fired: None,
+        gateway_fallback: false,
+        retry: false,
     };
     let mut stalled_at: Option<f64> = None;
     for event in &events {
@@ -198,13 +219,25 @@ pub fn view_of(runtime: &Runtime, run: &IndexedRun, now_ms: i64) -> RunView {
                 }
             }
             "stall" => stalled_at = number_of(&data, "silent_s"),
+            "routing" => {
+                view.served_model = text_of(&data, "served_model");
+                view.litellm_model_id = text_of(&data, "litellm_model_id");
+                view.api_base = text_of(&data, "api_base");
+                view.fallback_fired = match data.get("fallback_fired") {
+                    Some(Value::Bool(fired)) => Some(*fired),
+                    _ => None,
+                };
+                view.gateway_fallback |= matches!(data.get("gateway_fallback"), Some(Value::Bool(true)));
+            }
+            "fallback" => view.gateway_fallback = true,
+            "retry" => view.retry = true,
             "usage" => {
                 view.tokens_in += number_of(&data, "gen_ai.usage.input_tokens").unwrap_or(0.0);
                 view.tokens_out += number_of(&data, "gen_ai.usage.output_tokens").unwrap_or(0.0);
                 view.cost_usd += number_of(&data, "cost_usd").unwrap_or(0.0);
             }
             "run.finished" => {
-                view.state = text_of(&data, "status").unwrap_or_else(|| "failed".to_string());
+                view.state = text_of(&data, "status").unwrap_or("failed".to_string());
                 view.ended_ms = ts_of(event);
                 view.reason = text_of(&data, "reason");
                 view.failure = data.get("failure").filter(|failure| **failure != Value::Null).cloned();

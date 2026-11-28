@@ -175,9 +175,15 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
         return Err(GatewayError::invalid_input("extras are for in-process callers only"));
     }
     let workflow = require_name(raw.get("workflow"), "a run must name its workflow")?;
-    let client = match raw.get("client") {
-        Some(Value::Str(client)) if RunClient::parse(client).is_some() => client.clone(),
-        other => {
+    // A run that names no client may name a pinned address as its model: the address says the harness.
+    let addressed = match (raw.get("client"), raw.get("model")) {
+        (None, Some(Value::Str(model))) if crate::address::is_address(model) => Some(crate::address::resolve(model)?),
+        _ => None,
+    };
+    let client = match (&addressed, raw.get("client")) {
+        (Some(found), _) => found.client.clone(),
+        (None, Some(Value::Str(client))) if RunClient::parse(client).is_some() => client.clone(),
+        (None, other) => {
             return Err(GatewayError::new(
                 "not-supported-yet",
                 format!("only {} can run a delegation, not {}", RUN_CLIENTS.join(", "), shown(other)),
@@ -197,6 +203,7 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
     let Some(Value::Str(model)) = raw.get("model").filter(|value| value.as_str() != Some("")) else {
         return Err(GatewayError::invalid_input("model must be a non-empty string"));
     };
+    let model = addressed.as_ref().map_or(model, |found| &found.model);
     let Some(Value::Str(prompt)) = raw.get("prompt").filter(|value| value.as_str() != Some("")) else {
         return Err(GatewayError::invalid_input("prompt must be a non-empty string"));
     };
@@ -228,7 +235,7 @@ pub fn read_run_input(raw: &Value) -> Result<RunInput, GatewayError> {
     }
     let free_only = read_flag(raw.get("free_only"), "free_only")?;
     let free_fallback = read_flag(raw.get("free_fallback"), "free_fallback")?;
-    let client_pinned = read_flag(raw.get("client_pinned"), "client_pinned")?;
+    let client_pinned = read_flag(raw.get("client_pinned"), "client_pinned")?.or_else(|| addressed.is_some().then_some(true));
     Ok(RunInput {
         workflow,
         client,

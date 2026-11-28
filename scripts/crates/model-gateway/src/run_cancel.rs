@@ -138,7 +138,7 @@ fn append_event(runtime: &Runtime, run_dir: &str, view: &RunView, kind: &str, da
 
 /// The finish of a cancelled run whose gateway is gone, in the log and the index.
 fn write_finish(runtime: &Runtime, run_dir: &str, view: &RunView) {
-    let why = crate::stall::cancel_reason(runtime.files.as_ref(), run_dir).unwrap_or_else(|| "cancelled".to_string());
+    let why = crate::stall::cancel_reason(runtime.files.as_ref(), run_dir).unwrap_or("cancelled".to_string());
     let data = json::object(vec![
         ("status", Value::str("cancelled")),
         ("exit_code", Value::Null),

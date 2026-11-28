@@ -360,6 +360,7 @@ a `free/<model>` run that finds no free copy falls back once to OpenCode's
 `opencode/<model>-free`, reported in `fallback`, `available_again_in_s` /
 `available_at` and `recommendation`; never for `client_pinned: true`, never
 for a repository that is not public, independent of `escalate`),
+`settings.retry_wait` (see "Waiting for a free model" below),
 `max_attempts` (default 3), `headless` (a boolean that
 changes nothing else: a run marked headless is refused and launched exactly
 like any other), `tier` (see below) and `free_only` (a boolean; see below).
@@ -367,6 +368,45 @@ like any other), `tier` (see below) and `free_only` (a boolean; see below).
 `free-only-refused` unless the model is `free` (the one definition above); it also turns off the retry,
 the climb and the fall-through, so a free-only run never moves to another
 model. A non-boolean is `invalid-input`.
+
+A run may pin its harness with a model address in place of `client` and
+`model`: `"model": "<harness>:<pricing>/<model>"` and no `client`, for example
+`pi:free/glm-4.7-flash`, `pi-free:free/hy4-flash` or
+`opencode:free/deepseek-v4.1-flash`. The harness is `pi` (the Pi route of the
+pricing prefix, so `pi:free/x` runs on `pi-free`), a Pi route itself
+(`pi-<route>`, which must serve that pricing prefix) or `opencode` (which
+reaches the proxy as `litellm-<pricing>/<pricing>/<model>`); the proxy's own
+address, `<pricing>/<model>`, reaches it unchanged and the proxy picks the
+provider. The pricing prefix is `free`, `paid` or `auto`; an unknown one is
+refused with `unknown-pricing`, and an unknown harness, or a Pi route that does
+not serve the prefix, with `unknown-harness`, each naming the ones there are.
+A `<harness>:` address pins the run (`client_pinned: true`): the gateway never
+swaps its harness, the free fallback included. Naming `client` and `model`
+alone does not pin; set `client_pinned: true` to pin that way. The data policy,
+the free-only rules and the repository's scope (public, `nedap`, private)
+apply to a pinned run as to any other. No profile, tier or critique route may
+name a provider's own model id on a provider's route; the ones that still do are
+listed in `tests/address_audit.rs`, and the list can only shrink.
+
+### Waiting for a free model
+
+When every free copy of a model is briefly limited the proxy answers a 429
+that names when the first is back (`... the first is back in 5s`). A run that
+ends on such a refusal waits that time plus `margin_s` and runs the same model
+again, at most `max_retries` times and `max_total_wait_s` seconds in all
+(`settings.retry_wait`: 3, 60 and 1 by default; `0` for either turns the wait
+off, and a machine file may set any of them). Each retry is a run of its own:
+its `events.jsonl` starts with a `retry` event and its result carries a `retry`
+object (`retry`, `of_run_id`, `reason`, `back_in_s`, `waited_s`,
+`total_waited_s`, `max_retries`, `max_total_wait_s`). Other 429s, a refusal that
+names no time and every other failure behave as before.
+
+The order with the free fallback: a wait that fits is waited out and the same
+model retried first (this holds for a pinned run too, since the model and the
+harness do not change); a wait longer than what is left of the cap is not
+taken, and nor is one after the retries are used up: the run then falls back
+once to OpenCode's free copy as above (never for a pinned run). So a short
+limit costs seconds on the same model, and a long one moves on at once.
 
 A run may name a LiteLLM tier instead of a client and a model: `tier` (or
 `--tier T`), where `T` is one of the tiers the defaults state (`tier-free`,
@@ -672,6 +712,9 @@ same for every client. Each line has `v` (the schema version, `1`), `seq`
 | `sandbox.started` | `name`: the run's Docker Sandbox, which `cancel` removes |
 | `diagnostic` | `level`, `source` (`stderr`: one per stderr line, the first 200; `gateway`: what the runner did, such as the time limit's SIGTERM), `text` |
 | `heartbeat` | every 15 s while the client runs: `pid`, `alive_s`, `stdout_bytes`, `stderr_bytes`, `last_output_age_s` |
+| `fallback` | the free fallback this run is: `fallback` (`from`, `to`, `reason`, `from_run_id`), `available_again_in_s`, `available_at`, `recommendation` |
+| `retry` | this run runs again after the wait the proxy named: the `retry` object above |
+| `routing` | when the gateway saw the proxy's answers: `capture`, `requested`, `litellm_model_id`, `api_base`, `served_model`, `attempted_fallbacks`, `fallback_fired` (LiteLLM's own fallback) and `gateway_fallback` (this run is the free fallback) |
 | `message` | what the model said or thought, read from the client's own output as it arrives: `role`, `kind` (`text` or `thinking`), `text` (cut at 8,000 characters) |
 | `plan` | a plan or to-do list the client reports: `entries` of `text` and `status` |
 | `tool.started`, `tool.finished` | a tool call: `gen_ai.tool.call.id`, `gen_ai.tool.name`, `input` (started), `status` (`ok` or `error`) and `output` (finished), each cut at 2,000 characters |
@@ -771,8 +814,11 @@ is, else `null`), `litellm_model_id` (the deployment that served it, from
 (`attempted_fallbacks >= 1`) and `routing_capture`, which says how much the
 gateway saw: `recorded`, `no-litellm-headers`, `no-request`, `hidden` or
 `not-litellm`. A field the gateway could not see is `null`, never a guess. A
-tier run on Pi goes through a recording proxy, so its routing is `recorded`;
-every other run is `hidden` or `not-litellm`. A `--tier` run also carries
+run on Pi that carries no tools of its own goes through a recording proxy, so
+its routing is `recorded`; every other run is `hidden` or `not-litellm`. A
+recorded run's `result.json` carries the same as a `routing` object (and a
+`routing` event), with `api_base` from `x-litellm-model-api-base` when the proxy
+sends it, so `status` can name the serving route and whether a fallback fired. A `--tier` run also carries
 `tier_decision` (`requested`, `chosen`, `reason`, `signals`), and a run on a
 LiteLLM route carries `allowance_usd` and `litellm_cost_usd` when its responses
 reported them.
@@ -1340,7 +1386,7 @@ default, and `--tier` is not combined with `--profile`, `--harness`, `client` or
 `model`. `tier-strong-open` is an escalation tier with no workstation key, so a run
 on it is refused with `tier-key-missing`, naming the key it needs, until a key is provisioned. Every run's ledger line records the
 tier, the harness, the serving model, the fallback count and `routing_capture`
-(`recorded`, `no-request`, `no-litellm-headers`, `hidden` or `not-litellm`): a tier run on Pi is routed
+(`recorded`, `no-request`, `no-litellm-headers`, `hidden` or `not-litellm`): a run on Pi that carries no tools of its own is routed
 through a recording proxy so LiteLLM's response headers are read; a client that
 hides them records `null`.
 

@@ -29,6 +29,7 @@ fn settings() -> Settings {
         metered_personal_caps: MeteredPersonalCaps { per_workflow_usd: 5.0, per_day_usd: 20.0 },
         quota: crate::quota::QuotaSettings::default(),
         stall: crate::stall::StallSettings::default(),
+        retry_wait: crate::retry_wait::RetryWaitSettings::default(),
         output_allowance_tokens: [1000.0, 2000.0, 4000.0, 8000.0],
     }
 }

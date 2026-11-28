@@ -72,6 +72,8 @@ impl Capture {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Seen {
     pub model_id: Option<String>,
+    /// The upstream the proxy sent the request to: its `x-litellm-model-api-base` header.
+    pub api_base: Option<String>,
     /// The largest integer any `x-litellm-attempted-fallbacks` line of the response carried.
     pub attempted_fallbacks: Option<u64>,
     /// The response had an `x-litellm-attempted-fallbacks` line, and none of them was an integer.
@@ -96,6 +98,8 @@ impl Seen {
 pub struct Routing {
     pub capture: Capture,
     pub model_id: Option<String>,
+    /// The upstream of the last request that named one.
+    pub api_base: Option<String>,
     pub served_model: Option<String>,
     pub attempted_fallbacks: Option<u64>,
     /// The Go allowance the run's requests drew on, summed; `None` when no response carried one.
@@ -108,7 +112,7 @@ impl Routing {
     /// The routing of a run the gateway did not stand in front of: nothing seen, and why.
     pub fn unseen(client: &str) -> Routing {
         let capture = if NOT_LITELLM.contains(&client) { Capture::NotLitellm } else { Capture::Hidden };
-        Routing { capture, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None }
+        Routing { capture, model_id: None, api_base: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None }
     }
 
     /// The routing of what the proxy saw: the last answered request names the serving model, and the most
@@ -117,22 +121,45 @@ impl Routing {
     /// all are `no-litellm-headers`, not a recording.
     pub fn of(seen: &[Seen]) -> Routing {
         let Some(last) = seen.last() else {
-            return Routing { capture: Capture::NoRequest, model_id: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None };
+            return Routing { capture: Capture::NoRequest, model_id: None, api_base: None, served_model: None, attempted_fallbacks: None, allowance_usd: None, litellm_cost_usd: None };
         };
         let served_model = last.served_model.clone();
         if !seen.iter().any(Seen::answered_by_litellm) {
-            return Routing { capture: Capture::NoHeaders, model_id: None, served_model, attempted_fallbacks: None, allowance_usd: sum_of(seen, |one| one.allowance_usd), litellm_cost_usd: sum_of(seen, |one| one.cost_usd) };
+            return Routing { capture: Capture::NoHeaders, model_id: None, api_base: None, served_model, attempted_fallbacks: None, allowance_usd: sum_of(seen, |one| one.allowance_usd), litellm_cost_usd: sum_of(seen, |one| one.cost_usd) };
         }
         let counted = seen.iter().filter_map(|one| one.attempted_fallbacks).max();
         let unreadable = seen.iter().any(|one| one.fallbacks_unreadable);
         Routing {
             capture: Capture::Recorded,
             model_id: seen.iter().rev().find_map(|one| one.model_id.clone()),
+            api_base: seen.iter().rev().find_map(|one| one.api_base.clone()),
             served_model,
             attempted_fallbacks: counted.or(if unreadable { None } else { Some(0) }),
             allowance_usd: sum_of(seen, |one| one.allowance_usd),
             litellm_cost_usd: sum_of(seen, |one| one.cost_usd),
         }
+    }
+
+    /// What the run's result and its `routing` event say: how the gateway knew the route, the serving model and
+    /// deployment as far as LiteLLM's headers named them, and whether the proxy fell back to another one (null
+    /// where the gateway could not see).
+    pub fn report(&self, client: &str, model: &str, gateway_fallback: bool) -> Value {
+        let seen = |value: Option<Value>| value.unwrap_or(Value::Null);
+        json::object(vec![
+            ("api_base", seen(self.api_base.as_deref().map(Value::str))),
+            ("attempted_fallbacks", seen(self.attempted_fallbacks.map(|count| Value::Num(count as f64)))),
+            ("capture", Value::str(self.capture.as_str())),
+            ("fallback_fired", seen(self.fallback_fired().map(Value::Bool))),
+            ("gateway_fallback", Value::Bool(gateway_fallback)),
+            ("litellm_model_id", seen(self.model_id.as_deref().map(Value::str))),
+            ("requested", Value::Str(format!("{client} {model}"))),
+            ("served_model", seen(self.served_model.as_deref().map(Value::str))),
+        ])
+    }
+
+    /// Whether the gateway saw the client's requests answered, and so has something to say of the route.
+    pub fn watched(&self) -> bool {
+        matches!(self.capture, Capture::Recorded | Capture::NoHeaders)
     }
 
     /// Whether LiteLLM fell back to another deployment, or `None` when the gateway could not tell.
@@ -185,6 +212,7 @@ pub fn seen_of(headers: &[(String, String)], body_prefix: &str) -> Seen {
     let parsed = counts.iter().filter_map(|count| count.parse::<u64>().ok()).max();
     Seen {
         model_id: header_values(headers, "x-litellm-model-id").find(|id| !id.is_empty()).map(str::to_string),
+        api_base: header_values(headers, "x-litellm-model-api-base").find(|base| !base.is_empty()).map(str::to_string),
         attempted_fallbacks: parsed,
         fallbacks_unreadable: !counts.is_empty() && parsed.is_none(),
         served_model: served_model_of(body_prefix),

@@ -366,6 +366,7 @@ fn merge_settings(base: &Settings, raw: Option<&Value>) -> Result<Settings, Gate
     let summary_max_chars = number_field(object, "summary_max_chars", base.summary_max_chars, "settings.")?;
     let quota = crate::quota::merge(&base.quota, object.get("quota"))?;
     let stall = crate::stall::merge(&base.stall, object.get("stall"))?;
+    let retry_wait = crate::retry_wait::merge(&base.retry_wait, object.get("retry_wait"))?;
     Ok(Settings {
         plan_warning_ratio,
         summary_max_chars,
@@ -376,6 +377,7 @@ fn merge_settings(base: &Settings, raw: Option<&Value>) -> Result<Settings, Gate
         output_allowance_tokens,
         quota,
         stall,
+        retry_wait,
     })
 }
 
@@ -399,6 +401,7 @@ fn parse_settings(raw: &Object) -> Result<Settings, GatewayError> {
     let summary_max_chars = require_number(raw.get("summary_max_chars"), "settings.summary_max_chars")?;
     let quota = crate::quota::merge(&crate::quota::QuotaSettings::default(), raw.get("quota"))?;
     let stall = crate::stall::merge(&crate::stall::StallSettings::default(), raw.get("stall"))?;
+    let retry_wait = crate::retry_wait::merge(&crate::retry_wait::RetryWaitSettings::default(), raw.get("retry_wait"))?;
     Ok(Settings {
         plan_warning_ratio,
         summary_max_chars,
@@ -409,6 +412,7 @@ fn parse_settings(raw: &Object) -> Result<Settings, GatewayError> {
         output_allowance_tokens,
         quota,
         stall,
+        retry_wait,
     })
 }
 

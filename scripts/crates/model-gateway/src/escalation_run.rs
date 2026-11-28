@@ -23,6 +23,7 @@ use crate::models::family_of_model_id;
 use crate::policy::{decide_policy, resolve_scope, PolicySubject};
 use crate::profiles::profile_models;
 use crate::ports::Runtime;
+use crate::retry_wait::{RetryReport, Waiter};
 use crate::run::RunInput;
 use crate::text::{dirname, join, js_slice, js_trim};
 use std::collections::BTreeSet;
@@ -61,6 +62,9 @@ pub struct AttemptOptions<'a> {
     /// Set on the attempt that is the free fallback of one that found no free copy; the attempt records it in its
     /// events and result.
     pub fallback: Option<FallbackReport>,
+    /// Set on the attempt that runs again after a wait the proxy named; the attempt records it in its events and
+    /// result.
+    pub retry: Option<RetryReport>,
 }
 
 /// Why an attempt ended without a run.
@@ -161,13 +165,27 @@ impl<'a> EscalatedRun<'a> {
         // once, whatever the escalation does: the fallback stays in the free cost class.
         let mut fell_back = false;
         let mut attempt = |next: &RunInput, options: &AttemptOptions| -> Result<R, AttemptError> {
-            let run = launch(next, options)?;
+            let mut run = launch(next, options)?;
+            // A refusal that names a short wait is waited out and the same model run again, a bounded number of
+            // times; a wait that does not fit the cap is left to the fallback below.
+            let mut waiter: Option<Waiter> = None;
+            while !run.is_ok() {
+                let Some(text) = run.free_refusal() else { break };
+                let waiter = waiter.get_or_insert_with(|| Waiter::new(load_config(self.runtime).map(|config| config.settings.retry_wait).unwrap_or_default()));
+                let Some(wait) = waiter.next(run.run_id(), &text, self.runtime.clock.now_ms()) else { break };
+                self.runtime.clock.sleep_ms(wait.sleep_ms);
+                let again = AttemptOptions { link: options.link.clone(), start_check: options.start_check, fallback: None, retry: Some(wait.report) };
+                match launch(next, &again) {
+                    Ok(retried) => run = retried,
+                    Err(_) => break,
+                }
+            }
             let refusal = if fell_back || run.is_ok() { None } else { run.free_refusal() };
             let Some((fallen, report)) = refusal.and_then(|text| free_fallback::plan(self.runtime, next, run.run_id(), &text).ok().flatten()) else {
                 return Ok(run);
             };
             fell_back = true;
-            launch(&fallen, &AttemptOptions { link: options.link.clone(), start_check: options.start_check, fallback: Some(report) }).or(Ok(run))
+            launch(&fallen, &AttemptOptions { link: options.link.clone(), start_check: options.start_check, fallback: Some(report), retry: None }).or(Ok(run))
         };
         if input.escalate == Some(false) || input.free_only == Some(true) {
             let only = attempt(input, &AttemptOptions::default()).map_err(AttemptError::into_gateway)?;
@@ -206,7 +224,7 @@ impl<'a> EscalatedRun<'a> {
                 None => input.clone(),
                 Some(candidate) => attempt_input(input, candidate, &prompt),
             };
-            let run = match attempt(&next, &AttemptOptions { link, start_check: Some(&start_check), fallback: None }) {
+            let run = match attempt(&next, &AttemptOptions { link, start_check: Some(&start_check), fallback: None, retry: None }) {
                 Ok(run) => run,
                 Err(AttemptError::CannotStart(message)) => {
                     match walk.cannot_start(&current, &real, &message)? {

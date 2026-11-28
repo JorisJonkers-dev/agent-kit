@@ -206,6 +206,8 @@ pub struct Settings {
     pub quota: crate::quota::QuotaSettings,
     /// How long a run's client may be silent before it is called stalled; every field has a default.
     pub stall: crate::stall::StallSettings,
+    /// How long a run waits for a free model the proxy says is back in seconds, and how often it retries.
+    pub retry_wait: crate::retry_wait::RetryWaitSettings,
 }
 
 impl Settings {

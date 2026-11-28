@@ -352,6 +352,12 @@ fn view_with(state: &str) -> RunView {
         client_pid: None,
         sandbox: None,
         events: 0,
+        served_model: None,
+        litellm_model_id: None,
+        api_base: None,
+        fallback_fired: None,
+        gateway_fallback: false,
+        retry: false,
     }
 }
 
@@ -581,4 +587,38 @@ fn gc_leaves_a_run_directory_it_cannot_remove_and_says_so() {
     assert!(list(&swept, "removed").is_empty());
     assert!(text(&list(&swept, "skipped")[0], "reason").starts_with("EACCES"), "{swept:?}");
     assert!(std::path::Path::new(&dir).exists());
+}
+
+#[test]
+fn status_names_the_route_that_served_a_run_and_whether_a_fallback_fired() {
+    let machine = machine();
+    let events = start_run(&machine, "r-route", "w");
+    events.record("retry", parse(r#"{"retry":1}"#).expect("JSON"));
+    events.record("fallback", parse(r#"{"from":"free/a","to":"paid/a"}"#).expect("JSON"));
+    events.record("routing", parse(r#"{"api_base":"https://p/v1","attempted_fallbacks":1,"capture":"recorded","fallback_fired":true,"gateway_fallback":false,"litellm_model_id":"dep-1","requested":"pi m","served_model":"glm-4.7-flash"}"#).expect("JSON"));
+    events.finish(parse(r#"{"status":"ok"}"#).expect("JSON"));
+    let run = get(&status(&input(r#"{"run":"r-route"}"#), &machine.runtime).expect("status"), "run").clone();
+    assert_eq!((text(&run, "served_model"), text(&run, "litellm_model_id"), text(&run, "api_base")), ("glm-4.7-flash", "dep-1", "https://p/v1"));
+    assert_eq!((get(&run, "fallback_fired"), get(&run, "gateway_fallback"), get(&run, "retry")), (&Value::Bool(true), &Value::Bool(true), &Value::Bool(true)));
+    // A run the gateway could not watch has no route to name.
+    let hidden = start_run(&machine, "r-hidden", "w");
+    hidden.record("routing", parse(r#"{"api_base":null,"fallback_fired":null,"gateway_fallback":true,"capture":"hidden"}"#).expect("JSON"));
+    hidden.finish(parse(r#"{"status":"ok"}"#).expect("JSON"));
+    let run = get(&status(&input(r#"{"run":"r-hidden"}"#), &machine.runtime).expect("status"), "run").clone();
+    assert_eq!((get(&run, "served_model"), get(&run, "fallback_fired"), get(&run, "gateway_fallback")), (&Value::Null, &Value::Null, &Value::Bool(true)));
+}
+
+#[test]
+fn a_machine_with_no_state_directory_has_no_runs_to_ask_about() {
+    let mut machine = machine();
+    machine.runtime.env.clear();
+    for result in [
+        ps(&input("{}"), &machine.runtime),
+        status(&input(r#"{"run":"x"}"#), &machine.runtime),
+        logs(&input(r#"{"run":"x"}"#), &machine.runtime),
+        gc(&input("{}"), &machine.runtime),
+        crate::run_cancel::cancel(&input(r#"{"run":"x"}"#), &machine.runtime),
+    ] {
+        assert!(result.expect_err("no state directory").message.contains("HOME"));
+    }
 }

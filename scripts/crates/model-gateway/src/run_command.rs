@@ -11,7 +11,7 @@
 use crate::cap_guard::{run_cost_class, CapGuard, CapSource, Reservation, ReserveArgs, MIN_GRANT_TIME_LEFT_S};
 use crate::caps::Estimate;
 use crate::client_run::{ClientRun, ClientRunError, ClientRunRequest};
-use crate::config::{ClientConfig, CostClass, GatewayConfig, ModelEntry, ToolScope};
+use crate::config::{ClientConfig, CostClass, GatewayConfig, ModelEntry, ToolList, ToolScope};
 use crate::config_parse::load_config;
 use crate::error::GatewayError;
 use crate::escalation_run::{AttemptError, AttemptOptions, AttemptedRun, Delegation, EscalatedRun};
@@ -30,6 +30,7 @@ use crate::ports::{ProcessResult, Runtime};
 use crate::proof::read_proof_files;
 use crate::network::{NetworkScope, Reach};
 use crate::profiles::{hold_to_profile, run_scope, tools_json};
+use crate::retry_wait::RetryReport;
 use crate::routing::{recorded, Routing};
 use crate::run::{
     input_json, named_reset, price_run, read_only_proof, read_run_input, require_allowed_provider, run_failure_reason, run_id, summary_of, wrapped_prompt,
@@ -87,6 +88,8 @@ pub struct RunResult {
     pub warnings: Vec<String>,
     /// Set when this run is the free fallback of one that found no free copy of its model.
     pub fallback: Option<FallbackReport>,
+    /// Set when this run is a retry after a wait the proxy named.
+    pub retry: Option<RetryReport>,
     /// Set when the model asked for was OpenCode's direct Go model and the run went through LiteLLM's copy of it.
     pub rewrite: Option<Rewrite>,
     /// What LiteLLM's response headers said of how the run was routed; written on the ledger line, not on the result.
@@ -140,6 +143,10 @@ impl RunResult {
         ];
         members.extend(optional.into_iter().filter_map(|(key, value)| value.map(|value| (key, value))));
         members.extend(self.fallback.iter().flat_map(FallbackReport::members));
+        members.extend(self.retry.iter().map(|retry| ("retry", retry.to_json())));
+        if self.routing.watched() || self.fallback.is_some() {
+            members.push(("routing", self.routing.report(&self.client, &self.model, self.fallback.is_some())));
+        }
         let mut object = Object::new();
         for (key, value) in members {
             object.set(key, value);
@@ -233,12 +240,14 @@ pub struct RunOptions<'a> {
     pub tag: Option<BatchTag>,
     /// Set when this attempt is the free fallback of one that found no free copy.
     pub fallback: Option<FallbackReport>,
+    /// Set when this attempt runs again after a wait the proxy named.
+    pub retry: Option<RetryReport>,
 }
 
 impl RunOptions<'_> {
     /// The options of a run that is not part of a batch: nothing taken up front, and nothing tagged.
     fn plain<'a, 'b: 'a>(options: &'a AttemptOptions<'b>) -> RunOptions<'a> {
-        RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: None, tag: None, fallback: options.fallback.clone() }
+        RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: None, tag: None, fallback: options.fallback.clone(), retry: options.retry.clone() }
     }
 }
 
@@ -324,7 +333,7 @@ impl RunCommand<'_> {
             let give = given.slot.map(|slot| slot(&attempt.client));
             let result = self.run_once(
                 attempt,
-                &RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: taken, tag: given.tag.clone(), fallback: options.fallback.clone() },
+                &RunOptions { link: options.link.clone(), start_check: options.start_check, reservation: taken, tag: given.tag.clone(), fallback: options.fallback.clone(), retry: options.retry.clone() },
             );
             drop(give);
             result
@@ -454,6 +463,9 @@ impl RunCommand<'_> {
         if let Some(fallback) = &options.fallback {
             events.record("fallback", fallback.event());
         }
+        if let Some(retry) = &options.retry {
+            events.record("retry", retry.to_json());
+        }
         let delegated = self.delegate(&Delegated {
             started_at,
             started_ms,
@@ -475,6 +487,10 @@ impl RunCommand<'_> {
         let mut result = delegated?;
         result.rewrite = rerouted.map(|(_, rewrite)| rewrite);
         result.fallback = options.fallback.clone();
+        result.retry = options.retry.clone();
+        if result.routing.watched() || result.fallback.is_some() {
+            events.record("routing", result.routing.report(&result.client, &result.model, result.fallback.is_some()));
+        }
         if let Some(fallback) = &result.fallback {
             result.summary = format!("{}\n{}", fallback.notice(), result.summary);
         }
@@ -791,6 +807,7 @@ impl RunCommand<'_> {
             cleanup_warning: None,
             warnings: launch_warnings,
             fallback: None,
+            retry: None,
             rewrite: None,
             routing,
         })
@@ -807,7 +824,7 @@ impl RunCommand<'_> {
 
     /// The client, non-interactively, through the gateway's launch path, with the mark that stops a delegate
     /// delegating on. A launch that cannot start at all is a failed run, not an error: the caller still gets a
-    /// result and a ledger line. The failure is the reason the run carries. A tier run on Pi goes through the
+    /// result and a ledger line. The failure is the reason the run carries. A tier run or a run on a proxy address on Pi goes through the
     /// recording proxy, so the routing LiteLLM reports in its headers is known; any other run's routing is unseen.
     /// It reports to `watch` as the client runs, and says how the client's process ended beside its result.
     #[allow(clippy::type_complexity)]
@@ -833,7 +850,10 @@ impl RunCommand<'_> {
             })
         };
         let (launched, routing) = match client {
-            Some(RunClient::Pi) if tiered => {
+            // A tier run and a run on a proxy address (`free/<model>`, `paid/<model>`, `auto/<model>`) is recorded. The
+            // recording proxy's home holds the route and nothing else, so a run that carries tools of its own (a skill,
+            // an MCP server, a plugin) runs on the real home and its routing is unseen.
+            Some(RunClient::Pi) if (tiered || crate::address::is_proxy_address(&input.model)) && !scope.is_some_and(carries_tools) => {
                 let mut launched = None;
                 let routing = recorded(self.runtime, "curl", &join(&[&paths.export_dir, "proxy-home"]), &crate::run::pi_provider(&input.client), &input.client, &mut |env| launched = Some(go(env)));
                 (launched.expect("the launch ran, with or without the proxy"), routing)
@@ -901,6 +921,11 @@ impl RunCommand<'_> {
         }
         json::object(members)
     }
+}
+
+/// Whether a tool scope lists a tool of any kind, or says `any`.
+fn carries_tools(scope: &ToolScope) -> bool {
+    [&scope.mcp, &scope.plugins, &scope.skills].into_iter().any(|list| !matches!(list, ToolList::Only(items) if items.is_empty()))
 }
 
 /// The LiteLLM tier a run's profile is, when it is one.
