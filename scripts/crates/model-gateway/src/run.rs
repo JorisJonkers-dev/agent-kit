@@ -616,7 +616,7 @@ pub fn run_failure_reason(launch: &LaunchExit, answer: Option<&str>, reported: O
 }
 
 /// The providers an OpenCode run may reach when the machine names none.
-pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 5] = ["opencode-go", "litellm-opencode-go", "litellm-vibe", "litellm-vibe-study", "litellm-local"];
+pub const DEFAULT_OPENCODE_PROVIDERS: [&str; 6] = ["opencode-go", "litellm-opencode-go", "litellm-paid", "litellm-vibe", "litellm-vibe-study", "litellm-local"];
 
 /// OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
 /// owner's rule is that a run never reaches one, so no allowlist can open it.

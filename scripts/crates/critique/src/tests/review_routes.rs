@@ -109,7 +109,7 @@ fn the_routing_exceptions_are_real_clients_that_are_not_cheap_with_a_reason() {
 /// Clients that name a full-size model only so the Gold Band lint can read the family of a template
 /// binding (`mistral-large-4-0`, `glm-5.3`) from this file; no slot, fallback, triage or cold-read
 /// model may name them, so nothing picks them for a review.
-const FAMILY_ANCHORS: [&str; 2] = ["pi-vibe-mistral-large", "pi-vibe-glm"];
+const FAMILY_ANCHORS: [&str; 2] = ["pi-paid-mistral-large", "pi-paid-glm"];
 
 #[test]
 fn the_full_model_clients_are_family_anchors_that_no_review_route_names() {

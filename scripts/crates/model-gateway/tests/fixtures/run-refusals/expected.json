@@ -132,8 +132,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go, litellm-opencode-go, litellm-vibe, litellm-vibe-study, litellm-local), and OpenCode’s pay-per-token models are never reached\"}\n",
-      "stderr": "model-gateway run: anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go, litellm-opencode-go, litellm-vibe, litellm-vibe-study, litellm-local), and OpenCode’s pay-per-token models are never reached\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"provider-not-allowed\",\"message\":\"anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go, litellm-opencode-go, litellm-paid, litellm-vibe, litellm-vibe-study, litellm-local), and OpenCode’s pay-per-token models are never reached\"}\n",
+      "stderr": "model-gateway run: anthropic/claude-sonnet-4.6: the provider anthropic is not allowed (clients.opencode.providers: opencode-go, litellm-opencode-go, litellm-paid, litellm-vibe, litellm-vibe-study, litellm-local), and OpenCode’s pay-per-token models are never reached\n",
       "files": {
         "home/": null,
         "home/.config/": null,

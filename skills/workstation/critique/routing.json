@@ -15,59 +15,38 @@
       "family": "anthropic",
       "gateway": { "client": "claude", "model": "claude-sonnet-5-5" }
     },
-    "pi-vibe-mistral-small": {
+    "pi-paid-mistral-small": {
       "kind": "pi",
-      "provider": "litellm-vibe",
-      "model": "mistral-small",
+      "provider": "litellm-paid",
+      "model": "paid/mistral-small",
       "family": "mistral",
       "data_scope": "any"
     },
-    "pi-vibe-mistral-large": {
+    "pi-paid-mistral-large": {
       "kind": "pi",
-      "provider": "litellm-vibe",
-      "model": "mistral-large",
+      "provider": "litellm-paid",
+      "model": "paid/mistral-large",
       "family": "mistral",
       "data_scope": "any"
     },
-    "pi-vibe-glm": {
+    "pi-paid-glm": {
       "kind": "pi",
-      "provider": "litellm-vibe",
-      "model": "glm-5.3",
+      "provider": "litellm-paid",
+      "model": "paid/glm-5.3",
       "family": "zhipu",
       "data_scope": "any"
     },
-    "pi-vibe-glm-flash": {
+    "pi-paid-glm-flash": {
       "kind": "pi",
-      "provider": "litellm-vibe",
-      "model": "glm-5.3-flash",
+      "provider": "litellm-paid",
+      "model": "paid/glm-5.3-flash",
       "family": "zhipu",
       "data_scope": "any"
     },
-    "pi-vibe-deepseek-flash": {
+    "pi-paid-deepseek-flash": {
       "kind": "pi",
-      "provider": "litellm-vibe",
-      "model": "deepseek-v4.1-flash",
-      "family": "deepseek",
-      "data_scope": "any"
-    },
-    "pi-opencode-go-mistral-small": {
-      "kind": "pi",
-      "provider": "litellm-opencode-go",
-      "model": "mistral-small",
-      "family": "mistral",
-      "data_scope": "any"
-    },
-    "pi-opencode-go-glm-flash": {
-      "kind": "pi",
-      "provider": "litellm-opencode-go",
-      "model": "glm-5.3-flash",
-      "family": "zhipu",
-      "data_scope": "any"
-    },
-    "pi-opencode-go-deepseek-flash": {
-      "kind": "pi",
-      "provider": "litellm-opencode-go",
-      "model": "deepseek-v4.1-flash",
+      "provider": "litellm-paid",
+      "model": "paid/deepseek-v4.1-flash",
       "family": "deepseek",
       "data_scope": "any"
     },
@@ -212,10 +191,7 @@
     "merge_commits": 50
   },
   "fallbacks": {
-    "pi-vibe-mistral-small": ["pi-opencode-go-mistral-small"],
-    "pi-vibe-glm-flash": ["pi-opencode-go-glm-flash"],
-    "pi-vibe-deepseek-flash": ["pi-opencode-go-deepseek-flash"],
-    "agy-gemini-flash-high": ["pi-vibe-glm-flash", "pi-free-gemini-flash"],
+    "agy-gemini-flash-high": ["pi-paid-glm-flash", "pi-free-gemini-flash"],
     "pi-free-nemotron-ultra": ["pi-free-north-mini-code"],
     "pi-free-gemma": ["pi-free-beam"]
   },
@@ -268,7 +244,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "gap-critic",
           "lenses": ["unasked-questions"],
           "max_price_usd": 0.9,
@@ -284,7 +260,7 @@
       ],
       "adr": [
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
           "max_price_usd": 0.9,
@@ -293,7 +269,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "gap-critic",
           "lenses": ["integration"],
           "max_price_usd": 0.9,
@@ -356,7 +332,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability"],
           "max_price_usd": 1.5,
@@ -372,14 +348,14 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "spec-redteam",
           "lenses": ["integration", "operability"],
           "max_price_usd": 1.5,
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "spec-redteam",
           "lenses": ["simplicity", "fidelity"],
           "max_price_usd": 1.5,
@@ -436,7 +412,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "ticket-linter",
           "lenses": ["testability"],
           "max_price_usd": 3,
@@ -445,7 +421,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "ticket-linter",
           "lenses": ["simplicity"],
           "max_price_usd": 3,
@@ -517,7 +493,7 @@
           "time_limit_s": 720
         },
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "diff-reviewer",
           "lenses": ["standards"],
           "max_price_usd": 1.5,
@@ -526,7 +502,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "diff-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 1.5,
@@ -574,7 +550,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "feature-reviewer",
           "lenses": ["integration"],
           "max_price_usd": 3,
@@ -590,14 +566,14 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "feature-reviewer",
           "lenses": ["operability"],
           "max_price_usd": 3,
           "time_limit_s": 1080
         },
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "feature-reviewer",
           "lenses": ["simplicity"],
           "max_price_usd": 3,
@@ -648,7 +624,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "plan-critic",
           "lenses": [
             "incremental-safety"
@@ -657,7 +633,7 @@
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "plan-critic",
           "lenses": [
             "evidence-anchoring"
@@ -668,7 +644,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "plan-critic",
           "lenses": [
             "coupling",
@@ -755,7 +731,7 @@
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "architecture-critic",
           "lenses": [
             "domain-language",
@@ -767,7 +743,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "architecture-critic",
           "lenses": [
             "test-seams",
@@ -777,7 +753,7 @@
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 1.5,
@@ -827,14 +803,14 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-deepseek-flash",
+          "client": "pi-paid-deepseek-flash",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 1.5,
           "time_limit_s": 900
         },
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "decision-recoverer",
           "lenses": [],
           "max_price_usd": 1.5,
@@ -881,7 +857,7 @@
       ],
       "base": [
         {
-          "client": "pi-vibe-mistral-small",
+          "client": "pi-paid-mistral-small",
           "role": "adr-reviewer",
           "lenses": ["adr-record"],
           "max_price_usd": 1.5,
@@ -897,7 +873,7 @@
       ],
       "deep": [
         {
-          "client": "pi-vibe-glm-flash",
+          "client": "pi-paid-glm-flash",
           "role": "adr-reviewer",
           "lenses": ["adr-record", "decision-log"],
           "max_price_usd": 1.5,

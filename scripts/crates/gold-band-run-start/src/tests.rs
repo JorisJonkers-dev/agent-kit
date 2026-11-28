@@ -1170,7 +1170,7 @@ fn a_critic_of_the_writers_family_refuses_the_run() {
     let c = critic_case("critic-refused", ("vibe", "mistral-large-4-0"), ("vibe-study", "deepseek-v4-1-flash-1017"));
     let out = c.go();
     let err = out.refused("critic-family");
-    assert!(err.contains("gold-band-run-start: critic-family: gate-critique-spec-fan-out: critic-family: candidate routing client pi-vibe-mistral-small is of family mistral"), "{err}");
+    assert!(err.contains("gold-band-run-start: critic-family: gate-critique-spec-fan-out: critic-family: candidate routing client pi-paid-mistral-small is of family mistral"), "{err}");
 }
 
 #[test]

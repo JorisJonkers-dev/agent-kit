@@ -485,3 +485,24 @@ fn the_policy_holds_an_opencode_free_model_to_public_repositories_but_not_the_ot
     assert!(permission(&public_repository(), "opencode/deepseek-v4.1-flash-free", "deepseek").permitted);
     assert!(permission(&DataScope::Outside, "opencode/deepseek-v4.1-flash-free", "deepseek").inline_only);
 }
+
+/// Whether the shipped defaults let `<client>:<model>` of `family` be sent to in `scope`.
+fn shipped_permits(scope: &DataScope, client: &str, model: &str, family: &str) -> bool {
+    let config = parse_defaults(&parse(crate::SHIPPED_DEFAULTS).expect("the shipped defaults")).expect("the shipped configuration");
+    let subject = PolicySubject { client: client.to_string(), model: model.to_string(), family: family.to_string() };
+    decide_policy(&config, scope, &[subject]).permissions.into_iter().next().expect("one permission").permitted
+}
+
+#[test]
+fn the_proxys_addresses_follow_the_repository_policy_public_free_and_auto_private_paid_nedap_nothing() {
+    let addresses = [("pi-free", "free/glm-4.7-flash", "zhipu"), ("pi-auto", "auto/glm-5.3-flash", "zhipu"), ("pi-paid", "paid/glm-5.3-flash", "zhipu")];
+    let public = DataScope::Public { key: "github.com/acme/widgets".to_string() };
+    let private = DataScope::Repository { key: "github.com/acme/widgets".to_string(), entry: Some(entry(&["zhipu"], true, true)) };
+    let nedap = DataScope::Nedap;
+    for (client, model, family) in addresses {
+        assert!(shipped_permits(&public, client, model, family), "{client}:{model} in a public repository");
+        assert!(!shipped_permits(&nedap, client, model, family), "{client}:{model} in a nedap repository");
+        // A private repository reaches the paid chain alone: the free and auto chains can send a prompt to a provider that trains on it.
+        assert_eq!(shipped_permits(&private, client, model, family), client == "pi-paid", "{client}:{model} in a private repository");
+    }
+}

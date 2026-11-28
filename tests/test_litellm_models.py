@@ -72,6 +72,9 @@ def unresolved(models: list[dict], routes: dict[str, set[str]]) -> list[str]:
             route = model.partition("/")[0]
             ok = model in GROUPS or (route in AWAITING_SYNC and route not in providers)
             ok = ok and (client != "pi-free" or route == "free")
+            if client == "pi-paid":
+                # paid/<model> is the proxy's chain over the canonical group <model> of the paid routes.
+                ok = route == "paid" and model.partition("/")[2] in GROUPS
         else:
             assert client in NOT_VIA_LITELLM, f"{client} has no LiteLLM route check"
             continue

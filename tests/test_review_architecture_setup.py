@@ -105,12 +105,12 @@ def test_shipped_routing_follows_the_architecture_review_roster() -> None:
     base = [(slot["client"], slot["role"], slot["lenses"]) for slot in stage["base"]]
     assert base == [
         ("agy-gemini-flash-high", "architecture-critic", ["dependency-direction", "coupling"]),
-        ("pi-vibe-mistral-small", "architecture-critic", ["domain-language", "aggregates"]),
+        ("pi-paid-mistral-small", "architecture-critic", ["domain-language", "aggregates"]),
     ]
     deep = [(slot["client"], slot["role"], slot["lenses"]) for slot in stage["deep"]]
     assert deep == [
-        ("pi-vibe-glm-flash", "architecture-critic", ["test-seams", "quality-scenarios"]),
-        ("pi-vibe-deepseek-flash", "decision-recoverer", []),
+        ("pi-paid-glm-flash", "architecture-critic", ["test-seams", "quality-scenarios"]),
+        ("pi-paid-deepseek-flash", "decision-recoverer", []),
     ]
     assert stage["distinct_families"] is True
     assert stage["depth_signals"]["thresholds"] == {"source_lines": 20000, "context_maps": 0}

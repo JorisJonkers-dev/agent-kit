@@ -466,7 +466,7 @@ fn pi_machine() -> Machine {
     std::fs::write(format!("{home}/skills/other/SKILL.md"), "other").expect("other skill");
     std::fs::write(
         format!("{home}/models.json"),
-        r#"{"providers":{"litellm-vibe":{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{"id":"ministral-8b"}]}}}"#,
+        r#"{"providers":{"litellm-paid":{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{"id":"paid/ministral-8b"}]}}}"#,
     )
     .expect("models");
     machine.runtime.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
@@ -475,7 +475,7 @@ fn pi_machine() -> Machine {
 }
 
 fn pi_run(extra: &str) -> String {
-    format!(r#"{{"workflow":"w","client":"pi-vibe","mode":"read-only","model":"ministral-8b","prompt":"p","escalate":false,"profile":"cheap-research"{extra}}}"#)
+    format!(r#"{{"workflow":"w","client":"pi-paid","mode":"read-only","model":"paid/ministral-8b","prompt":"p","escalate":false,"profile":"cheap-research"{extra}}}"#)
 }
 
 #[test]
@@ -502,7 +502,7 @@ fn a_pi_run_whose_profile_lists_a_skill_the_home_lacks_is_refused_before_anythin
     let error = run(&machine, &pi_run("")).expect_err("a skill the home lacks");
 
     assert_eq!(error.code, "profile-refused");
-    assert!(error.message.starts_with("profile cheap-research cannot run on pi-vibe: skill lint is not in Pi's home: looked for "), "{}", error.message);
+    assert!(error.message.starts_with("profile cheap-research cannot run on pi-paid: skill lint is not in Pi's home: looked for "), "{}", error.message);
     assert!(!std::path::Path::new(&format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).exists());
 }
 
@@ -510,7 +510,7 @@ fn pi_free_machine(cost: &str) -> Machine {
     let machine = pi_machine();
     std::fs::write(
         format!("{}/home/.pi/agent/models.json", machine.sandbox.text()),
-        format!(r#"{{"providers":{{"litellm-vibe":{{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{{"id":"ministral-8b"{cost}}}]}}}}}}"#),
+        format!(r#"{{"providers":{{"litellm-paid":{{"api":"openai-completions","apiKey":"literal","baseUrl":"https://litellm.example/v1","models":[{{"id":"paid/ministral-8b"{cost}}}]}}}}}}"#),
     )
     .expect("models");
     machine
@@ -524,7 +524,7 @@ fn a_free_only_run_on_a_model_that_is_not_free_is_refused_before_anything_runs()
         let error = run(&machine, &pi_run(r#","free_only":true"#)).expect_err("a model that is not free");
 
         assert_eq!(error.code, "free-only-refused");
-        assert!(error.message.starts_with("pi-vibe:ministral-8b is not free"), "{}", error.message);
+        assert!(error.message.starts_with("pi-paid:paid/ministral-8b is not free"), "{}", error.message);
         assert!(!std::path::Path::new(&format!("{}/state/agent-kit/model-gateway/ledger.jsonl", machine.sandbox.text())).exists());
     }
 }
@@ -545,7 +545,7 @@ fn with_vibe_catalogue(machine: &Machine, free: bool) {
     std::fs::write(
         format!("{dir}/litellm-catalogue.json"),
         format!(
-            r#"{{"updated_at":"2026-11-03T11:17:01Z","providers":{{"vibe":{{"models":[{{"id":"vibe/ministral-8b","metadata":{{"status":"usable","free":{free},"modality":"chat"}}}}]}}}},"groups":{{"ministral-8b":{{"modality":"chat","deployments":[{{"route":"vibe","upstream_id":"ministral-8b","order":1}}]}}}}}}"#
+            r#"{{"updated_at":"2026-11-03T11:17:01Z","providers":{{"vibe":{{"models":[{{"id":"vibe/ministral-8b","metadata":{{"status":"usable","free":{free},"modality":"chat"}}}}]}}}},"groups":{{"paid/ministral-8b":{{"modality":"chat","deployments":[{{"route":"vibe","upstream_id":"ministral-8b","order":1}}]}}}}}}"#
         ),
     )
     .expect("catalogue");

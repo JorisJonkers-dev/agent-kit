@@ -109,7 +109,7 @@ Instead of "client" and "model", a run may name a delegation role: --profile
 ROLE (or "profile") and --harness H (or "harness"), where the role is a
 delegation profile (research, implement, critique, red-team, refute, triage, or
 any other `models` lists) and the harness is pi (the default route of a role),
-claude, codex, agy, vibe, hermes or a Pi route such as pi-opencode-go. The
+claude, codex, agy, vibe, hermes or a Pi route such as pi-paid. The
 gateway picks the cheapest model the role leaves on that harness for the
 repository, and refuses with the reason when it leaves none.
 A run may instead name a LiteLLM tier: --tier T (or "tier") where T is tier-free, tier-vibe,

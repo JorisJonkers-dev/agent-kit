@@ -15,8 +15,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"pi-vibe:glm-5.3 is not allowed by profile cheap-research here: the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-vibe:glm-5.3-flash, pi-opencode-go:qwen3.8-flash\"}\n",
-      "stderr": "model-gateway run: pi-vibe:glm-5.3 is not allowed by profile cheap-research here: the profile and the data policy leave pi-vibe:ministral-8b, pi-vibe:mistral-small, pi-vibe:glm-5.3-flash, pi-opencode-go:qwen3.8-flash\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"pi-vibe:glm-5.3 is not allowed by profile cheap-research here: the profile and the data policy leave pi-paid:paid/ministral-8b, pi-paid:paid/mistral-small, pi-paid:paid/glm-5.3-flash, pi-paid:paid/qwen3.8-flash\"}\n",
+      "stderr": "model-gateway run: pi-vibe:glm-5.3 is not allowed by profile cheap-research here: the profile and the data policy leave pi-paid:paid/ministral-8b, pi-paid:paid/mistral-small, pi-paid:paid/glm-5.3-flash, pi-paid:paid/qwen3.8-flash\n",
       "files": {
         "home/": null,
         "home/.pi/": null,
@@ -109,8 +109,8 @@
     },
     {
       "exit": 1,
-      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"profile cheap-research has no allowed model: none of its 1 models is both usable now and permitted by the data policy (github.com/jorisjonkers-dev/demo: the entry allows zhipu)\"}\n",
-      "stderr": "model-gateway run: profile cheap-research has no allowed model: none of its 1 models is both usable now and permitted by the data policy (github.com/jorisjonkers-dev/demo: the entry allows zhipu)\n",
+      "stdout": "{\"status\":\"error\",\"code\":\"profile-refused\",\"message\":\"narrow.models names pi-opencode-go:qwen3.8-flash, which profile cheap-research does not allow: a request may narrow a profile, never widen it\"}\n",
+      "stderr": "model-gateway run: narrow.models names pi-opencode-go:qwen3.8-flash, which profile cheap-research does not allow: a request may narrow a profile, never widen it\n",
       "files": {
         "home/": null,
         "home/.config/": null,

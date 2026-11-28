@@ -38,7 +38,7 @@ frontier clients (`codex-work`, `claude-work`) stay only as the `work` pool, the
 orchestrator and deep tier, never a cheap review slot.
 `scripts/crates/critique/src/tests/review_routes.rs` fails on a review route, a Vibe critic
 agent, a review profile of the gateway or a `tier-review` step outside that class,
-unless the test lists the exception with its reason. `pi-vibe-mistral-large` and `pi-vibe-glm` stay in `routing.json` only so the Gold Band lint can read the family of a template binding such as `mistral-large-4-0`; no slot names them.
+unless the test lists the exception with its reason. `pi-paid-mistral-large` and `pi-paid-glm` stay in `routing.json` only so the Gold Band lint can read the family of a template binding such as `mistral-large-4-0`; no slot names them.
 
 ## Stages
 
@@ -600,15 +600,15 @@ item that is not available, since no read-only proof is wired for Pi yet.
 
 **Pi is the default critic.** In the shipped `routing.json` every stage's
 base and deep slot is a Pi client over the LiteLLM `vibe` route, or `agy`:
-`pi-vibe-mistral-small` (mistral), `pi-vibe-glm-flash` (zhipu),
-`pi-vibe-deepseek-flash` (deepseek) and `agy-gemini-flash-high` (google), so
+`pi-paid-mistral-small` (mistral), `pi-paid-glm-flash` (zhipu),
+`pi-paid-deepseek-flash` (deepseek) and `agy-gemini-flash-high` (google), so
 each stage still has one critic per family and `distinct_families` holds. Each
 Pi client falls back to a Pi client on the `opencode-go` route (`pi-opencode-go-*`,
 the same models on another route and budget), and nothing further: the
 Vibe-login clients (`vibe-mistral-small`, `vibe-glm-flash`, `vibe-deepseek-flash`)
 spend the owner's Mistral account and run only when an owner's routing override
 names them, so a slot whose Pi clients cannot run stays empty.
-`agy-gemini-flash-high` falls back to `pi-vibe-glm-flash` and, last,
+`agy-gemini-flash-high` falls back to `pi-paid-glm-flash` and, last,
 `pi-free-gemini-flash` (the Gemini free tier as `free/gemini-3.6-flash`). The work roster, the triage model and the cold
 read are unchanged.
 
