@@ -49,6 +49,7 @@ fn settings() -> Settings {
         availability_window_minutes: 60.0,
         metered_personal_caps: MeteredPersonalCaps { per_workflow_usd: 2.0, per_day_usd: 5.0 },
         quota: crate::quota::QuotaSettings::default(),
+        stall: crate::stall::StallSettings::default(),
         output_allowance_tokens: [500.0, 2000.0, 6000.0, 16000.0],
     }
 }

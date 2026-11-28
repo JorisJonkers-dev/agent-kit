@@ -28,16 +28,21 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
     Batch,
+    Cancel,
     Catalog,
+    Gc,
     GrantList,
     GrantReserve,
     GrantWrite,
+    Logs,
     Matrix,
     Models,
+    Ps,
     Run,
     SandboxPrune,
     SandboxRefresh,
     SandboxStatus,
+    Status,
     Usage,
     WorkflowEnd,
     WorkflowList,
@@ -54,6 +59,11 @@ pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> 
         Command::SandboxPrune => crate::sbx_prune::command(input, runtime),
         Command::SandboxRefresh => crate::sbx_images::refresh_command(runtime),
         Command::SandboxStatus => crate::sbx_images::status_command(runtime),
+        Command::Ps => crate::run_status::ps(input, runtime),
+        Command::Status => crate::run_status::status(input, runtime),
+        Command::Logs => crate::run_status::logs(input, runtime),
+        Command::Gc => crate::run_status::gc(input, runtime),
+        Command::Cancel => crate::run_cancel::cancel(input, runtime),
         Command::Usage => usage_command(input, runtime),
         Command::GrantWrite => grant_write(input, runtime),
         Command::GrantList => grant_list(input, runtime),
@@ -68,7 +78,7 @@ pub fn run(command: Command, _name: &str, input: &Object, runtime: &Runtime) -> 
         }
         Command::Batch => {
             let runs = crate::run_command::RunCommand { runtime, decision: None };
-            crate::batch_command::BatchCommand { runtime, runs: &runs }.run(&Value::Obj(input.clone()))
+            crate::batch_command::BatchCommand { runtime, runs: &runs, progress: &|line| eprintln!("{line}") }.run(&Value::Obj(input.clone()))
         }
         Command::WorkflowStart => workflow_start(input, runtime),
         Command::WorkflowEnd => workflow_end(input, runtime),

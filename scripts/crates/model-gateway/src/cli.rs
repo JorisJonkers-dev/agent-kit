@@ -29,6 +29,13 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
                                  {"id": "b", "depends_on": ["a"], "client": "claude",
                                   "model": "claude-sonnet-5-5", "mode": "read-only",
                                   "prompt": "review a's finding", "repo": "/path/to/repo"}]}'
+       model-gateway ps [--all] [--workflow NAME] [--state STATE] [--limit N] [--json]
+       model-gateway status RUN [--json]
+       model-gateway logs RUN [--types TYPE,TYPE] [--json]
+       model-gateway tail [-f] [--types TYPE,TYPE] [--run RUN] [--workflow NAME] [-n LINES] [--since SECONDS]
+                          [--exit-when-done] [--json]
+       model-gateway cancel RUN [--json]
+       model-gateway gc [--days N] [--dry-run] [--json]
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
                                  "answer": "yes, up to five"}' [--max-starts N]
@@ -203,6 +210,34 @@ client, model, cost_usd, output_path, summary, and "reason", "attempts" or
 A batch never nests: it is refused inside a delegation, and a delegation of a
 batch cannot be a batch.
 
+A batch prints one progress line per delegation state change on stderr, so the JSON on stdout stays
+clean: "batch <batch id> <delegation id>: queued|running|done|failed|skipped <client>:<model> (<detail>)".
+
+Every run writes an event log (events.jsonl in its run directory, ADR-0017) and is listed in a global run
+index (run-index.jsonl in the state directory, rotated at 1 MiB, the newest 8 rotated files kept). The
+status commands answer from those and never read the client's raw output. A run is running, stalled (quiet
+past its threshold), ok, failed, cancelled or lost (its gateway died without a finish).
+ps lists the running runs and the ones started in the last 24 hours, newest first (--all lists every run the
+index holds; --state, --workflow and --limit narrow it; at most 50 unless --limit). status RUN says what one run
+is doing: its state, current step, last event, tokens, cost and how long ago its last heartbeat was. RUN is a
+run id or the start of one. logs RUN prints its events and diagnostics, one line each, or only the --types
+named; --json prints the events as they are on disk. cancel RUN sends SIGTERM to the client's whole process
+group (SIGKILL after 5 seconds), removes the run's sandbox with sbx rm --force, and the run ends as
+"cancelled" with exactly one run.finished; the delegation is never retried. gc removes the directories of runs
+that ended more than --days days ago (30 by default; --dry-run only lists them) and the rotated index files
+that old; a run still going is never removed.
+tail prints events as lines, "<ts> <run id> <type> <summary>", of the runs started in the last 24 hours
+(the last 20 unless -n). -f follows: it prints each event as it is written, from the start of every run that
+is going or ended in the last --since seconds (600 by default), and never more than one line per run every
+10 seconds, with "(+N earlier events coalesced)" on the line that stands for the ones it held; a stall, a
+cancel and a finish are always printed at once. --types keeps only those event types (stall,run.finished
+watches a batch for what needs a person), --run and --workflow only those runs; -f ends when --run's run
+finishes, with --exit-when-done when every followed run has, else never. Event types: run.started,
+process.started, sandbox.started, diagnostic, heartbeat (every 15 s), stall, cancel, run.finished.
+
+A run whose client writes nothing for "settings.stall.threshold_s" seconds (180 by default; a machine file may
+set it) gets a stall event, and one still silent at three times that is cancelled, exactly as by cancel.
+
 workflow start, workflow end and workflow list keep a workflow's life: start
 and end take "name", and list takes nothing. A workflow nobody ends within 24
 hours counts as ended, and a run may not join one that ended.
@@ -228,18 +263,23 @@ An error prints "status": "error" with its "code" and exits 1.
 "#;
 
 /// The subcommands the gateway has, and the command each one runs.
-const COMMANDS: [(&str, Command); 16] = [
+const COMMANDS: [(&str, Command); 21] = [
     ("batch", Command::Batch),
+    ("cancel", Command::Cancel),
     ("catalog", Command::Catalog),
+    ("gc", Command::Gc),
     ("grant list", Command::GrantList),
     ("grant reserve", Command::GrantReserve),
     ("grant write", Command::GrantWrite),
+    ("logs", Command::Logs),
     ("matrix", Command::Matrix),
     ("models", Command::Models),
+    ("ps", Command::Ps),
     ("run", Command::Run),
     ("sandbox prune", Command::SandboxPrune),
     ("sandbox refresh", Command::SandboxRefresh),
     ("sandbox status", Command::SandboxStatus),
+    ("status", Command::Status),
     ("usage", Command::Usage),
     ("workflow end", Command::WorkflowEnd),
     ("workflow list", Command::WorkflowList),
@@ -249,7 +289,7 @@ const COMMANDS: [(&str, Command); 16] = [
 
 /// The subcommands, as an error names them.
 const COMMAND_NAMES: &str =
-    "models, catalog, run, batch, matrix, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list, worktrees clean, sandbox refresh, sandbox status and sandbox prune";
+    "models, catalog, run, batch, ps, status, logs, tail, cancel, gc, matrix, usage, grant write, grant reserve, grant list, workflow start, workflow end, workflow list, worktrees clean, sandbox refresh, sandbox status and sandbox prune";
 
 /// What one run prints and how it exits.
 pub struct CliResult {
@@ -272,6 +312,9 @@ pub fn run_cli(argv: &[String], runtime: &Runtime) -> CliResult {
     }
     if named.name.starts_with("sandbox ") {
         return sandbox_cli(&named, runtime);
+    }
+    if let Some(result) = crate::status_cli::run(&named, runtime) {
+        return result;
     }
     // `grant write` also takes `--max-starts N`, which sets the grant's max_starts beside the JSON object, and
     // `models` takes `--free`, which sets its `free` filter.
@@ -443,10 +486,10 @@ fn without_max_starts(args: &[String]) -> Option<(Vec<String>, Option<Value>)> {
 }
 
 /// The subcommand the arguments name, and the arguments after it.
-struct Named<'a> {
-    args: &'a [String],
-    command: Command,
-    name: &'a str,
+pub(crate) struct Named<'a> {
+    pub(crate) args: &'a [String],
+    pub(crate) command: Command,
+    pub(crate) name: &'a str,
 }
 
 /// The subcommand the arguments name, and the arguments after it; a two-word subcommand wins over a one-word one.
@@ -502,7 +545,7 @@ fn parse_input(text: &str) -> Result<Object, GatewayError> {
 
 /// One error, as the contract prints it: one JSON object on stdout, and a line for the owner on stderr. A refused
 /// plan carries every problem it found beside its code.
-fn failure(code: &str, message: &str, name: Option<&str>, problems: &[crate::batch::PlanProblem]) -> CliResult {
+pub(crate) fn failure(code: &str, message: &str, name: Option<&str>, problems: &[crate::batch::PlanProblem]) -> CliResult {
     let mut object = Object::new();
     object.set("status", Value::str("error"));
     object.set("code", Value::str(code));

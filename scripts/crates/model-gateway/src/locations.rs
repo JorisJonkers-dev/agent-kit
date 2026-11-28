@@ -86,6 +86,12 @@ pub fn runs_dir(env: &HashMap<String, String>) -> Result<String, GatewayError> {
     Ok(join(&[&state_dir(env)?, "runs"]))
 }
 
+/// The global index of runs: one JSON line per run start, finish and removal, whichever repository a run ran in,
+/// so the status commands list runs without scanning run directories. Rotated copies sit beside it.
+pub fn run_index_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {
+    Ok(join(&[&state_dir(env)?, crate::run_index::INDEX_FILE]))
+}
+
 /// This machine's routing override, applied client by client over the routing critique ships. It is resolved
 /// the way critique resolves it, so the gateway reads the routing critique really runs.
 pub fn routing_override_path(env: &HashMap<String, String>) -> Result<String, GatewayError> {

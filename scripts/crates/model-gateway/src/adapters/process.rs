@@ -92,6 +92,10 @@ impl Process for SystemProcess {
         // SAFETY: signal 0 sends nothing; it only asks whether the process is there.
         unsafe { kill(pid as i32, 0) == 0 }
     }
+
+    fn signal_group(&self, pid: u32, signal: i32) -> bool {
+        signal_group(pid, signal)
+    }
 }
 
 impl SystemProcess {

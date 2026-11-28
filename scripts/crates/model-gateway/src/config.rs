@@ -204,6 +204,8 @@ pub struct Settings {
     /// What `run --tier` reads before it chooses a tier, and how many runs a tier takes at once. Every field has a
     /// default, so the shipped defaults and a machine file need not state it.
     pub quota: crate::quota::QuotaSettings,
+    /// How long a run's client may be silent before it is called stalled; every field has a default.
+    pub stall: crate::stall::StallSettings,
 }
 
 impl Settings {

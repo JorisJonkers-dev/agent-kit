@@ -27,6 +27,8 @@ pub enum FailureKind {
     HarnessError,
     /// The gateway itself stopped before the run's result was written (an error of its own, or it was killed).
     GatewayError,
+    /// The owner's `cancel` or the stall policy ended the run.
+    Cancelled,
 }
 
 impl FailureKind {
@@ -38,6 +40,7 @@ impl FailureKind {
             FailureKind::SandboxDenied => "sandbox-denied",
             FailureKind::HarnessError => "harness-error",
             FailureKind::GatewayError => "gateway-error",
+            FailureKind::Cancelled => "cancelled",
         }
     }
 }

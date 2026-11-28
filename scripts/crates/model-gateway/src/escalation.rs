@@ -22,7 +22,8 @@ pub const FAILURE_TAIL_CHARS: usize = 1000;
 /// the same terms, so none is retried. Refusals are errors that stop the call before anything is launched; the
 /// codes are listed here as well so one that surfaces as a result's reason (the caps and the grants) is still
 /// never retried.
-const REFUSAL_REASONS: [&str; 17] = [
+const REFUSAL_REASONS: [&str; 18] = [
+    "cancelled",
     "cap-exceeded",
     "grant-expiring",
     "no-grant",

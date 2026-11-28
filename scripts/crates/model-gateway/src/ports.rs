@@ -53,6 +53,14 @@ pub trait Files: Send + Sync {
     fn list_dir(&self, _path: &str) -> Result<Vec<String>, FsError> {
         Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot list".into() })
     }
+    /// Moves a file to a new name in one step; a file system that cannot says so.
+    fn rename(&self, _from: &str, _to: &str) -> Result<(), FsError> {
+        Err(FsError { code: "ENOSYS".into(), message: "ENOSYS: this file system cannot rename".into() })
+    }
+    /// The file's size in bytes; `None` when it cannot be read.
+    fn size(&self, _path: &str) -> Option<u64> {
+        None
+    }
 }
 
 /// What `stamp` reports of a file, followed through every symlink.
@@ -109,6 +117,8 @@ pub trait LaunchWatch: Sync {
     fn output(&self, stream: Stream, chunk: &[u8]);
     /// Something the runner itself did to the process (the time limit's SIGTERM, a SIGKILL after the grace).
     fn note(&self, text: &str);
+    /// The name of the sandbox the launch runs in, once it is made, so a cancel can remove it.
+    fn sandbox(&self, _name: &str) {}
 }
 
 /// A watch that wants nothing.
@@ -152,6 +162,11 @@ pub trait Process: Send + Sync {
     /// lost on a guess.
     fn is_alive(&self, _pid: u32) -> bool {
         true
+    }
+    /// Sends `signal` to every process of the group `pid` leads; whether any was there to get it. A runner that
+    /// cannot signal says none was.
+    fn signal_group(&self, _pid: u32, _signal: i32) -> bool {
+        false
     }
     /// The path of the first executable file named `binary` in a folder of PATH; `None` when there is none.
     fn resolve(&self, binary: &str) -> Option<String>;

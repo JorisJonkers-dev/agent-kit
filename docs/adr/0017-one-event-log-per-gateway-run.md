@@ -45,6 +45,28 @@ not the client, so it reads the same for every harness.
   process is gone. It first claims the log with an exclusively created
   `events.lost`, so two gateways never both write the finish.
 
+## Run index, status commands and stall policy (#937, #940)
+
+- **Index.** `run-index.jsonl` in the state directory lists every run: a `started` line, a `finished` line and,
+  after `gc`, a `removed` line. Every line is one append, so concurrent gateways need no lock; a file past 1 MiB
+  is renamed to `run-index.<ms>-<id>.jsonl` (a rename that races an append leaves the append in the renamed
+  file) and the newest eight rotated files stay. The index says where a run's log is, because run directories
+  sit either in the state directory or in a repository's git directory. What happened is read from the log.
+- **Commands.** `ps`, `status`, `logs`, `tail`, `cancel` and `gc` read the index and the logs, never a client's
+  raw output. A run with no `run.finished` whose gateway is gone reads as `lost`.
+- **Cancel.** `process.started` (the client's pid, the leader of its group) and `sandbox.started` are in the log
+  so a cancel can find both. `cancel` leaves `cancel.requested` in the run directory, signals the group (SIGTERM,
+  SIGKILL after the grace) and runs `sbx rm --force`. The run's gateway reads the marker after the client
+  exits: the result's reason is `cancelled` (a refusal, so never retried) and its failure kind `cancelled`, and
+  it writes the one finish. A cancel writes the finish only when the gateway is gone, under the same
+  `events.lost` claim as the lost-run recovery.
+- **Stall.** The heartbeat thread also looks at the client's silence every second. At
+  `settings.stall.threshold_s` (180 s unless the machine override says otherwise) it writes `stall`; at three
+  times that it cancels as above and writes `cancel` with `by: stall`. Output after a stall starts the count
+  over.
+- **Tail.** `tail -f` prints at most one line per run every 10 seconds, with the number of events a line
+  stands for. `stall`, `cancel` and `run.finished` are never held back.
+
 ## Sandbox denials are not captured
 
 On macOS 27 a denial inside an `agent-launcher confine` profile does not show in

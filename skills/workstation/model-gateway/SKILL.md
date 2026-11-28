@@ -10,7 +10,7 @@ agent calls the runner, and the `delegate` skill is what
 teaches an orchestrator to plan with it. The runner answers these questions:
 `models`, which client models this machine can use right now; `catalog`, every canonical model the proxy serves with what serves it and what it costs; `usage`, what
 each client can do now and what it has spent; `run`, one delegation to one of
-them; `batch`, a whole plan of delegations in one call; `workflow`, the life of the piece of work a delegation belongs to; and
+them; `batch`, a whole plan of delegations in one call; `ps`, `status`, `logs`, `tail`, `cancel` and `gc`, what the runs are doing and the means to end them; `workflow`, the life of the piece of work a delegation belongs to; and
 `grant`, the owner's permission to spend their employer's money on one of
 them.
 
@@ -668,15 +668,76 @@ same for every client. Each line has `v` (the schema version, `1`), `seq`
 | `type` | `data` |
 | :- | :- |
 | `run.started` | `gateway_pid`, `mode`, `time_limit_s` |
+| `process.started` | `pid`: the client's process, the leader of its own process group |
+| `sandbox.started` | `name`: the run's Docker Sandbox, which `cancel` removes |
 | `diagnostic` | `level`, `source` (`stderr`: one per stderr line, the first 200; `gateway`: what the runner did, such as the time limit's SIGTERM), `text` |
 | `heartbeat` | every 15 s while the client runs: `pid`, `alive_s`, `stdout_bytes`, `stderr_bytes`, `last_output_age_s` |
-| `run.finished` | exactly once: `status` (`ok`, `failed`, `lost`), `exit_code`, `signal`, `reason`, `failure`, `stderr_tail`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `cost_usd`, `pid`, `duration_s` |
+| `stall` | the client wrote nothing for the threshold: `silent_s`, `threshold_s`, `cancel_at_s` |
+| `cancel` | the run is being cancelled: `by` (`owner` or `stall`) and `reason` |
+| `run.finished` | exactly once: `status` (`ok`, `failed`, `cancelled`, `lost`), `exit_code`, `signal`, `reason`, `failure`, `stderr_tail`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `cost_usd`, `pid`, `duration_s` |
 
 `tail -f events.jsonl` shows a live run. A gateway killed before it wrote
 `run.finished` leaves the log open; the next run started beside it (same runs
 directory) finishes it as `lost` (reason `gateway-lost`) once that gateway's
 process is gone. The log never fails a run, and `result.json` stays the
 record.
+
+### What the runs are doing: `ps`, `status`, `logs`, `tail`, `cancel`, `gc`
+
+Every run is listed in a global index, `run-index.jsonl` beside the ledger in
+the state directory: one line when it starts, one when it ends, one when `gc`
+removes it. Each line is one append, so any number of gateways write it at
+once; at 1 MiB it is renamed to `run-index.<ms>-<id>.jsonl` and a new one
+starts, and only the newest eight rotated files stay. These commands answer
+from the index and the runs' event logs and never read a client's raw output.
+
+```
+model-gateway ps [--all] [--workflow NAME] [--state STATE] [--limit N] [--json]
+model-gateway status RUN [--json]
+model-gateway logs RUN [--types TYPE,TYPE] [--json]
+model-gateway tail [-f] [--types TYPE,TYPE] [--run RUN] [--workflow NAME] [-n LINES] [--since SECONDS] [--exit-when-done] [--json]
+model-gateway cancel RUN [--json]
+model-gateway gc [--days N] [--dry-run] [--json]
+```
+
+- `ps` lists the running runs and those started in the last 24 hours, newest
+  first: run id, state, client, model, mode, age and last event. A run is
+  `running`, `stalled` (quiet past the stall threshold), `ok`, `failed`,
+  `cancelled` or `lost` (its gateway died without writing a finish).
+  `--all` lists everything the index holds.
+- `status RUN` is one run: state, current step, last event and its age,
+  heartbeat age, seconds since the client last wrote, tokens, cost, the
+  client's process id, its sandbox, and for a failed run its reason and
+  failure. `RUN` is a run id or the start of one.
+- `logs RUN` prints the run's events and diagnostics, a line each; `--json`
+  prints them as they are on disk.
+- `tail` prints `<ts> <run id> <type> <summary>` lines. `-f` follows runs
+  that are going or ended in the last `--since` seconds (600), at most one
+  line per run every 10 seconds (the line says how many events it stands
+  for), except `stall`, `cancel` and `run.finished`, which come at once.
+  `--types stall,run.finished` is the watch for a batch: it prints only
+  those. It ends when `--run`'s run finishes, or with `--exit-when-done` when
+  every run it follows has, and otherwise never, which is what Monitor wants.
+- `cancel RUN` sends SIGTERM to the client's whole process group and SIGKILL
+  after five seconds, removes the run's sandbox with `sbx rm --force`, and
+  the run ends as `cancelled` with exactly one `run.finished`. Its gateway
+  writes the finish; only when that gateway is gone does `cancel` write it.
+  A cancelled delegation is never retried, and a batch skips what depends on
+  it.
+- `gc` removes the directories of runs that ended more than `--days` (30)
+  days ago, notes it in the index, and drops rotated index files that old. It
+  never touches a run that is still going.
+
+**Stall policy.** A run whose client writes nothing to stdout or stderr for
+`settings.stall.threshold_s` seconds (180 by default, set in the machine
+override) gets a `stall` event, and one still silent at three times that is
+cancelled the way `cancel` does it, with the reason in `cancel.requested` in
+the run directory and in the result's `failure`. A client that writes again
+before the cancel starts the count over.
+
+`batch` prints one progress line per delegation state change on stderr
+(`batch <batch id> <delegation>: queued|running|done|failed|skipped
+<client>:<model>`), so its JSON on stdout stays clean.
 
 Every run also appends one JSON line to the machine-wide ledger,
 `$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl` (else

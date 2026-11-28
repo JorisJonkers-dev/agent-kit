@@ -36,7 +36,7 @@ fn machine() -> Machine {
 /// Runs one batch over the machine's runtime.
 fn batch(machine: &Machine, input: &str) -> Result<Value, GatewayError> {
     let runs = RunCommand { runtime: &machine.runtime, decision: None };
-    BatchCommand { runtime: &machine.runtime, runs: &runs }.run(&parse(input).expect("JSON"))
+    BatchCommand { runtime: &machine.runtime, runs: &runs, progress: &|_| {} }.run(&parse(input).expect("JSON"))
 }
 
 /// A plan of the delegations given, in the workflow `w`.

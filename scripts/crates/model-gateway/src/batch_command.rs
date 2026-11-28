@@ -91,6 +91,9 @@ struct Planned {
 pub struct BatchCommand<'a> {
     pub runtime: &'a Runtime,
     pub runs: &'a RunCommand<'a>,
+    /// Where the progress lines go, one per delegation state change; the command line points it at stderr, so
+    /// the JSON on stdout stays clean.
+    pub progress: &'a (dyn Fn(&str) + Sync),
 }
 
 impl BatchCommand<'_> {
@@ -102,6 +105,9 @@ impl BatchCommand<'_> {
         let planned = self.check(&input, &config)?;
         let held = self.reserve(&input, &planned, &config)?;
         let batch_id = self.batch_id();
+        for delegation in &input.delegations {
+            self.report_state(&batch_id, delegation, "queued", None);
+        }
         let unrun: Vec<ReservationRecord> = held.values().map(|reservation| reservation.record.clone()).collect();
         let reports = self.execute(&input, &config, &held, &batch_id);
         self.release_quietly(&unrun);
@@ -196,7 +202,7 @@ impl BatchCommand<'_> {
         let mut running = 0usize;
         std::thread::scope(|scope| {
             loop {
-                self.skip_blocked(&mut pending, &mut reports, held);
+                self.skip_blocked(batch_id, &mut pending, &mut reports, held);
                 let mut index = 0;
                 while index < pending.len() {
                     let delegation = pending[index].clone();
@@ -208,6 +214,7 @@ impl BatchCommand<'_> {
                         continue;
                     }
                     pending.remove(index);
+                    self.report_state(batch_id, &delegation, "running", None);
                     *planned.entry(client.clone()).or_insert(0) += 1;
                     let given: Vec<DependencyOutput> = waits.into_iter().flatten().collect();
                     let tag = BatchTag { batch_id: batch_id.to_string(), delegation: delegation.id.clone() };
@@ -239,6 +246,7 @@ impl BatchCommand<'_> {
                 // The scheduler holds a sender of its own, so the channel never closes while a delegation runs.
                 let (id, client, report) = receiver.recv().expect("a running delegation reports");
                 running -= 1;
+                self.report_final(batch_id, &report);
                 if report.status == DelegationStatus::Done {
                     outputs.insert(
                         id.clone(),
@@ -259,6 +267,7 @@ impl BatchCommand<'_> {
     /// Skips every pending delegation that waits for one that failed or was skipped, to the end of the chain.
     fn skip_blocked(
         &self,
+        batch_id: &str,
         pending: &mut Vec<BatchDelegation>,
         reports: &mut BTreeMap<String, DelegationReport>,
         held: &BTreeMap<String, Reservation>,
@@ -280,7 +289,7 @@ impl BatchCommand<'_> {
                 .and_then(|report| report.skipped_because.clone())
                 .or_else(|| cause.as_ref().map(|report| report.id.clone()))
                 .unwrap_or_default();
-            self.skip(&blocked, &because, pending, reports, held);
+            self.skip(batch_id, &blocked, &because, pending, reports, held);
         }
     }
 
@@ -288,6 +297,7 @@ impl BatchCommand<'_> {
     /// reservation back.
     fn skip(
         &self,
+        batch_id: &str,
         delegation: &BatchDelegation,
         because: &str,
         pending: &mut Vec<BatchDelegation>,
@@ -295,6 +305,7 @@ impl BatchCommand<'_> {
         held: &BTreeMap<String, Reservation>,
     ) {
         pending.retain(|entry| entry.id != delegation.id);
+        self.report_state(batch_id, delegation, "skipped", Some(&format!("because {because}")));
         reports.insert(
             delegation.id.clone(),
             DelegationReport {
@@ -347,6 +358,18 @@ impl BatchCommand<'_> {
                 failed_report(delegation, &error, Some(cost_of(&lines)), None, attempts)
             }
         }
+    }
+
+    /// One progress line: the delegation's new state, and what it runs on.
+    fn report_state(&self, batch_id: &str, delegation: &BatchDelegation, state: &str, detail: Option<&str>) {
+        let detail = detail.map(|detail| format!(" ({detail})")).unwrap_or_default();
+        (self.progress)(&format!("batch {batch_id} {}: {state} {}:{}{detail}", delegation.id, delegation.input.client, delegation.input.model));
+    }
+
+    /// The progress line of a delegation that ended: done, or failed with its reason.
+    fn report_final(&self, batch_id: &str, report: &DelegationReport) {
+        let detail = report.reason.as_deref().map(|reason| format!(" ({reason})")).unwrap_or_default();
+        (self.progress)(&format!("batch {batch_id} {}: {} {}:{}{detail}", report.id, report.status.as_str(), report.client, report.model));
     }
 
     /// The ledger's lines, or `None` when it cannot be read: a lost ledger must not lose the batch's result.
