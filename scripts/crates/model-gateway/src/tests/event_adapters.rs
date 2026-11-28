@@ -503,3 +503,15 @@ fn hermes_info_logs_are_not_an_error_channel_and_every_other_clients_stderr_is()
     assert_eq!(crate::event_adapters::error_channel("hermes", stderr), "real error: rate limit\n");
     assert_eq!(crate::event_adapters::error_channel("opencode", stderr), stderr);
 }
+
+#[test]
+fn an_acp_run_keeps_the_dollars_and_the_failure_a_usage_file_reports() {
+    let stdout = "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"stopReason\":\"end_turn\",\"usage\":{\"inputTokens\":9,\"outputTokens\":1}}}\n";
+    let report = json::parse(r#"{"estimated_cost_usd":0.25,"failed":true,"input_tokens":1,"output_tokens":1}"#).expect("JSON");
+    let out = hermes_output(stdout, Some(&report));
+    assert_eq!((out.charged, out.failure.as_deref(), out.tokens.input, out.error), (Some(0.25), Some("failed"), 9.0, None));
+    let clean = hermes_output(stdout, None);
+    assert_eq!((clean.charged, clean.failure), (None, None));
+    let stopped = hermes_output("{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"stopReason\":\"refusal\"}}\n", None);
+    assert_eq!(stopped.failure.as_deref(), Some("client-error"));
+}

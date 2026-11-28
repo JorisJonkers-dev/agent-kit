@@ -676,7 +676,7 @@ fn runs_opencode_standalone_with_the_prompt_as_its_message() {
 }
 
 #[test]
-fn runs_hermes_over_acp_with_its_provider_and_no_prompt_argument() {
+fn runs_hermes_over_acp_with_its_provider_and_reads_the_usage_file_from_the_run_directory_or_the_export_directory() {
     let usage = r#"{"cost":0.5,"input_tokens":4,"output_tokens":5}"#;
     let mut named = request(RunClient::Hermes, "hermes", "deepseek", RunExtras::default());
     named.launch.provider = Some("deepinfra".to_string());
@@ -688,17 +688,18 @@ fn runs_hermes_over_acp_with_its_provider_and_no_prompt_argument() {
 
     let command = process.first();
     // A provider the owner's home must give (its sign-in is there) runs in safe mode: no config, plugin, memory or MCP server.
-    assert_eq!(command.args, strings(&["-m", "deepseek", "--provider", "deepinfra", "-t", "web", "--safe-mode", "acp"]));
+    assert_eq!(command.args, strings(&["--usage-file", "/run/own/usage.json", "-m", "deepseek", "--provider", "deepinfra", "-t", "web", "--safe-mode", "acp"]));
     // Its key is in the owner's `.env`, which the run's home links to; the rest of the owner's home is not there.
     assert_eq!(command.env.get("HERMES_HOME").map(String::as_str), Some("/run/own/client-home/.hermes"));
     assert_eq!(command.timeout_ms, Some(960_000));
-    // ACP has no usage file: the prompt is sent over stdin by the run's log, and the tokens come from the prompt's answer.
-    assert_eq!((outcome.exported, command.stdin), (None, None));
+    // The prompt is not on the command line or stdin: the run's log sends it over ACP.
+    assert_eq!((command.stdin, outcome.exported), (None, Some(json::parse(usage).expect("JSON"))));
 
-    // A run that names no provider passes the word node's template makes of it.
+    // Without a run directory the report is in the export directory, and a run that names no provider passes the word node's template makes of it.
     let bare = request(RunClient::Hermes, "hermes", "deepseek", RunExtras::default());
     let process = Fake::answering("an answer");
-    launch(&Memory::default(), &process, &bare).expect("the launch");
+    launch(&Memory::default().with("/run/export/usage.json", usage), &process, &bare).expect("the launch");
+    assert_eq!(flag(&process.first(), "--usage-file").as_deref(), Some("/run/export/usage.json"));
     assert_eq!(flag(&process.first(), "--provider").as_deref(), Some("undefined"));
 }
 
@@ -812,7 +813,7 @@ fn every_client_has_a_launcher_that_builds_its_command_and_reads_its_output() {
         // Building a command without any extras is the same for the clients that apply none.
         let bare = (launcher.command)("bin", &request, &paths(), "p", None);
         assert_eq!(bare.cwd.as_deref(), Some(WORK));
-        assert_eq!(launcher.report_path.is_some(), matches!(client, RunClient::Vibe));
+        assert_eq!(launcher.report_path.is_some(), matches!(client, RunClient::Vibe | RunClient::Hermes));
     }
     assert_eq!(DELEGATION_MARK, "AGENT_KIT_DELEGATION");
     let vibe_bare = (launcher(RunClient::Vibe).command)("vibe", &request, &paths(), "p", None);

@@ -566,7 +566,8 @@ fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, _pro
     // The node launcher writes `String(input.provider)`, so a run that names none passes the word `undefined`.
     let provider = input.provider.as_deref().unwrap_or("undefined");
     // The prompt is not an argument: the gateway drives `hermes acp` over its stdin and sends it as `session/prompt`.
-    let mut args = strings(&["-m", &input.model, "--provider", provider]);
+    // `--usage-file` stays: a Hermes that writes its estimate there has its dollars read from it.
+    let mut args = strings(&["--usage-file", &hermes_report(paths), "-m", &input.model, "--provider", provider]);
     // Hermes has no read-only file toolset, so a read-only run has the web tools alone (no file, terminal, code
     // execution, memory or delegation), and a writing run the file tools besides, with no terminal.
     args.extend(strings(&["-t", if input.mode == Some(RunMode::Write) { HERMES_WRITE_TOOLSETS } else { HERMES_READ_TOOLSETS }]));
@@ -596,13 +597,17 @@ fn hermes_read(stdout: &str, usage: Option<&Value>) -> ClientOutput {
     hermes_output(stdout, usage)
 }
 
+fn hermes_report(paths: &LaunchPaths) -> String {
+    join(&[report_dir(paths), "usage.json"])
+}
+
 static HERMES: ClientLauncher = ClientLauncher {
     extras: &["env"],
     sandboxed_extras: &[],
     protected_env: &HERMES_PROTECTED_ENV,
     command: hermes_command,
     read: hermes_read,
-    report_path: None,
+    report_path: Some(hermes_report),
 };
 
 /// Codex, `exec --json`: non-interactive, the wrapped prompt on stdin, the

@@ -59,8 +59,10 @@ A harness with neither is read as text, one `message` per run, and gets no tool 
 - `LaunchWatch` gained `interactive`, `opening` and `reply`, each with a default, so only a watch that drives its
   client says anything: the runner writes `opening` to the client's stdin, keeps the pipe open, writes what `reply`
   returns after every stdout chunk and closes the pipe when it says so. Every other launch is unchanged.
-- Hermes no longer gets its prompt as an argument, and writes no `usage.json` (ACP has no `--usage-file`): its tokens
-  are the prompt's usage, and its dollars come from the catalogue's prices as for Codex.
+- Hermes no longer gets its prompt as an argument (it is `session/prompt`). The run's tokens are the prompt's usage;
+  `--usage-file` stays on the command line, and a dollar estimate or a failed flag that Hermes writes there still counts
+  as for a one-shot run. When the usage file is absent, as with the ACP server measured on 2026-11-28, the dollars come
+  from the catalogue's prices as for Codex.
 - A fake Hermes that does not speak ACP never gets its stdin closed; the time limit ends it.
 - The goldens of every `run` scenario that launches Claude Code, Vibe, Antigravity or Hermes carry the new flags.
 - Fixtures in `src/tests/event_fixtures` are streams recorded from real runs (secrets and paths removed, long text

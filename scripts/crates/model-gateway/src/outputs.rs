@@ -201,17 +201,13 @@ pub fn claude_output(stdout: &str) -> ClientOutput {
 /// nonsense counts no tokens and no dollars, and a run it does not call failed
 /// is not failed.
 pub fn hermes_output(stdout: &str, usage: Option<&Value>) -> ClientOutput {
-    // `hermes acp`: JSON-RPC lines, whose answer is the agent's message and whose tokens are the prompt's usage.
-    if let Some(run) = crate::event_adapters::transcript(stdout) {
-        return ClientOutput {
-            answer: run.answer,
-            charged: None,
-            error: run.error.as_ref().map(|text| ClientError { text: text.clone(), status: None }),
-            failure: run.error.map(|_| "client-error".to_string()),
-            tokens: run.tokens,
-        };
-    }
     let report = hermes_usage(usage);
+    // `hermes acp`: JSON-RPC lines, whose answer is the agent's message and whose tokens are the prompt's usage; the
+    // dollars and a failure Hermes reports in its usage file count as they did for a one-shot run.
+    if let Some(run) = crate::event_adapters::transcript(stdout) {
+        let failure = run.error.as_ref().map(|_| "client-error".to_string()).or_else(|| report.failed.then(|| "failed".to_string()));
+        return ClientOutput { answer: run.answer, charged: report.cost, error: run.error.map(|text| ClientError { text, status: None }), failure, tokens: run.tokens };
+    }
     ClientOutput {
         answer: one_shot_answer(stdout),
         charged: report.cost,
