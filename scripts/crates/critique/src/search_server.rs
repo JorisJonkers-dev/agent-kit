@@ -474,10 +474,9 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Option<(String, String)> {
         if header.is_empty() {
             break;
         }
-        if let Some((name, value)) = header.split_once(':') {
-            if name.eq_ignore_ascii_case("content-length") {
-                length = value.trim().parse().ok().filter(|length| *length <= HTTP_BODY_MAX);
-            }
+        let (name, value) = header.split_once(':').unwrap_or((header, ""));
+        if name.eq_ignore_ascii_case("content-length") {
+            length = value.trim().parse().ok().filter(|length| *length <= HTTP_BODY_MAX);
         }
     }
     let mut body = vec![0u8; length?];
