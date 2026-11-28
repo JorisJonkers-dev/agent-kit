@@ -89,7 +89,8 @@ def test_every_route_renders_one_provider_with_its_models() -> None:
     names = [p["name"] for p in table["providers"]]
     expected = [f"litellm-{r['agent']}" for r in routes]
     assert [name for name in expected if name in names] == names
-    assert {name for name in expected if name not in names} <= {"litellm-local", "litellm-free", "litellm-paid", "litellm-auto"}
+    empty_ok = {"litellm-local", "litellm-free", "litellm-paid", "litellm-auto"}
+    assert {name for name in expected if name not in names} <= empty_ok
     keys = {f"litellm-{r['agent']}": r["key_env"] for r in routes}
     assert [p["key_env"] for p in table["providers"]] == [keys[name] for name in names]
     for provider in table["providers"]:
