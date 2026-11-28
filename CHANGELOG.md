@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.18.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.17.0...v6.18.0) (2026-11-28)
+
+
+### Features
+
+* **critique:** run searching Pi critics in a sandbox and skip Antigravity critics ([#1006](https://github.com/JorisJonkers-dev/agent-kit/issues/1006)) ([4b4aa9c](https://github.com/JorisJonkers-dev/agent-kit/commit/4b4aa9c1752316186f8d1de424f80b8b550c391a))
+* **model-gateway:** name profile and critique models through paid/ addresses ([#1007](https://github.com/JorisJonkers-dev/agent-kit/issues/1007)) ([b0aa9ff](https://github.com/JorisJonkers-dev/agent-kit/commit/b0aa9ff2d63192a92f69809644b7648a1e57cf1f))
+
 ## [6.17.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v6.16.0...v6.17.0) (2026-11-28)
 
 
