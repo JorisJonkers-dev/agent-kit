@@ -76,6 +76,8 @@ pub mod sbx_vibe;
 pub mod sha256;
 pub mod slots;
 pub mod stall;
+pub mod mcp;
+pub mod otlp;
 pub mod status_cli;
 pub mod tail;
 pub mod sources;
@@ -131,6 +133,10 @@ fn run_argv(argv: &[String], runtime: &Runtime, stdout: &mut dyn Write, stderr: 
     // `tail -f` prints as events come, so it writes to the streams itself.
     if argv.first().map(String::as_str) == Some("tail") {
         return tail::run(&argv[1..], runtime, stdout, stderr);
+    }
+    match argv.first().map(String::as_str) {
+        Some("export") => return otlp::run(&argv[1..], runtime, stdout, stderr),
+        _ => {}
     }
     let result = cli::run_cli(argv, runtime);
     let _ = stderr.write_all(result.stderr.as_bytes());

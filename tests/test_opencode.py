@@ -383,6 +383,7 @@ def test_the_fragment_covers_every_workstation_server_except_private_memory() ->
     workstation = {
         s["name"] for s in data["mcp_servers"]
         if "workstation" in (s.get("surfaces") or []) and s.get("enabled") is not False
+        and not s.get("opt_in_env")
     }
     assert set(_servers(_fragment())) == workstation - {"memory-private"}
     assert render_registry.OPENCODE_MCP in render_registry.artifacts(data)
