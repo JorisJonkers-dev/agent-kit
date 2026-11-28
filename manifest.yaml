@@ -269,10 +269,10 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/workstation/critique/README.md
-      sha256: de1f6dad6ed3dbe04afcf7c4e84c0f2ed8c926dde3829bfe8b6b2c68e81d7b07
+      sha256: 7f92b438896e24b250782997ee04f877d17ac4fbab1204fb172bde2f07abb9bf
       mode: "0644"
     - path: skills/workstation/critique/routing.json
-      sha256: 1a0f080c6296db69aa0dac33f0f9544bc1704aec507425e1d5e2dd55f95255bc
+      sha256: 9b02f78109d1a602fef15717351491b5a374170eae030da2a83ec8b8f5c55f34
       mode: "0644"
     - path: skills/workstation/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
@@ -299,10 +299,10 @@ model_gateway:
       sha256: d758df780f25b290e4c83e841b595b43f9f6e50f23579846d148f00191ec862f
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.json
-      sha256: faa9e81739b4be96c15dfabc6ccb0791c60ef42a47c0e83f328b4fb022e183fb
+      sha256: d35992b4f962dff3950007c47b89767bacff36f21bc67e00678c5f7298552fc2
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
-      sha256: e0c2ed04b5f56942a0799cd25e43e903201fe388bf11af0a4222ad9362aaf8d3
+      sha256: b7d29bd31f1c5a2e4f774d0b58505101b0e1581b1ac701cda8ea02753b0c6251
       mode: "0644"
     - path: skills/workstation/model-gateway/events-and-status.md
       sha256: 9fb11357ae1bf4b32d12d65295b6d8cf52d46e78f8f8acb0d61c38f79e2ea4e5
@@ -320,7 +320,7 @@ model_gateway:
       sha256: 1d575336d44fb45b4577228a28627d06d3d39ae0961b0ddfe407f63953291a72
       mode: "0644"
     - path: skills/workstation/model-gateway/profiles-and-tiers.md
-      sha256: 26792225a7fdc3f1e5d4a1e1c1aa1c66a114705405ea9524279891264335d31d
+      sha256: 0f613d1b5ae0e45fb47001325579b7fd2a37361c6f2ec46974bf741516b2d5d3
       mode: "0644"
     - path: skills/workstation/model-gateway/run.md
       sha256: b4771fbddd17a9d201f4cb4f097dede7d915aef74ea5c8dfa0c05180ab5d89ce

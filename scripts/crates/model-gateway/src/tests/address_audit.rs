@@ -1,7 +1,7 @@
 //! The audit of the shipped names (#943): a delegation profile, a tier and a critique route name models through the
 //! proxy's addresses (`free/<model>`, `paid/<model>`, `auto/<model>`, or a tier the proxy serves), never through a
 //! provider's own model id on a provider's route. Nothing is listed as debt any more: a new provider-specific entry
-//! fails the audit. The one exception is the Vibe CLI client of the triage question and the cold read.
+//! fails the audit. The one exception is the Vibe CLI clients of the triage question and the cold read.
 
 use crate::json::{parse, Value};
 use std::collections::BTreeSet;
@@ -9,10 +9,10 @@ use std::collections::BTreeSet;
 /// The clients that name their own model, which the proxy does not serve: not provider-specific routes.
 const NATIVE_CLIENTS: [&str; 3] = ["claude", "codex", "agy"];
 
-/// The one critique client that still names a provider's own model id: the Vibe CLI harness that runs the triage
+/// The critique clients that still name a provider's own model id: the Vibe CLI harness that runs the triage
 /// question and the cold read (`triage.model.client` and `cold_read.client` must be a Vibe client), whose plan
-/// model has no proxy address. No critic of a stage's roster is a Vibe client.
-const VIBE_HARNESS_CLIENTS: [&str; 1] = ["vibe-mistral-small"];
+/// models have no proxy address. No critic of a stage's roster is a Vibe client.
+const VIBE_HARNESS_CLIENTS: [&str; 3] = ["vibe-deepseek-flash", "vibe-glm-flash", "vibe-mistral-small"];
 
 fn addressed(model: &str) -> bool {
     ["free/", "paid/", "auto/", "tier-"].iter().any(|prefix| model.starts_with(prefix))

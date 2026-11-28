@@ -97,6 +97,23 @@
       "family": "google",
       "gateway": { "client": "agy", "model": "gemini-3.8-flash-high" }
     },
+    "vibe-glm-flash": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-glm-flash",
+      "model": "zai-glm-5-3-flash",
+      "family": "zhipu",
+      "prices": { "input": 0.15, "cached_input": 0.015, "output": 0.5 },
+      "gateway": { "client": "vibe", "model": "zai-glm-5-3-flash" }
+    },
+    "vibe-deepseek-flash": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-deepseek-flash",
+      "model": "deepseek-v4-1-flash-1017",
+      "family": "deepseek",
+      "prices": { "input": 0.3, "cached_input": 0.03, "output": 1.2 }
+    },
     "vibe-mistral-small": {
       "kind": "vibe",
       "binary": "vibe",
