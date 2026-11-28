@@ -100,7 +100,9 @@ when `/flow` named one.
 - **Ready**: keep `run_dir`, `packet_dir` and `critics`. For each entry in
   `dropped` with reason `unavailable`, quote its `detail` as it stands and
   say whether `replaced_by` took its slot or the stage runs with fewer
-  critics, then ask whether to continue, and stop if the owner declines. A
+  critics. An Antigravity critic is always skipped this way (`antigravity:
+  skipped: …`, its login lives in the keychain, outside every sandbox); when
+  `replaced_by` names a critic, report it and do not ask about that one. Then ask whether to continue, and stop if the owner declines. A
   `quota` drop needs no question. With no critics left at all, go on: the
   runner reports the stage as degraded and the flow continues.
 

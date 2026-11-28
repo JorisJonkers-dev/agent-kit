@@ -116,7 +116,9 @@ issue's comments.
   entry in `dropped` with reason `unavailable`, quote its `detail` as it
   stands (it is setup's wording, for example `antigravity: needs sign-in: …`)
   and say whether `replaced_by` took its slot or the stage runs with fewer
-  critics. Then ask whether to continue with the remaining critics, and stop
+  critics. An Antigravity critic is always skipped this way (`antigravity:
+  skipped: …`, its login lives in the keychain, outside every sandbox); when
+  `replaced_by` names a critic, report it and do not ask about that one. Then ask whether to continue with the remaining critics, and stop
   if the owner declines. With no critics left at all, go on: fan-out and
   record then report the stage as degraded, and the flow continues.
 
