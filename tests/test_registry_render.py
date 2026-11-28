@@ -1484,7 +1484,12 @@ def test_run_state_is_an_opt_in_server_for_claude_and_codex_only() -> None:
 
 @pytest.mark.parametrize(
     "change",
-    [{"opt_in_env": "lower"}, {"transport": "http", "url_workstation": "https://x"}, {"cloud": True}, {"credential": "X"}],
+    [
+        {"opt_in_env": "lower"},
+        {"transport": "http", "url_workstation": "https://x"},
+        {"cloud": True},
+        {"credential": "X"},
+    ],
 )
 def test_an_opt_in_server_must_be_a_local_stdio_server_without_a_credential(change: dict[str, object]) -> None:
     data = _registry()

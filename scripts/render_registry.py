@@ -2063,7 +2063,9 @@ def declared_servers(data: dict[str, Any], surface: str) -> list[str]:
                  if on_surface(s, "workstation") and s["name"] not in retired and not session_only(s)]
         if surface in ("claude", "codex"):
             # Declared always, so converge never prunes it; whether it is registered is the opt-in's business.
-            names += [str(s["name"]) for s in _entries(data, "mcp_servers") if opt_in_env(s) and s["name"] not in retired]
+            names += [
+                str(s["name"]) for s in _entries(data, "mcp_servers") if opt_in_env(s) and s["name"] not in retired
+            ]
     if data.get("coding_agents"):
         names.append("hindsight")
     return names
@@ -5573,7 +5575,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     # functioning run -- that guard exists as a defensive early-out, not a
     # gate that should decide codex's fate.)
     for server in _entries(data, "mcp_servers"):
-        if not on_surface(server, "workstation") and not (opt_in_env(server) and "workstation" in (server.get("surfaces") or [])):
+        opted_in = bool(opt_in_env(server)) and "workstation" in (server.get("surfaces") or [])
+        if not (on_surface(server, "workstation") or opted_in):
             continue
         name = server["name"]
         credential = server.get("credential")
