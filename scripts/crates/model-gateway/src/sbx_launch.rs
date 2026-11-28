@@ -369,6 +369,7 @@ pub fn run(process: &dyn Process, files: &dyn Files, sbx: &SbxLaunch, command: &
     let created = created.and_then(|()| sbx.deny_args().map_or(Ok(()), |args| sbx_call(process, &args)));
     let created = created.and_then(|()| sbx.secret_args().map_or(Ok(()), |args| store_key(process, sbx, &args)));
     let ran = created.and_then(|()| {
+        watch.sandbox(&sbx.name);
         watch.note(&format!("sandbox {} (sbx): {} from {}", sbx.name, sbx.program, sbx.image));
         watch.note(&sbx.reach);
         let written = if sbx.env.is_empty() { Ok(()) } else { write_env_file(files, sbx) };

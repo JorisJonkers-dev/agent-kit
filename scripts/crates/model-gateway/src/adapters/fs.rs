@@ -203,6 +203,14 @@ impl Files for SystemFiles {
         names.sort();
         Ok(names)
     }
+
+    fn rename(&self, from: &str, to: &str) -> Result<(), FsError> {
+        std::fs::rename(resolve(&self.cwd, from), resolve(&self.cwd, to)).map_err(|error| fail(&error, "rename", Some(from)))
+    }
+
+    fn size(&self, path: &str) -> Option<u64> {
+        std::fs::metadata(resolve(&self.cwd, path)).ok().map(|meta| meta.len())
+    }
 }
 
 /// How deep a copied folder may go, which stops a symlink that points back at its own folder.

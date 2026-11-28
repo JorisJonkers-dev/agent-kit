@@ -468,7 +468,7 @@ cat > /dev/null; echo closed > closed.seen"#;
         let launched = process.run_watched(&command, &events).expect("the stand-in runs");
         assert_eq!(launched.result.exit_code, 0);
         let kinds = kinds(&events_of(&sandbox));
-        assert_eq!(kinds, ["run.started", "tool.started", "tool.finished", "message", "usage"]);
+        assert_eq!(kinds, ["run.started", "process.started", "tool.started", "tool.finished", "message", "usage"]);
         let prompt = std::fs::read_to_string(sandbox.path.join("prompt.seen")).expect("the prompt reached it");
         assert!(prompt.contains("\"method\":\"session/prompt\"") && prompt.contains("\"sessionId\":\"s1\"") && prompt.contains("say hi"), "{prompt}");
         assert_eq!(std::fs::read_to_string(sandbox.path.join("closed.seen")).expect("stdin was closed").trim(), "closed");

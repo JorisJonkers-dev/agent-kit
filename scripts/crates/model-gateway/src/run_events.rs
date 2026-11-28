@@ -15,6 +15,8 @@
 use crate::event_adapters::{self, Adapter, AdapterEvent};
 use crate::json::{self, Value};
 use crate::ports::{Clock, Files, LaunchWatch, Process, Reply, Stream};
+use crate::run_index::{IndexEntry, IndexKind, RunIndex};
+use crate::stall::{self, StallPolicy, StallStep};
 use crate::run_failure::{tail, TAIL_BYTES};
 use crate::text::join;
 use crate::timestamps::to_iso;
@@ -73,6 +75,10 @@ struct State {
     partial: Vec<u8>,
     stderr_lines: usize,
     finished: bool,
+    /// Whether the stall was written for the silence now going, and whether the run was cancelled for it.
+    stall_warned: bool,
+    cancelled_at: Option<Instant>,
+    killed: bool,
 }
 
 /// One run's event log, from `run.started` to `run.finished`. Dropped without a finish (an error of the
@@ -87,10 +93,15 @@ pub struct RunEvents<'a> {
     /// The clock's monotonic reading at the start, which the finish's duration is measured from.
     started_ms: f64,
     state: Mutex<State>,
+    mode: String,
+    /// Where the global run index is, when the run is listed in it.
+    index: Option<String>,
+    /// The stall policy and the runner that can signal the client's group.
+    stall: Option<(StallPolicy, &'a dyn Process)>,
 }
 
 /// The envelope every line shares, in its order.
-fn envelope(identity: &RunIdentity, seq: u64, ts_ms: i64, kind: &str, data: Value) -> Value {
+pub(crate) fn envelope(identity: &RunIdentity, seq: u64, ts_ms: i64, kind: &str, data: Value) -> Value {
     json::object(vec![
         ("v", Value::Num(EVENTS_VERSION)),
         ("seq", Value::Num(seq as f64)),
@@ -121,7 +132,7 @@ impl<'a> RunEvents<'a> {
     /// whether this one is still there.
     pub fn start(files: &'a dyn Files, clock: &'a dyn Clock, run_dir: &str, identity: RunIdentity, start: &RunStart) -> RunEvents<'a> {
         let state = State { adapter: event_adapters::for_client(&identity.client), ..State::default() };
-        let events = RunEvents { files, clock, run_dir: run_dir.to_string(), identity, heartbeat_ms: HEARTBEAT_MS, started: Instant::now(), started_ms: clock.monotonic_ms(), state: Mutex::new(state) };
+        let events = RunEvents { files, clock, run_dir: run_dir.to_string(), identity, heartbeat_ms: HEARTBEAT_MS, started: Instant::now(), started_ms: clock.monotonic_ms(), state: Mutex::new(state), mode: start.mode.to_string(), index: None, stall: None };
         events.emit(
             "run.started",
             json::object(vec![
@@ -137,6 +148,43 @@ impl<'a> RunEvents<'a> {
     pub fn with_heartbeat(mut self, heartbeat_ms: u64) -> RunEvents<'a> {
         self.heartbeat_ms = heartbeat_ms;
         self
+    }
+
+    /// The same log, listed in the global run index at `path` (none when the machine has no state directory to keep
+    /// one in): its start is recorded now and its finish when it comes.
+    pub fn indexed(mut self, path: Option<&str>) -> RunEvents<'a> {
+        self.index = path.map(str::to_string);
+        self.index_entry(IndexKind::Started, None);
+        self
+    }
+
+    /// The same log with the stall policy watching its client: `process` signals the client's process group.
+    pub fn with_stall(mut self, policy: StallPolicy, process: &'a dyn Process) -> RunEvents<'a> {
+        self.stall = Some((policy, process));
+        self
+    }
+
+    /// One line of the global index about this run, when it is listed in it.
+    fn index_entry(&self, kind: IndexKind, ended: Option<(String, Option<String>)>) {
+        let Some(path) = &self.index else {
+            return;
+        };
+        let (status, reason) = ended.unzip();
+        let entry = IndexEntry {
+            kind,
+            ts_ms: self.clock.now_ms(),
+            run_id: self.identity.run_id.clone(),
+            run_dir: self.run_dir.clone(),
+            workflow: self.identity.workflow.clone(),
+            client: self.identity.client.clone(),
+            model: self.identity.model.clone(),
+            family: self.identity.family.clone(),
+            mode: self.mode.clone(),
+            gateway_pid: (kind == IndexKind::Started).then(std::process::id),
+            status,
+            reason: reason.flatten(),
+        };
+        RunIndex::new(self.files, self.clock, path).record(&entry);
     }
 
     fn path(&self, name: &str) -> String {
@@ -224,23 +272,78 @@ impl<'a> RunEvents<'a> {
         self.emit_locked(&mut state, "heartbeat", data);
     }
 
-    /// Runs `work` with a heartbeat written every `heartbeat_ms` until it returns.
+    /// Runs `work` with a heartbeat written every `heartbeat_ms`, and the silence of the client looked at every
+    /// `check_ms`, until it returns.
     pub fn beating<T>(&self, work: impl FnOnce() -> T) -> T {
         let stop = (Mutex::new(false), Condvar::new());
+        let tick_ms = self.stall.map_or(self.heartbeat_ms, |(policy, _)| policy.check_ms.min(self.heartbeat_ms));
         std::thread::scope(|scope| {
-            scope.spawn(|| {
-                let mut done = stop.0.lock().unwrap_or_else(PoisonError::into_inner);
-                while !*done {
-                    done = stop.1.wait_timeout(done, Duration::from_millis(self.heartbeat_ms)).unwrap_or_else(PoisonError::into_inner).0;
-                    if !*done {
-                        self.heartbeat();
-                    }
-                }
-            });
+            scope.spawn(|| self.keep_beating(&stop, tick_ms));
             // Stopped on the way out, a panic in `work` included: the scope waits for the heartbeat thread.
             let _stop = Stopper(&stop);
             work()
         })
+    }
+
+    /// The heartbeat thread's loop: a heartbeat every `heartbeat_ms` and a look at the silence every `tick_ms`, until
+    /// `stop` is raised. It is not generic, so `beating` of every result type runs this one copy.
+    fn keep_beating(&self, stop: &(Mutex<bool>, Condvar), tick_ms: u64) {
+        let mut done = stop.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut last_beat = Instant::now();
+        while !*done {
+            done = stop.1.wait_timeout(done, Duration::from_millis(tick_ms)).unwrap_or_else(PoisonError::into_inner).0;
+            if *done {
+                break;
+            }
+            if last_beat.elapsed() >= Duration::from_millis(self.heartbeat_ms) {
+                last_beat = Instant::now();
+                self.heartbeat();
+            }
+            self.watch_silence();
+        }
+    }
+
+    /// The stall policy's look at the client: a `stall` event once it has been silent for the threshold, a
+    /// cancel at three times that (SIGTERM to its group, SIGKILL after the grace), and a fresh start of the
+    /// count when it writes again.
+    fn watch_silence(&self) {
+        let Some((policy, process)) = self.stall else {
+            return;
+        };
+        let mut state = self.lock();
+        let Some(pid) = state.pid else {
+            return;
+        };
+        if let Some(at) = state.cancelled_at {
+            if !state.killed && at.elapsed() >= Duration::from_millis(policy.kill_grace_ms) {
+                state.killed = true;
+                process.signal_group(pid, 9);
+                self.emit_locked(&mut state, "diagnostic", json::object(vec![("level", Value::str("warn")), ("source", Value::str("gateway")), ("text", Value::str("the cancelled client ignored SIGTERM; sent SIGKILL to its process group"))]));
+            }
+            return;
+        }
+        let silent = state.last_output.unwrap_or(self.started).elapsed();
+        let silent_ms = silent.as_millis() as u64;
+        if silent_ms < policy.threshold_ms {
+            state.stall_warned = false;
+        }
+        match policy.step(silent_ms, state.stall_warned, false) {
+            StallStep::Quiet => {}
+            StallStep::Warn => {
+                state.stall_warned = true;
+                self.emit_locked(&mut state, "stall", Value::Obj(stall::stall_data(silent_ms / 1000, &policy)));
+            }
+            StallStep::Cancel => {
+                let why = format!("cancelled by the stall policy: the client wrote nothing for {} s (threshold {} s, cancel at {} s)", silent_ms / 1000, policy.threshold_ms / 1000, policy.cancel_ms() / 1000);
+                // A cancel the owner made first already left its marker and its signal.
+                if stall::mark_cancelled(self.files, &self.run_dir, &why) {
+                    process.signal_group(pid, 15);
+                }
+                state.cancelled_at = Some(Instant::now());
+                let data = json::object(vec![("by", Value::str("stall")), ("reason", Value::str(&why))]);
+                self.emit_locked(&mut state, "cancel", data);
+            }
+        }
     }
 
     /// Each complete stderr line still held becomes a diagnostic, up to `STDERR_DIAGNOSTICS`; `flush` takes the
@@ -294,7 +397,9 @@ impl<'a> RunEvents<'a> {
         }
         data.set("pid", number_or_null(state.pid.map(f64::from)));
         data.set("duration_s", Value::Num(((self.clock.monotonic_ms() - self.started_ms) / 1000.0).round()));
+        let ended = (data.get("status").and_then(Value::as_str).unwrap_or("failed").to_string(), data.get("reason").and_then(Value::as_str).map(str::to_string));
         self.emit_locked(&mut state, "run.finished", Value::Obj(data));
+        self.index_entry(IndexKind::Finished, Some(ended));
     }
 }
 
@@ -310,7 +415,13 @@ impl Drop for Stopper<'_> {
 
 impl LaunchWatch for RunEvents<'_> {
     fn spawned(&self, pid: u32) {
-        self.lock().pid = Some(pid);
+        let mut state = self.lock();
+        state.pid = Some(pid);
+        self.emit_locked(&mut state, "process.started", json::object(vec![("pid", Value::Num(f64::from(pid)))]));
+    }
+
+    fn sandbox(&self, name: &str) {
+        self.emit("sandbox.started", json::object(vec![("name", Value::str(name))]));
     }
 
     fn output(&self, stream: Stream, chunk: &[u8]) {
@@ -367,7 +478,7 @@ impl Drop for RunEvents<'_> {
 /// reason and failure, the end of its stderr, and what it used in OpenTelemetry's words.
 pub fn finished_data(result: &crate::run_command::RunResult) -> Value {
     json::object(vec![
-        ("status", Value::str(if result.ok { "ok" } else { "failed" })),
+        ("status", Value::str(if result.ok { "ok" } else if result.reason.as_deref() == Some("cancelled") { "cancelled" } else { "failed" })),
         ("exit_code", number_or_null(result.exit_code.map(f64::from))),
         ("signal", result.signal.map_or(Value::Null, |signal| Value::str(&crate::adapters::process::signal_name(signal)))),
         ("reason", result.reason.as_deref().map_or(Value::Null, Value::str)),

@@ -45,7 +45,7 @@ use crate::workflows;
 use crate::adapters::process::signal_name;
 use crate::ports::{Ending, LaunchWatch};
 use crate::run_events::{finished_data, recover_lost, RunEvents, RunIdentity, RunStart};
-use crate::run_failure::{failure_of, tail, Failure, TAIL_BYTES};
+use crate::run_failure::{failure_of, tail, Failure, FailureKind, TAIL_BYTES};
 use crate::write_run::{writing, FinishedWrite, WatchedWorktree, WriteReport};
 use std::collections::BTreeMap;
 
@@ -453,7 +453,10 @@ impl RunCommand<'_> {
             &run_dir,
             identity,
             &RunStart { mode: input.mode.as_str(), time_limit_s: input.time_limit_s },
-        );
+        )
+        .with_stall(crate::stall::StallPolicy::from_settings(&config.settings.stall), self.runtime.process.as_ref());
+        // The run is listed in the global index, when this machine has a state directory to keep one in.
+        let events = events.indexed(crate::locations::run_index_path(&self.runtime.env).ok().as_deref());
         if let Some((_, rewrite)) = &rerouted {
             events.record("route.rewritten", rewrite.to_json());
         }
@@ -754,7 +757,9 @@ impl RunCommand<'_> {
         let (result, ending) = launched;
         let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: crate::event_adapters::error_channel(&input.client, &result.stderr) };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
-        let delegate_reason = failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report)));
+        // A run the owner or the stall policy cancelled ends as cancelled, whatever the signal that stopped it looked like.
+        let cancelled = crate::stall::cancel_reason(files, run.run_dir);
+        let delegate_reason = if cancelled.is_some() { Some("cancelled".to_string()) } else { failure.or_else(|| run_failure_reason(&exit, output.answer.as_deref(), Some(&report))) };
         let finished: Option<FinishedWrite> = writing(input).map(|write| self.finish_write(run, &write, delegate_reason.as_deref()));
         let reason = match &finished {
             Some(finished) => finished.reason.clone(),
@@ -772,6 +777,10 @@ impl RunCommand<'_> {
         files.write_text(&output_path, &result.stdout).map_err(GatewayError::from_fs)?;
         files.write_text(&join(&[run.run_dir, "stderr.txt"]), &result.stderr).map_err(GatewayError::from_fs)?;
         let failure = delegate_reason.as_deref().map(|why| failure_of(why, &result, &ending, output.error.as_ref().map(|error| error.text.as_str())));
+        let failure = match cancelled {
+            Some(why) => failure.map(|failure| Failure { kind: FailureKind::Cancelled, reason: if why.is_empty() { "cancelled".to_string() } else { why }, ..failure }),
+            None => failure,
+        };
         let never_started = delegate_reason.as_deref() == Some("launch-failed");
         let summary = output.answer.as_deref().map_or_else(String::new, |answer| summary_of(answer, run.config.settings.summary_max_chars));
         Ok(RunResult {

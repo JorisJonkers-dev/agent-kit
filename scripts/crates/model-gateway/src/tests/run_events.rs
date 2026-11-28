@@ -130,14 +130,16 @@ fn a_runner_that_cannot_stream_hands_over_the_whole_output_and_calls_every_proce
     assert_eq!((result.stdout.as_str(), ending), ("o", Ending::default()));
     assert_eq!(watch.err.lock().expect("err").as_slice(), b"e");
     assert!(Buffered.is_alive(1));
+    assert!(!Buffered.signal_group(1, 0));
     // A watch that wants nothing takes everything quietly.
+    Unwatched.sandbox("mg-1");
     Unwatched.spawned(1);
     Unwatched.output(Stream::Stdout, b"x");
     Unwatched.note("n");
 }
 
 /// Files that can do nothing but what the trait gives every file system.
-struct Bare;
+pub(super) struct Bare;
 
 impl Files for Bare {
     fn read_text(&self, _path: &str) -> Result<String, FsError> {
@@ -189,7 +191,13 @@ fn a_directory_is_listed_in_name_order_and_a_file_system_that_cannot_list_says_s
     let files = SystemFiles { cwd: sandbox.text() };
     assert_eq!(files.list_dir(".").expect("listed"), vec!["a".to_string(), "b".to_string()]);
     assert_eq!(files.list_dir("missing").expect_err("missing").code, "ENOENT");
+    files.rename("b", "c").expect("renamed");
+    assert_eq!((files.size("c"), files.size("b")), (Some(0), None));
+    assert_eq!(files.rename("b", "c").expect_err("gone").code, "ENOENT");
+    std::fs::rename(sandbox.path.join("c"), sandbox.path.join("b")).expect("back");
     assert_eq!(Bare.list_dir(".").expect_err("cannot").code, "ENOSYS");
+    assert_eq!(Bare.rename("a", "b").expect_err("cannot").code, "ENOSYS");
+    assert_eq!(Bare.size("a"), None);
     // Every other method of the bare file system answers too.
     assert!(Bare.read_text("x").is_err() && Bare.write_atomic("x", "").is_ok() && Bare.mkdir_all("x").is_ok() && Bare.create_exclusive("x") == Ok(true));
     assert!(Bare.remove_file("x").is_ok() && Bare.modified_ms("x").is_none() && Bare.exists("x") == Ok(false) && Bare.append("x", "").is_ok());
@@ -240,7 +248,7 @@ fn a_log_starts_with_the_envelope_and_otel_names_and_finishes_once() {
     events.finish(Value::Null);
     drop(events);
     let lines = lines(&sandbox, "r1");
-    assert_eq!(types(&lines), ["run.started", "diagnostic", "diagnostic", "diagnostic", "heartbeat", "diagnostic", "run.finished"]);
+    assert_eq!(types(&lines), ["run.started", "process.started", "diagnostic", "diagnostic", "diagnostic", "heartbeat", "diagnostic", "run.finished"]);
     let started = &lines[0];
     let keys: Vec<&str> = started.as_object().expect("object").entries().into_iter().map(|(key, _)| key).collect();
     assert_eq!(keys, ["v", "seq", "ts", "type", "run_id", "workflow", "gen_ai.operation.name", "gen_ai.system", "gen_ai.agent.name", "gen_ai.request.model", "data"]);
@@ -249,11 +257,12 @@ fn a_log_starts_with_the_envelope_and_otel_names_and_finishes_once() {
     assert_eq!(data(started, "gateway_pid"), &Value::Num(f64::from(std::process::id())));
     let texts: Vec<&str> = lines.iter().filter_map(|line| data(line, "text").as_str()).collect();
     assert_eq!(texts, ["first line", "second half", "sent SIGTERM", "unended"]);
-    assert_eq!(data(&lines[4], "pid"), &Value::Num(42.0));
-    assert_eq!(data(&lines[4], "stderr_bytes"), &Value::Num(31.0));
+    assert_eq!(data(&lines[1], "pid"), &Value::Num(42.0));
+    assert_eq!(data(&lines[5], "pid"), &Value::Num(42.0));
+    assert_eq!(data(&lines[5], "stderr_bytes"), &Value::Num(31.0));
     let seqs: Vec<&Value> = lines.iter().map(|line| member(line, "seq")).collect();
-    assert_eq!(seqs.last(), Some(&&Value::Num(7.0)));
-    assert_eq!((data(&lines[6], "pid"), data(&lines[6], "duration_s")), (&Value::Num(42.0), &Value::Num(0.0)));
+    assert_eq!(seqs.last(), Some(&&Value::Num(8.0)));
+    assert_eq!((data(&lines[7], "pid"), data(&lines[7], "duration_s")), (&Value::Num(42.0), &Value::Num(0.0)));
     // The raw output went to its files as it came.
     assert_eq!(std::fs::read_to_string(sandbox.path.join("r1/output.json")).expect("output"), "{\"type\":\"text\"}\n");
     assert_eq!(std::fs::read_to_string(sandbox.path.join("r1/stderr.txt")).expect("stderr"), "first line\n\nsecond half\nunended");

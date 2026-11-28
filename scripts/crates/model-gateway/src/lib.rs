@@ -63,7 +63,10 @@ pub mod run;
 pub mod run_command;
 pub mod run_events;
 pub mod run_failure;
+pub mod run_cancel;
 pub mod run_home;
+pub mod run_index;
+pub mod run_status;
 pub mod sandbox;
 pub mod sbx_clients;
 pub mod sbx_images;
@@ -72,6 +75,9 @@ pub mod sbx_launch;
 pub mod sbx_vibe;
 pub mod sha256;
 pub mod slots;
+pub mod stall;
+pub mod status_cli;
+pub mod tail;
 pub mod sources;
 pub mod state_file;
 pub mod status;
@@ -117,8 +123,16 @@ pub fn default_runtime() -> Runtime {
 
 /// Runs the command line in `runtime` and writes its output; the exit code.
 pub fn run_with(args: impl Iterator<Item = String>, runtime: &Runtime, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
-    let argv: Vec<String> = args.collect();
-    let result = cli::run_cli(&argv, runtime);
+    run_argv(&args.collect::<Vec<String>>(), runtime, stdout, stderr)
+}
+
+/// `run_with` over the arguments already collected, so its branches are one function however the arguments came.
+fn run_argv(argv: &[String], runtime: &Runtime, stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
+    // `tail -f` prints as events come, so it writes to the streams itself.
+    if argv.first().map(String::as_str) == Some("tail") {
+        return tail::run(&argv[1..], runtime, stdout, stderr);
+    }
+    let result = cli::run_cli(argv, runtime);
     let _ = stderr.write_all(result.stderr.as_bytes());
     let _ = stdout.write_all(result.stdout.as_bytes());
     result.exit_code
