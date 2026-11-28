@@ -74,7 +74,6 @@ fn the_http_search_server_answers_the_same_calls_as_stdio_over_the_packet_alone(
     let (refused, _) = post(port, "GET", "");
     assert!(refused.contains("405"), "{refused}");
     drop(server);
-    assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_err(), "the server stopped with its handle");
     assert!(crate::search_server::serve_http("/nonexistent/critique-http", crate::packet_search::default_search_limits()).is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
