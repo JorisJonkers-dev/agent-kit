@@ -364,9 +364,9 @@ def test_the_runner_and_defaults_are_pinned_in_the_manifest() -> None:
     assert set(files) == {
         "skills/workstation/model-gateway/defaults.json",
         "skills/workstation/model-gateway/defaults.schema.json",
+        "skills/workstation/model-gateway/watching-a-batch.md",
     }
-    for path in ("skills/workstation/model-gateway/defaults.json",
-                 "skills/workstation/model-gateway/defaults.schema.json"):
+    for path in files:
         assert files[path]["mode"] == "0644", path
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()
@@ -493,7 +493,7 @@ def test_the_model_gateway_skill_is_declared_for_claude_codex_and_the_other_agen
 
 def test_setup_installs_the_whole_skill_into_every_agent_home(macos_run: Run) -> None:
     want = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file())
-    assert want == ["SKILL.md", "defaults.json", "defaults.schema.json"]
+    assert want == ["SKILL.md", "defaults.json", "defaults.schema.json", "watching-a-batch.md"]
     for home in HOMES:
         dest = macos_run.home / home / "skills" / "model-gateway"
         got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
@@ -513,7 +513,7 @@ def test_a_second_run_replaces_an_older_copy_of_the_folder(tmp_path: Path) -> No
     run = setup_run(tmp_path, "Darwin", prepare_home=older_copy)
     dest = run.home / ".claude" / "skills" / "model-gateway"
     got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
-    assert got == ["SKILL.md", "defaults.json", "defaults.schema.json"]
+    assert got == ["SKILL.md", "defaults.json", "defaults.schema.json", "watching-a-batch.md"]
     assert (dest / "defaults.json").read_bytes() == DEFAULTS.read_bytes()
     assert f"ok    model-gateway -> {dest}" in run.stdout
 

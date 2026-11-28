@@ -298,6 +298,9 @@ model_gateway:
     - path: skills/workstation/model-gateway/defaults.schema.json
       sha256: dbdb28beb23562a61df3dcaa4efa610b5ba06bf99a500c090de08f455f668eb4
       mode: "0644"
+    - path: skills/workstation/model-gateway/watching-a-batch.md
+      sha256: 38205b76f071e6351c915e953f1a09a45d4752b210914027e816b6f54acece63
+      mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
   schema: runner/manifests/runtime-package.schema.json
