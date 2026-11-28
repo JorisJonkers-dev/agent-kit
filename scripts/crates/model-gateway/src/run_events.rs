@@ -12,8 +12,9 @@
 //! The client's raw output is appended to `output.json` and `stderr.txt` as it is read, and rewritten whole when
 //! the client is done.
 
+use crate::event_adapters::{self, Adapter, AdapterEvent};
 use crate::json::{self, Value};
-use crate::ports::{Clock, Files, LaunchWatch, Process, Stream};
+use crate::ports::{Clock, Files, LaunchWatch, Process, Reply, Stream};
 use crate::run_index::{IndexEntry, IndexKind, RunIndex};
 use crate::stall::{self, StallPolicy, StallStep};
 use crate::run_failure::{tail, TAIL_BYTES};
@@ -57,6 +58,14 @@ pub struct RunStart<'a> {
 
 #[derive(Default)]
 struct State {
+    /// The client's output read into events; `None` for a client with no adapter.
+    adapter: Option<Box<dyn Adapter>>,
+    /// A stdout line not yet ended by a newline.
+    line: Vec<u8>,
+    /// Whether an adapter wrote a `usage` event.
+    usage_seen: bool,
+    /// What the adapter has to say to the client's stdin, not yet taken by the runner.
+    reply: Reply,
     seq: u64,
     pid: Option<u32>,
     stdout_bytes: u64,
@@ -122,7 +131,8 @@ impl<'a> RunEvents<'a> {
     /// Opens the log and writes `run.started`, naming the gateway's own process id so a later gateway can tell
     /// whether this one is still there.
     pub fn start(files: &'a dyn Files, clock: &'a dyn Clock, run_dir: &str, identity: RunIdentity, start: &RunStart) -> RunEvents<'a> {
-        let events = RunEvents { files, clock, run_dir: run_dir.to_string(), identity, heartbeat_ms: HEARTBEAT_MS, started: Instant::now(), started_ms: clock.monotonic_ms(), state: Mutex::new(State::default()), mode: start.mode.to_string(), index: None, stall: None };
+        let state = State { adapter: event_adapters::for_client(&identity.client), ..State::default() };
+        let events = RunEvents { files, clock, run_dir: run_dir.to_string(), identity, heartbeat_ms: HEARTBEAT_MS, started: Instant::now(), started_ms: clock.monotonic_ms(), state: Mutex::new(state), mode: start.mode.to_string(), index: None, stall: None };
         events.emit(
             "run.started",
             json::object(vec![
@@ -200,6 +210,47 @@ impl<'a> RunEvents<'a> {
     /// A line of any other kind the run has to say, such as the route it was rewritten to or the fallback it is.
     pub fn record(&self, kind: &str, data: Value) {
         self.emit(kind, data);
+    }
+
+    /// Tells a client that is driven (ACP) what to ask it: the prompt, and the directory it works in.
+    pub fn drive(&self, prompt: &str, cwd: &str) {
+        if let Some(adapter) = self.lock().adapter.as_mut() {
+            adapter.drive(prompt, cwd);
+        }
+    }
+
+    /// Writes what an adapter read from the client's output as events. `flush` takes the unended last line too and
+    /// asks the adapter for what it still holds, as the output has ended.
+    fn adapter_lines(&self, state: &mut State, flush: bool) {
+        let mut lines: Vec<Vec<u8>> = Vec::new();
+        while let Some(end) = state.line.iter().position(|byte| *byte == b'\n') {
+            lines.push(state.line.drain(..=end).collect());
+        }
+        if flush && !state.line.is_empty() {
+            lines.push(std::mem::take(&mut state.line));
+        }
+        let Some(adapter) = state.adapter.as_mut() else {
+            return;
+        };
+        let mut events: Vec<AdapterEvent> = Vec::new();
+        for line in lines {
+            let text = String::from_utf8_lossy(&line).trim().to_string();
+            if !text.is_empty() {
+                events.extend(adapter.line(&text));
+            }
+        }
+        if flush {
+            events.extend(adapter.finish());
+        }
+        if adapter.drives() {
+            let out = adapter.outgoing();
+            state.reply.text.push_str(&out.text);
+            state.reply.close |= out.close;
+        }
+        for event in events {
+            state.usage_seen |= event.kind == "usage";
+            self.emit_locked(state, event.kind, event.data);
+        }
     }
 
     /// A `diagnostic` line: `source` is `stderr` or `gateway`.
@@ -324,11 +375,22 @@ impl<'a> RunEvents<'a> {
             return;
         }
         self.stderr_lines(&mut state, true);
+        self.adapter_lines(&mut state, true);
         state.finished = true;
         let mut data = match data {
             Value::Obj(object) => object,
             _ => json::Object::new(),
         };
+        // A harness that reports no usage as it goes (Vibe, which writes it to an export) has the result's.
+        let counted = |key: &str| match data.get(key) {
+            Some(Value::Num(number)) => *number,
+            _ => 0.0,
+        };
+        let (input, output, cached, cost) = (counted("gen_ai.usage.input_tokens"), counted("gen_ai.usage.output_tokens"), counted("cached_input_tokens"), counted("cost_usd"));
+        if state.adapter.is_some() && !state.usage_seen && input + output + cost > 0.0 {
+            let usage = event_adapters::usage_of_result(input, output, cached, cost);
+            self.emit_locked(&mut state, usage.kind, usage.data);
+        }
         data.set("pid", number_or_null(state.pid.map(f64::from)));
         data.set("duration_s", Value::Num(((self.clock.monotonic_ms() - self.started_ms) / 1000.0).round()));
         let ended = (data.get("status").and_then(Value::as_str).unwrap_or("failed").to_string(), data.get("reason").and_then(Value::as_str).map(str::to_string));
@@ -369,6 +431,8 @@ impl LaunchWatch for RunEvents<'_> {
             Stream::Stdout => {
                 state.stdout_bytes += chunk.len() as u64;
                 let _ = self.files.append(&self.path("output.json"), &text);
+                state.line.extend_from_slice(chunk);
+                self.adapter_lines(&mut state, false);
             }
             Stream::Stderr => {
                 state.stderr_bytes += chunk.len() as u64;
@@ -381,6 +445,18 @@ impl LaunchWatch for RunEvents<'_> {
 
     fn note(&self, text: &str) {
         self.diagnostic("gateway", "warn", text);
+    }
+
+    fn interactive(&self) -> bool {
+        self.lock().adapter.as_ref().is_some_and(|adapter| adapter.drives())
+    }
+
+    fn opening(&self) -> String {
+        self.lock().adapter.as_mut().map(|adapter| adapter.opening()).unwrap_or_default()
+    }
+
+    fn reply(&self, _chunk: &[u8]) -> Reply {
+        std::mem::take(&mut self.lock().reply)
     }
 }
 
@@ -406,6 +482,7 @@ pub fn finished_data(result: &crate::run_command::RunResult) -> Value {
         ("stderr_tail", Value::str(&tail(result.stderr_tail.as_deref().unwrap_or_default(), TAIL_BYTES))),
         ("gen_ai.usage.input_tokens", Value::Num(result.tokens.input)),
         ("gen_ai.usage.output_tokens", Value::Num(result.tokens.output)),
+        ("cached_input_tokens", Value::Num(result.tokens.cached)),
         ("cost_usd", Value::Num(result.cost_usd)),
     ])
 }

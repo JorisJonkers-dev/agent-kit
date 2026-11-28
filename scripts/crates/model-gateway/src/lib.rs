@@ -24,6 +24,7 @@ pub mod config_parse;
 pub mod error;
 pub mod escalation;
 pub mod escalation_run;
+pub mod event_adapters;
 pub mod extras;
 pub mod git_remote;
 pub mod grants;

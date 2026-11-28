@@ -1,0 +1,4 @@
+{"type":"tool.started","data":{"gen_ai.tool.call.id":"toolu_01RH9t6ojYFoH1exFdg5pqFy","gen_ai.tool.name":"Read","input":"{\"file_path\":\"/home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md\",\"limit\":30}"}}
+{"type":"tool.finished","data":{"gen_ai.tool.call.id":"toolu_01RH9t6ojYFoH1exFdg5pqFy","gen_ai.tool.name":"Read","status":"ok","output":"1\t# Agents\n2\t\n3\tGuidance for any coding agent working in this repository.\n4\t\n5\t- Estate conventions: https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md\n6\t- Repository overview: [README.md](README.md)\n7\t\n8\tThe LiteLLM proxy image for the estate: route list in `config/config.yaml`, imag"}}
+{"type":"message","data":{"role":"assistant","kind":"text","text":"First heading in `AGENTS.md`: `# Agents`"}}
+{"type":"usage","data":{"gen_ai.usage.input_tokens":71401,"gen_ai.usage.output_tokens":438,"cached_input_tokens":52074,"cost_usd":0.00460474}}

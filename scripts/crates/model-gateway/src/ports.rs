@@ -119,6 +119,26 @@ pub trait LaunchWatch: Sync {
     fn note(&self, text: &str);
     /// The name of the sandbox the launch runs in, once it is made, so a cancel can remove it.
     fn sandbox(&self, _name: &str) {}
+    /// Whether the client is driven through its stdin (ACP): its stdin then stays open after `opening` is written,
+    /// and `reply` is asked what to write after each chunk of its stdout.
+    fn interactive(&self) -> bool {
+        false
+    }
+    /// What an interactive client is sent first.
+    fn opening(&self) -> String {
+        String::new()
+    }
+    /// What an interactive client is sent after a chunk of its stdout, and whether its stdin is then closed.
+    fn reply(&self, _chunk: &[u8]) -> Reply {
+        Reply::default()
+    }
+}
+
+/// What is written to an interactive client's stdin, and whether the pipe is closed after it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Reply {
+    pub text: String,
+    pub close: bool,
 }
 
 /// A watch that wants nothing.

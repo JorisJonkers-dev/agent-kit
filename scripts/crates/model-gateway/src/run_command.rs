@@ -735,9 +735,11 @@ impl RunCommand<'_> {
         let scope = run_scope(run.config, input.profile.as_deref(), input.narrow.as_ref());
         let tiered = input.profile.as_deref().and_then(|name| run.config.profiles.get(name)).is_some_and(|profile| profile.tier.is_some());
         let network = self.network_scope(run);
+        // A client the gateway drives over ACP is told what to ask it.
+        run.events.drive(&prompt, &paths.work_dir);
         let (launched, output, failure, launch_warnings, routing) = run.events.beating(|| self.launch(run.binary, input, &paths, &prompt, (scope.as_ref(), tiered, network.clone()), run.events));
         let (result, ending) = launched;
-        let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: result.stderr.clone() };
+        let exit = LaunchExit { exit_code: result.exit_code, timed_out: result.timed_out, stderr: crate::event_adapters::error_channel(&input.client, &result.stderr) };
         let report = ClientReport { failure: output.failure.clone(), error: output.error.clone() };
         // A run the owner or the stall policy cancelled ends as cancelled, whatever the signal that stopped it looked like.
         let cancelled = crate::stall::cancel_reason(files, run.run_dir);

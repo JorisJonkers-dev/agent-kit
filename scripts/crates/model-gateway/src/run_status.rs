@@ -137,7 +137,7 @@ pub fn summary_of(event: &Value) -> String {
         "cancel" => format!("by {}: {}", text("by"), text("reason")),
         "process.started" => format!("pid {}", num("pid")),
         "sandbox.started" => format!("sandbox {}", text("name")),
-        _ => ["text", "name", "message", "tool", "summary", "route"].iter().find_map(|key| text_of(&data, key)).unwrap_or_else(|| json::compact(&Value::Obj(data.clone()))),
+        _ => ["text", "gen_ai.tool.name", "name", "message", "tool", "summary", "route"].iter().find_map(|key| text_of(&data, key)).unwrap_or_else(|| json::compact(&Value::Obj(data.clone()))),
     };
     line.replace('\n', " ").chars().take(160).collect()
 }
