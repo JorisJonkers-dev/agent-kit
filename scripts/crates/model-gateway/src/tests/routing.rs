@@ -420,7 +420,7 @@ fn a_tier_run_sends_the_tier_as_the_model_and_writes_one_ledger_line_with_the_ro
     let argv: Vec<String> = ["run", "--tier", "tier-free", "--json", r#"{"workflow":"w","mode":"read-only","prompt":"p","escalate":false}"#].iter().map(|arg| arg.to_string()).collect();
     let result = crate::cli::run_cli(&argv, &machine.runtime);
     assert_eq!(result.exit_code, 0, "{}{}", result.stdout, result.stderr);
-    assert!(result.stdout.contains("\"status\": \"ok\"") && !result.stdout.contains("attempted_fallbacks"), "{}", result.stdout);
+    assert!(result.stdout.contains("\"status\": \"ok\"") && result.stdout.contains("\"routing\"") && result.stdout.contains("attempted_fallbacks"), "{}", result.stdout);
     assert_eq!(*asked.lock().expect("asked"), ["HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]);
     // LiteLLM was sent model: tier-free, with the route's key.
     let sent = upstream.requests();
@@ -632,4 +632,106 @@ fn the_allowance_a_stream_reports_in_its_last_event_is_found_beyond_the_prefix_t
     let (answered, routing) = recorded(&machine.runtime, "curl", &home, "litellm-free", "pi-free", |env| post(&target(env), "/v1/chat/completions", r#"{"model":"tier-free"}"#));
     assert!(answered.contains("0.125"), "the answer is passed back whole");
     assert_eq!((routing.allowance_usd, routing.litellm_cost_usd), (Some(0.125), Some(0.5)));
+}
+
+#[test]
+fn the_upstream_the_proxy_named_is_the_deployment_that_served_the_run() {
+    let seen = seen_of(&header_list(&[("X-LiteLLM-Model-Api-Base", "https://api.groq.com/openai/v1"), ("x-litellm-model-id", "d1")]), "");
+    assert_eq!(seen.api_base.as_deref(), Some("https://api.groq.com/openai/v1"));
+    assert_eq!(seen_of(&header_list(&[("x-litellm-model-api-base", "")]), "").api_base, None);
+    let routing = Routing::of(&[seen, Seen { model_id: Some("d2".into()), api_base: Some("https://openrouter.ai/api/v1".into()), attempted_fallbacks: Some(1), ..Seen::default() }]);
+    assert_eq!((routing.model_id.as_deref(), routing.api_base.as_deref()), (Some("d2"), Some("https://openrouter.ai/api/v1")));
+}
+
+#[test]
+fn the_routing_report_names_the_serving_deployment_and_whether_a_fallback_fired() {
+    let routing = Routing::of(&[Seen { model_id: Some("d2".into()), api_base: Some("https://x/v1".into()), attempted_fallbacks: Some(1), served_model: Some("glm".into()), ..Seen::default() }]);
+    assert!(routing.watched());
+    let report = routing.report("pi-free", "free/glm", true);
+    let object = report.as_object().expect("an object");
+    let get = |key: &str| object.get(key).cloned();
+    assert_eq!(get("capture"), Some(Value::str("recorded")));
+    assert_eq!(get("litellm_model_id"), Some(Value::str("d2")));
+    assert_eq!(get("api_base"), Some(Value::str("https://x/v1")));
+    assert_eq!(get("served_model"), Some(Value::str("glm")));
+    assert_eq!(get("attempted_fallbacks"), Some(Value::Num(1.0)));
+    assert_eq!(get("fallback_fired"), Some(Value::Bool(true)));
+    assert_eq!(get("gateway_fallback"), Some(Value::Bool(true)));
+    assert_eq!(get("requested"), Some(Value::str("pi-free free/glm")));
+    // What the gateway could not see is null, never a guess.
+    let hidden = Routing::unseen("opencode");
+    assert!(!hidden.watched() && !Routing::unseen("claude").watched());
+    let nothing = hidden.report("opencode", "m", false);
+    assert_eq!(nothing.as_object().and_then(|object| object.get("litellm_model_id")), Some(&Value::Null));
+}
+
+/// Pi as the launcher would start it when the free copies are limited at first: the proxy answers its first request with
+/// the limiter's 429, Pi ends the run on it, and the second run is answered.
+struct LimitedPi {
+    runs: Arc<Mutex<usize>>,
+}
+
+const LIMITED: &str = "429 free limits [limiter refusal, no provider was called]: every free deployment of free/hy4-flash is limited; the first is back in 5s";
+
+impl Process for LimitedPi {
+    fn resolve(&self, binary: &str) -> Option<String> {
+        Some(format!("/bin/{binary}"))
+    }
+
+    fn exec(&self, _command: &str, _args: &[&str], _timeout_ms: Option<u64>) -> Result<ProcessResult, String> {
+        Ok(ProcessResult { stdout: "signed in with an api key\n".into(), stderr: String::new(), exit_code: 0, timed_out: false })
+    }
+
+    fn run(&self, command: &ProcessCommand) -> Result<ProcessResult, String> {
+        let after = |flag: &str| command.args.iter().position(|arg| arg == flag).and_then(|at| command.args.get(at + 1)).cloned().expect("the flag");
+        let port: u16 = after("--net-connect").parse().expect("a port");
+        let models = std::fs::read_to_string(format!("{}/models.json", command.env["PI_CODING_AGENT_DIR"])).expect("the launch's models.json");
+        let token = parse(&models).expect("JSON").as_object().and_then(|o| o.get("providers")).and_then(Value::as_object).and_then(|p| p.get("litellm-free")).and_then(Value::as_object).and_then(|e| e.get("apiKey")).and_then(Value::as_str).map(str::to_string).expect("a key");
+        let answered = post(&(port, token), "/v1/chat/completions", &format!("{{\"model\":\"{}\",\"messages\":[]}}", after("--model")));
+        let mut runs = self.runs.lock().expect("runs");
+        *runs += 1;
+        let message = if answered.starts_with("HTTP/1.1 429") {
+            format!(r#"{{"type":"message_end","message":{{"role":"assistant","content":[],"stopReason":"error","errorMessage":"{LIMITED}","usage":{{"input":0,"output":0,"cacheRead":0,"cost":{{"total":0}}}}}}}}"#)
+        } else {
+            r#"{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Looked.\nSUMMARY: pi is fine"}],"stopReason":"stop","usage":{"input":100,"output":40,"cacheRead":30,"cost":{"total":0}}}}"#.to_string()
+        };
+        Ok(ProcessResult { stdout: format!("{message}\n"), stderr: String::new(), exit_code: i32::from(answered.starts_with("HTTP/1.1 429")), timed_out: false })
+    }
+}
+
+#[test]
+fn a_run_the_proxy_limits_for_five_seconds_waits_and_runs_again_with_the_serving_route_in_both_logs() {
+    let limited = format!("HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{{\"error\":\"{LIMITED}\"}}", LIMITED.len() + 12).into_bytes();
+    let upstream = stub(vec![limited, answer(&[("x-litellm-model-id", "free/neosantara/hy4-flash-free"), ("x-litellm-model-api-base", "https://api.neosantara.xyz/v1"), ("x-litellm-attempted-fallbacks", "1")], r#"{"model":"free/hy4-flash","choices":[]}"#)]);
+    let runs = Arc::new(Mutex::new(0));
+    let machine = Machine::with_process(crate::SHIPPED_DEFAULTS, super::machine::now_ms(), super::machine::FakeProcess::default(), Box::new(LimitedPi { runs: runs.clone() }));
+    let (mut machine, slept) = super::machine::sleeping(machine);
+    machine.runtime.env.insert("AGENT_KIT_SANDBOX".to_string(), "host".to_string());
+    let provider = format!(r#"{{"providers":{{"litellm-free":{{"api":"openai-completions","apiKey":"literal-key","baseUrl":"http://127.0.0.1:{}/v1","models":[{{"id":"free/hy4-flash","cost":{{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}}}}]}}}}}}"#, upstream.port);
+    machine.write_at(&format!("{}/home/.pi/agent/models.json", machine.sandbox.text()), &provider);
+    let argv: Vec<String> = ["run", "--json", r#"{"workflow":"w","mode":"read-only","prompt":"p","model":"pi-free:free/hy4-flash","carries":{"code":false,"history":false},"escalate":false}"#].iter().map(|arg| arg.to_string()).collect();
+    let result = {
+        let _held = EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        crate::cli::run_cli(&argv, &machine.runtime)
+    };
+    assert_eq!(result.exit_code, 0, "{}{}", result.stdout, result.stderr);
+    let printed = parse(&result.stdout).expect("JSON");
+    let object = printed.as_object().expect("an object");
+    assert_eq!(object.get("status").and_then(Value::as_str), Some("ok"));
+    // The fake clock slept the five seconds and the margin; nothing really waited, and no other run was made.
+    assert_eq!(*slept.lock().expect("slept"), [6000]);
+    assert_eq!(*runs.lock().expect("runs"), 2);
+    let retry = object.get("retry").and_then(Value::as_object).expect("the retry object");
+    assert_eq!((retry.get("retry"), retry.get("back_in_s"), retry.get("waited_s")), (Some(&Value::Num(1.0)), Some(&Value::Num(5.0)), Some(&Value::Num(6.0))));
+    let route = object.get("routing").and_then(Value::as_object).expect("the routing object");
+    assert_eq!(route.get("litellm_model_id").and_then(Value::as_str), Some("free/neosantara/hy4-flash-free"));
+    assert_eq!(route.get("api_base").and_then(Value::as_str), Some("https://api.neosantara.xyz/v1"));
+    assert_eq!(route.get("fallback_fired"), Some(&Value::Bool(true)));
+    // Only the retry's log holds the retry event; both hold a routing event, the refused run's without a LiteLLM header.
+    let dir = std::fs::read_dir(format!("{}/state/agent-kit/model-gateway/runs", machine.sandbox.text())).map(|entries| entries.flatten().map(|entry| entry.path()).collect::<Vec<_>>()).unwrap_or_default();
+    let logs: Vec<String> = dir.iter().filter_map(|path| std::fs::read_to_string(path.join("events.jsonl")).ok()).collect();
+    assert_eq!(logs.len(), 2, "{logs:?}");
+    assert_eq!(logs.iter().filter(|log| log.contains(r#""type":"retry""#)).count(), 1);
+    assert_eq!(logs.iter().filter(|log| log.contains(r#""type":"routing""#)).count(), 2);
+    assert_eq!(logs.iter().filter(|log| log.contains("no-litellm-headers")).count(), 1);
 }

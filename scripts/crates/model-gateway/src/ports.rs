@@ -208,6 +208,10 @@ pub trait Clock: Send + Sync {
     fn now_ms(&self) -> i64;
     /// A monotonic reading in milliseconds, from which how long something took is measured.
     fn monotonic_ms(&self) -> f64;
+    /// Waits `ms` milliseconds; a test clock records the wait and moves its time on instead of waiting.
+    fn sleep_ms(&self, ms: u64) {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+    }
 }
 
 /// How long a writer waits for the workflows lock: how long it sleeps before it

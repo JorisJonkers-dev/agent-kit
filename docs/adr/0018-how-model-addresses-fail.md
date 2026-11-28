@@ -26,7 +26,7 @@ A review of those decisions on 2026-11-26 found that none of them said what happ
 
 ## Considered options
 
-- **Waiting for a free provider to reset.** Rejected: a held request stalls the batch that sent it, and the caller can decide to use `auto/` instead.
+- **Waiting for a free provider to reset.** Rejected for the proxy: a held request stalls the batch that sent it, and the caller can decide to use `auto/` instead. The gateway may wait a short time the proxy names (#962): it retries the same model after that time, within a configured count and total, and falls back as before when the wait is longer.
 - **Swapping a pinned harness.** Rejected: a pin is an instruction, and silently breaking it hides the problem it was meant to show.
 - **Counting the heartbeat as progress.** Rejected: the heartbeat only says the process is alive, so a hung harness would never stall.
 - **Relying on the docs warning for accounts that gain a payment method.** Rejected: it is the one failure that costs money, so the proxy watches for it.

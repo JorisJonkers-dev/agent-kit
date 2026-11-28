@@ -277,6 +277,7 @@ fn a_run_result_says_what_the_escalation_asks_and_prints_every_optional_member_i
         cleanup_warning: Some("w".into()),
         warnings: vec!["l".into()],
         fallback: None,
+        retry: None,
         rewrite: None,
         routing: crate::routing::Routing::unseen("claude"),
     };
@@ -643,7 +644,7 @@ fn the_free_fallback_an_attempt_is_handed_is_in_its_events_and_its_result() {
         recommendation: "name tier-free".into(),
     };
     let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"claude-sonnet-5-5","prompt":"p","escalate":false}"#).expect("JSON")).expect("input");
-    let options = super::super::run_command::RunOptions { link: None, start_check: None, reservation: None, tag: None, fallback: Some(fallback) };
+    let options = super::super::run_command::RunOptions { link: None, start_check: None, reservation: None, tag: None, fallback: Some(fallback), retry: None };
     let result = {
         let _held = super::scenarios::EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         RunCommand { runtime: &machine.runtime, decision: None }.run_once(&input, &options).expect("a run")
@@ -656,4 +657,69 @@ fn the_free_fallback_an_attempt_is_handed_is_in_its_events_and_its_result() {
     assert!(object.get("fallback").is_some());
     let events = events_of(&machine, &json);
     assert!(events.contains(r#""type":"fallback""#) && events.contains("limiter refusal, back in 90s"));
+}
+
+#[test]
+fn a_retry_an_attempt_is_handed_is_in_its_events_and_its_result() {
+    let machine = with_tmp(machine());
+    let report = crate::retry_wait::Waiter::new(crate::retry_wait::RetryWaitSettings::default())
+        .next("r0", "429: every free deployment of x is limited; the first is back in 5s", 0)
+        .expect("a wait")
+        .report;
+    let input = crate::run::read_run_input(&parse(r#"{"workflow":"w","client":"claude","mode":"read-only","model":"claude-sonnet-5-5","prompt":"p","escalate":false}"#).expect("JSON")).expect("input");
+    let options = super::super::run_command::RunOptions { link: None, start_check: None, reservation: None, tag: None, fallback: None, retry: Some(report) };
+    let result = {
+        let _held = super::scenarios::EXEC_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        RunCommand { runtime: &machine.runtime, decision: None }.run_once(&input, &options).expect("a run")
+    };
+    let json = result.to_json();
+    let retry = json.as_object().and_then(|object| object.get("retry")).and_then(Value::as_object).expect("the retry object");
+    assert_eq!(retry.get("retry"), Some(&Value::Num(1.0)));
+    assert_eq!(retry.get("of_run_id").and_then(Value::as_str), Some("r0"));
+    let events = events_of(&machine, &json);
+    assert!(events.contains(r#""type":"retry""#) && events.contains("back in 5s"), "{events}");
+    // No routing was seen of a stub client, so the result has none to say.
+    assert!(json.as_object().is_some_and(|object| object.get("routing").is_none()));
+}
+
+#[test]
+fn a_result_that_was_watched_says_which_route_served_it() {
+    let mut result = RunResult { routing: crate::routing::Routing::of(&[crate::routing::Seen { model_id: Some("d2".into()), attempted_fallbacks: Some(1), ..Default::default() }]), ..a_result() };
+    let json = result.to_json();
+    let routing = json.as_object().and_then(|object| object.get("routing")).and_then(Value::as_object).expect("the routing object");
+    assert_eq!(routing.get("litellm_model_id").and_then(Value::as_str), Some("d2"));
+    assert_eq!(routing.get("fallback_fired"), Some(&Value::Bool(true)));
+    result.routing = crate::routing::Routing::unseen("claude");
+    assert!(result.to_json().as_object().is_some_and(|object| object.get("routing").is_none()));
+}
+
+fn a_result() -> RunResult {
+    RunResult {
+        ok: true,
+        run_id: "r".into(),
+        workflow: "w".into(),
+        client: "pi-free".into(),
+        model: "free/m".into(),
+        family: "x".into(),
+        mode: RunMode::ReadOnly,
+        tokens: RunTokens { cached: 0.0, input: 1.0, output: 2.0 },
+        cost_usd: 0.0,
+        output_path: "/o".into(),
+        summary: "s".into(),
+        reason: None,
+        unavailable_until: None,
+        write: None,
+        attempt: None,
+        attempt_of: None,
+        exit_code: Some(0),
+        signal: None,
+        stderr_tail: Some(String::new()),
+        failure: None,
+        cleanup_warning: None,
+        warnings: Vec::new(),
+        fallback: None,
+        retry: None,
+        rewrite: None,
+        routing: crate::routing::Routing::unseen("pi-free"),
+    }
 }

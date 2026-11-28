@@ -8,6 +8,7 @@
 //! the command line takes them from a `Runtime`, so tests replace any of them.
 
 pub mod adapters;
+pub mod address;
 pub mod allowlist;
 pub mod availability;
 pub mod batch;
@@ -55,6 +56,7 @@ pub mod profiles;
 pub mod ports;
 pub mod reserve;
 pub mod proof;
+pub mod retry_wait;
 pub mod routing;
 pub mod run;
 pub mod run_command;

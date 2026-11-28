@@ -337,6 +337,7 @@ fn result(ok: bool) -> RunResult {
         cleanup_warning: None,
         warnings: Vec::new(),
         fallback: None,
+        retry: None,
         rewrite: None,
         routing: crate::routing::Routing::unseen("opencode"),
     }
