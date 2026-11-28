@@ -185,13 +185,47 @@ pub fn mask_randoms(outcome: Outcome) -> Outcome {
     for name in outcome.files.keys() {
         scan(name);
     }
-    let mut mask = |text: &str| temps.mask(&runs.mask(text, true, "RAND"), false, "TMP");
+    let mut mask = |text: &str| mask_proxy(&temps.mask(&runs.mask(text, true, "RAND"), false, "TMP"));
     Outcome {
         exit: outcome.exit,
         stdout: mask(&outcome.stdout),
         stderr: mask(&outcome.stderr),
         files: outcome.files.iter().map(|(name, content)| (mask(name), content.as_ref().map(|content| mask(content)))).collect(),
     }
+}
+
+/// Masks what a run through the gateway's own routing proxy picks at random: the loopback port (`@PORT@`) and the
+/// 32-hex key the Pi provider holds (`@KEY@`). The proxy's own port 443 grant is not random and stays.
+fn mask_proxy(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while !rest.is_empty() {
+        let hit = ["127.0.0.1:", "--net-connect "].iter().find(|prefix| rest.starts_with(**prefix));
+        if let Some(prefix) = hit {
+            let digits = rest[prefix.len()..].chars().take_while(char::is_ascii_digit).count();
+            if digits > 0 && &rest[prefix.len()..prefix.len() + digits] != "443" {
+                out.push_str(prefix);
+                out.push_str("@PORT@");
+                rest = &rest[prefix.len() + digits..];
+                continue;
+            }
+        }
+        if rest.starts_with("apiKey") {
+            let tail = &rest[6..];
+            let skip = tail.chars().take(8).take_while(|c| matches!(c, '\\' | '"' | ':' | ' ')).count();
+            let key = tail[skip..].chars().take_while(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()).count();
+            if skip > 0 && key == 32 {
+                out.push_str(&rest[..6 + skip]);
+                out.push_str("@KEY@");
+                rest = &rest[6 + skip + key..];
+                continue;
+            }
+        }
+        let next = rest.chars().next().map_or(1, char::len_utf8);
+        out.push_str(&rest[..next]);
+        rest = &rest[next..];
+    }
+    out
 }
 
 /// The first program of that name on the host's PATH.
