@@ -92,6 +92,7 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "pi-opencode-go": ("pi", "subsidised", "live"),
         "pi-local": ("pi", "subsidised", "live"),
         "pi-free": ("pi", "subsidised", "live"),
+        "pi-auto": ("pi", "subsidised", "live"),
         "pi-tier-vibe": ("pi", "subsidised", "live"),
         "pi-tier-go-cheap": ("pi", "subsidised", "live"),
         "pi-tier-strong-open": ("pi", "subsidised", "live"),

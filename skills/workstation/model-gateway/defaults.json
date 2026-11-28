@@ -12,6 +12,7 @@
     "pi-opencode-go": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-local":       {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-free":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
+    "pi-auto":        {"binary": "pi", "cost_class": "subsidised", "model_source": "live", "data_scope": "public"},
     "pi-tier-vibe":   {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-tier-go-cheap": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},
     "pi-tier-strong-open": {"binary": "pi", "cost_class": "subsidised", "model_source": "live"},

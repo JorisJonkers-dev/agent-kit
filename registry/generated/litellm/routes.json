@@ -101,6 +101,18 @@
       "models": [
         "paid"
       ]
+    },
+    {
+      "agent": "auto",
+      "key_env": "LITELLM_AUTO_KEY",
+      "budget_eur": null,
+      "budget_duration": null,
+      "data_scope": "public",
+      "models": [
+        "public-repo",
+        "free",
+        "paid"
+      ]
     }
   ]
 }

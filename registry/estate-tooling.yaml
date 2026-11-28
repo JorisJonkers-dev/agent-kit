@@ -164,6 +164,15 @@ workstation_secrets:
     check: "https://litellm.jorisjonkers.dev/key/info"
     check_method: GET
     export: false
+  # The auto key: holds `public-repo`, `free` and `paid`, so a caller names `auto/<model>` (the
+  # free copies first, then `paid/<model>`) or a family alias (`auto/glm-flash`). It can spend, so
+  # it is for public repositories and public inline content only. Minted like the others; until
+  # the proxy knows the `auto` team the mint is refused and setup warns instead of failing.
+  - env: LITELLM_AUTO_KEY
+    mint: litellm
+    check: "https://litellm.jorisjonkers.dev/key/info"
+    check_method: GET
+    export: false
   - env: LITELLM_LOCAL_KEY
     mint: litellm
     check: "https://litellm.jorisjonkers.dev/key/info"
@@ -294,6 +303,14 @@ litellm:
       budget_duration: null
       data_scope: any
       models: ["paid"]
+    # The auto key (litellm#204): `auto/<model>` tries the free copies and then `paid/<model>`,
+    # and the fallback needs `paid` on the key. It can bill, so public work only.
+    - agent: auto
+      key_env: LITELLM_AUTO_KEY
+      budget_eur: null
+      budget_duration: null
+      data_scope: public
+      models: ["public-repo", "free", "paid"]
 
 # -------------------------------------------------------------------
 # The packages proxy.

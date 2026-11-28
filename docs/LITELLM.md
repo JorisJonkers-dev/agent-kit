@@ -18,6 +18,7 @@ token numbers are never used; the proxy's refusal is the only budget signal.
 | `tier-go-cheap` | `LITELLM_TIER_GO_CHEAP_KEY` | none | `tier-go-cheap`, `opencode-go-tier`, `paid` | the `tier-go-cheap` chain: Go's cheap models; and `paid/<model>` |
 | `tier-review` | `LITELLM_TIER_REVIEW_KEY` | none | `free`, `tier-review`, `vibe-tier`, `opencode-go-tier` | the `tier-review` chain: free models, then Vibe Flash, then Go Flash; **public work only** |
 | `paid` | `LITELLM_PAID_KEY` | none | `paid` | `paid/<model>` only (each a budgeted paid group, see the paid groups in AGENTS.md of litellm); a dedicated key for callers that name a paid model explicitly |
+| `auto` | `LITELLM_AUTO_KEY` | none | `public-repo`, `free`, `paid` | `auto/<model>` and its family aliases (`auto/glm-flash`): the free copies first, then `paid/<model>`; it can spend, so **public repositories and public inline content only** |
 
 A key lists **access groups**, not a provider wildcard (the free `local` key alone adds its own
 `local/*`: LiteLLM puts a wildcard in an access group only with an Enterprise licence, so the key

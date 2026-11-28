@@ -127,6 +127,13 @@ falling back.
   tries every free copy of the model, never a paid one): it is the first choice for
   such a task, since a free model is the cheapest class, and the gateway refuses a
   billed model on it.
+- `pi-auto` runs `auto/<model>` (`auto/glm-5.3-flash`, or a family alias such as `auto/glm-flash`):
+  the proxy tries every free copy first and then `paid/<model>`. Name it only when the data is
+  public (a public repository or public inline content, like `pi-free`: never a private or `nedap`
+  one), the task wants an answer even when every free copy is gone, and paid spend is acceptable.
+  It can spend, so it is metered like any other paid route and listed with the cost class
+  `free, then paid`; when a free copy is enough and a refusal may simply fail, keep `pi-free`.
+  Pin it as `pi:auto/<model>`.
 - Within one class, choose by the models' capability notes, excluding any `opencode/...` model (only `litellm-opencode-go/...`) and any free model that is not
   `pi-free`'s `free/<model>`, except OpenCode's `opencode/<id>-free` models (public data
   only; prefer `opencode/deepseek-v4.1-flash-free` and `opencode/hy4-flash-free`, which
@@ -218,6 +225,8 @@ the Workflow tool for those tasks.
 - Free models only as `pi-free`'s `free/<model>`, public data only, never
   through any other client, name or provider (OpenRouter is refused on every
   client) and never a billed model.
+- `auto/<model>` (`pi-auto`) may fall through to paid: public data only, and the run is held to the
+  same caps and budgets as any paid run.
 - OpenCode reaches OpenCode Go through `litellm-opencode-go/...` (budgeted, via the LiteLLM
   proxy), never `opencode/...` (pay-per-token Zen). `opencode-go/<id>` is run as
   `litellm-opencode-go/<id>` (result says `rewritten`); with no LiteLLM copy it is refused,

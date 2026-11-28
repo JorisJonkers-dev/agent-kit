@@ -130,7 +130,7 @@ prices until it is removed from `defaults.json`.
 ### Pi: one client per LiteLLM route
 
 Pi is the preferred client: `pi-vibe`, `pi-vibe-study`, `pi-opencode-go`,
-`pi-local`, `pi-free`, `pi-tier-vibe`,
+`pi-local`, `pi-free`, `pi-auto`, `pi-tier-vibe`,
 `pi-tier-go-cheap` and `pi-tier-review`, one per LiteLLM route (`registry/generated/litellm/routes.json`),
 all started by the one `pi` program, each on its route's key, which sits in the
 route's own team and budget. `pi-free` is the free-only client (below). A tier client sends the tier's name as the model. All are
@@ -187,7 +187,14 @@ one with `free-only-refused` before anything starts. Every client refuses
 OpenRouter: a model named `openrouter/...`, or a Hermes or OpenCode run on the
 `openrouter` provider, is `provider-not-allowed`, and no machine file opens it.
 
-`pi-free` and `pi-tier-review` have `"data_scope": "public"` (a client field,
+**The auto client.** `pi-auto` is the `auto` route, whose key (`LITELLM_AUTO_KEY`) holds `public-repo`,
+`free` and `paid`: it runs `auto/<model>` groups and family aliases (`auto/glm-flash`), which try
+the free copies first and then `paid/<model>`. It is `subsidised` (it can spend, so caps, budgets
+and the plan limit apply as for any paid route), and `models` lists its groups with the cost
+class `free, then paid` in `cost.class`, never `free`. It is public-only like `pi-free`. Pin it as
+`pi:auto/<model>`. Until setup holds the key the client reports the usual missing provider.
+
+`pi-free`, `pi-auto` and `pi-tier-review` have `"data_scope": "public"` (a client field,
 `any` by default): a free provider may train on what it is sent, so those routes
 are for public work only, so a delegation that reads a repository is
 sent to it only when GitHub says the repository is public. A public repository

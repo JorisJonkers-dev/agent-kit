@@ -1207,7 +1207,7 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
     # The free routes (free, local) reach nothing paid: no cap.
     assert caps == {
         "vibe": 255, "vibe-study": 127.5, "opencode-go": 60, "local": None,
-        "free": None, "tier-vibe": None, "tier-go-cheap": None, "tier-review": None, "paid": None,
+        "free": None, "tier-vibe": None, "tier-go-cheap": None, "tier-review": None, "paid": None, "auto": None,
     }
     # A key holds access groups of canonical models, not a provider wildcard each. The free local
     # route alone adds its own wildcard, so local/<id> answers before the catalogue deploys it.

@@ -155,7 +155,8 @@ fn a_listed_model_carries_its_cost_and_the_providers_that_serve_it_in_fallback_o
             {"client":"codex","model":"gpt-5.5","cost_class":"metered-employer"},
             {"client":"opencode","model":"opencode-go/kimi-k2.7-code","cost_class":"subsidised"},
             {"client":"claude","model":"claude-opus-5-5","cost_class":"subsidised"},
-            7]}"#,
+            7,
+            {"client":"pi-auto","model":"auto/glm-5.3","cost_class":"subsidised"}]}"#,
     )
     .expect("json");
     let out = annotate(&config, Some(&catalogue), listed.clone());
@@ -179,6 +180,8 @@ fn a_listed_model_carries_its_cost_and_the_providers_that_serve_it_in_fallback_o
     assert_eq!(field(3, "providers"), r#"[{"provider":"codex","upstream_id":"gpt-5.5","route":"codex"}]"#);
     assert_eq!(field(4, "providers"), r#"[{"provider":"opencode-go","upstream_id":"opencode-go/kimi-k2.7-code","route":"opencode-go"}]"#);
     assert_eq!(field(5, "cost"), r#"{"class":"subsidised","input_per_mtok":"unknown","output_per_mtok":"unknown"}"#);
+    // An auto group tries the free copies and then the paid ones, and says so; its client's class still decides the caps.
+    assert!(field(7, "cost").starts_with(r#"{"class":"free, then paid","#), "{}", field(7, "cost"));
     // Without a catalogue a Pi model has no provider to name; a result that lists no models, or an odd entry, is left as it is.
     let bare = annotate(&config, None, listed);
     assert!(crate::json::compact(&bare.as_object().and_then(|object| object.get("models")).map(|models| match models { Value::Arr(items) => items[0].clone(), _ => Value::Null }).expect("first")).contains(r#""providers":[]"#));

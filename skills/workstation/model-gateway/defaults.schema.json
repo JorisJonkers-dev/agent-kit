@@ -176,7 +176,7 @@
       "additionalProperties": false,
       "properties": {
         "client": {
-          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex", "pi", "pi-free", "pi-tier-vibe", "pi-tier-go-cheap", "pi-tier-strong-open", "pi-tier-review"],
+          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex", "pi", "pi-free", "pi-auto", "pi-tier-vibe", "pi-tier-go-cheap", "pi-tier-strong-open", "pi-tier-review"],
           "description": "The client the model belongs to. `pi` describes the model for every client whose id starts with pi- (one per LiteLLM route) except a tier's (pi-tier-*), so a model is stated once however many routes serve it; a LiteLLM tier's model names its own route's client, as pi-free (the free key also calls tier-free) and the pi-tier-* clients do."
         },
         "model": {
