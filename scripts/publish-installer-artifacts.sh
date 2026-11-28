@@ -44,6 +44,7 @@ KIT_PATHS=(
   registry/generated/hermes/mcp-servers.local.yaml
   registry/generated/vibe/mcp-servers.toml
   registry/generated/vibe/agents
+  registry/claude-agents
   registry/generated/vibe-private/mcp-servers.toml
   registry/generated/antigravity/mcp_config.json
   registry/generated/opencode/opencode.json
