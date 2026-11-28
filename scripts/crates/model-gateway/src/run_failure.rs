@@ -99,8 +99,20 @@ pub fn failure_of(reason: &str, result: &ProcessResult, ending: &Ending, client_
     } else {
         (FailureKind::HarnessError, format!("{reason}: the client exited {} with nothing on stderr and no error in its output", result.exit_code))
     };
+    let why = match kind {
+        FailureKind::HarnessError if cut_by_cloudflare(&[client_error.unwrap_or(""), &result.stderr, &result.stdout]) => format!("{why}{CLOUDFLARE_HINT}"),
+        _ => why,
+    };
     let output_tail = (result.stderr.trim().is_empty() && !result.stdout.trim().is_empty()).then(|| tail(&result.stdout, OUTPUT_TAIL_BYTES));
     Failure { kind, reason: why, output_tail }
+}
+
+/// What a Cloudflare 524 from the model proxy means for the client that met it.
+const CLOUDFLARE_HINT: &str = " (the model proxy sits behind Cloudflare, which cuts a request that is not streamed at about 120 s with a 524 timeout: this client probably did not send `stream: true`; every LiteLLM client must stream)";
+
+/// Whether any of the texts reports a Cloudflare 524 timeout: the status with the word `timeout` or `cloudflare`.
+fn cut_by_cloudflare(texts: &[&str]) -> bool {
+    texts.iter().map(|text| text.to_ascii_lowercase()).any(|text| text.contains("524") && (text.contains("timeout") || text.contains("timed out") || text.contains("cloudflare")))
 }
 
 /// `; ended by SIGKILL` when a signal ended the process, else nothing.
