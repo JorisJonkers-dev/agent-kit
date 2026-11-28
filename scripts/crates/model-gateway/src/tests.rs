@@ -54,3 +54,5 @@ mod stall;
 mod tail;
 mod run_cancel;
 mod status_cli;
+mod mcp;
+mod otlp;

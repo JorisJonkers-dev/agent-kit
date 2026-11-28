@@ -794,6 +794,29 @@ model-gateway gc [--days N] [--dry-run] [--json]
   days ago, notes it in the index, and drops rotated index files that old. It
   never touches a run that is still going.
 
+[`watching-a-batch.md`](watching-a-batch.md) is the guide for an orchestrating
+session: the batch in the background, a filtered `tail -f` under Monitor, and
+what to read when a line needs a look.
+
+`mcp` serves `ps`, `status`, `logs` and `tail` as a read-only MCP server (newline-delimited
+JSON-RPC on stdin and stdout, no socket). It answers from the same run index and event logs, so
+its `ps` is the table `model-gateway ps` prints; `logs` and `tail` return at most the newest 200
+lines, and it has no tool that starts, changes or cancels a run. It is off unless setup registers
+it: `AGENT_KIT_RUN_STATE_MCP=1 installer/setup-workstation.sh` adds `run-state` to Claude Code and
+Codex, and a setup run without the variable removes it again.
+
+`export [--endpoint URL] [--file PATH] [--run RUN] [--workflow NAME]` sends the event logs as
+OpenTelemetry traces: one trace per run (the trace id is the run id's SHA-256, so exporting twice
+updates, not duplicates), one span, `invoke_agent <client>`, with every event as a span event. The
+`gen_ai.*` attributes go out under the names and values the log holds (`gen_ai.operation.name`,
+`gen_ai.system`, `gen_ai.agent.name`, `gen_ai.request.model`, `gen_ai.usage.*`, `gen_ai.tool.*`); the
+rest of an event's data goes under `gateway.*`, and message and tool text (`text`, `input`,
+`output`) never leaves the machine. The endpoint is `--endpoint`, else
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, else `OTEL_EXPORTER_OTLP_ENDPOINT` with `/v1/traces`
+(OTLP/HTTP, JSON body, sent with `curl`; `OTEL_EXPORTER_OTLP_HEADERS` become request headers
+without appearing in the process list). `--file` appends the same request as one line. With
+neither, `export` does nothing and says so; nothing in the gateway exports by itself.
+
 **Stall policy.** A run whose client writes nothing to stdout or stderr for
 `settings.stall.threshold_s` seconds (180 by default, set in the machine
 override) gets a `stall` event, and one still silent at three times that is

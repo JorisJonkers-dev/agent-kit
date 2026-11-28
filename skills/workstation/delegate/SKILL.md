@@ -9,9 +9,8 @@ disable-model-invocation: true
 You are the **orchestrator**. This skill is how you plan work that other model
 clients carry out through the model gateway: Pi (one client per LiteLLM
 route), Vibe, Antigravity, OpenCode, Hermes, Claude Code and, with the owner's
-grant, Codex. The point is that
-cheap, already-paid-for clients do most of the work and you spend few tokens
-planning and checking it.
+grant, Codex. Cheap,
+already-paid-for clients do the work; you spend few tokens planning and checking it.
 
 **Docker Sandboxes (`sbx`) are required.** Every worker runs in its own sandbox, with no fallback
 (ADR-0019). A machine without a working `sbx` refuses each launch with `sandbox-unavailable` before anything
@@ -44,19 +43,16 @@ model-gateway usage --json '{}'
 - `models` also lists the delegation `profiles`, each with the models it leaves
   for this repository (cheapest first) or the reason it leaves none. A profile
   owns the allowed models and the tool scope; name one as `profile` on the run
-  and plan from its models instead of the whole list. Narrowing is the
-  gateway's to check (`narrow`), and a refusal names its reason.
+  and plan from its models. A `narrow` refusal names its reason.
 - The delegation roles are profiles: `research`, `implement`, `critique`,
-  `red-team`, `refute` and `triage`. Name the role and the harness instead of a
-  client and model, and the gateway picks the cheapest model the role leaves on
-  that harness:
+  `red-team`, `refute` and `triage`. Name the role and the harness, and the
+  gateway picks the cheapest model the role leaves on that harness:
   `model-gateway run --profile red-team --harness pi --json '{"workflow": "...", "mode": "read-only", "prompt": "...", "repo": "<repo root>", "narrow": {"writer_family": "<the writer's family>"}}'`.
   Pi is the default harness; `--harness` takes `claude`, `codex`, `agy`, `vibe`
   or `hermes`, or a Pi route such as `pi-opencode-go` (OpenCode Go through Pi).
   A role with `exclude_writer_family` (`critique`, `red-team`, `refute`) needs
-  `narrow.writer_family`. `red-team` is adversarial and read-only: it tries to
-  break the artifact, attack the spec and find unsafe assumptions, and reports
-  findings with evidence, not fixes. Every role is deny-all on tools, capped per
+  `narrow.writer_family`. `red-team` is adversarial and read-only: it reports
+  evidence of what breaks, not fixes. Every role is deny-all on tools, capped per
   run, and cut by the data policy: a repository GitHub does not say is public
   never reaches `pi-free`, which `research` and `triage` list for public-data
   work only.
@@ -72,8 +68,8 @@ Give every task one tier and a one-line reason: what makes it that hard.
 | hard | Crosses modules, is subtle, or touches security | A change across modules; a subtle bug; a security-relevant change |
 | frontier | Open-ended | A design with unclear requirements; a hard debugging session with no repro |
 
-Write the rating as `<task>: <tier> - <reason>`. A task you cannot give a
-reason for is not rated yet: read more or ask the owner.
+Write the rating as `<task>: <tier> - <reason>`; a task with no reason is not
+rated yet: read more or ask the owner.
 
 ## Splitting tasks
 
@@ -124,9 +120,8 @@ falling back.
   policy never lists for a repository GitHub does not say is public: use it
   only for public-data work, a task with no private `repo` and nothing private
   in the prompt. `pi-free` runs free models only, each named `free/<model>` (the proxy
-  tries every free copy of the model, never a paid one): it is the first choice for
-  such a task, since a free model is the cheapest class, and the gateway refuses a
-  billed model on it.
+  tries every free copy, never a paid one): the first choice for such a task, and the
+  gateway refuses a billed model on it.
 - `pi-auto` runs `auto/<model>` (`auto/glm-5.3-flash`, or a family alias such as `auto/glm-flash`):
   the proxy tries every free copy first and then `paid/<model>`. Name it only when the data is
   public (a public repository or public inline content, like `pi-free`: never a private or `nedap`
@@ -155,12 +150,10 @@ model below its tier. Do one of these:
 2. split it further, until each piece has a model that covers it.
 
 Ask the owner for a Codex grant only with a stated reason why the orchestrator
-is the worse choice (for example: the task needs a second model family, or it
-would use a large part of your context). The owner is **asked first** and says
-yes before you run `grant write` (see ADR-0008 and the grants section of the
-gateway skill). Never write a grant on your own initiative.
-
-A headless run may use Codex only when a live grant already exists; with none it
+is the worse choice (for example: the task needs a second model family). The
+owner is **asked first** and says yes before you run `grant write` (ADR-0008, the
+gateway skill's grants section). Never write a grant on your own initiative. A
+headless run may use Codex only when a live grant already exists; with none it
 keeps or splits the task and never asks.
 
 ## Send one batch
@@ -184,8 +177,16 @@ Send the whole plan in one call with `model-gateway batch`. The plan's
 }
 ```
 
-A writing delegation needs `repo`, `base` and `check`. Each prompt must be
-self-contained: the delegate sees nothing of this conversation.
+A writing delegation needs `repo`, `base` and `check`. Each prompt is
+self-contained: the delegate sees none of this conversation.
+
+Start it in the background (`run_in_background: true`) and watch it at no model
+cost ([`watching-a-batch.md`](../model-gateway/watching-a-batch.md)): Monitor on
+`model-gateway tail -f --workflow NAME --types stall,cancel,run.finished,fallback,retry
+--exit-when-done`, then `ps` and `status RUN`; `cancel RUN` ends a stalled run; the
+`routing`, `fallback` and `retry` events say which route served it. Name models by
+address (`free/<model>`, `paid/<model>`, `auto/<model>`, or
+`<harness>:<pricing>/<model>` to pin the harness).
 
 Read only the short results: each delegation's `status`, `summary` and
 `output_path`. Open an output file only when the summary is not enough.
@@ -204,7 +205,7 @@ Accept delegated work only with evidence.
   the task, split it, or send it to a client in the same or a cheaper cost class
   with the failure text quoted as data in the prompt. Do not blindly re-run it.
   Never retry a delegation that failed its check without reading why: keep the
-  task, split it, or fix the prompt.
+  task, split it, or fix the prompt (`logs RUN --types diagnostic,run.finished`).
 - **Skipped delegations**: the dependents of a failed delegation come back as
   `skipped` with `skipped_because`. List them, decide for each whether to
   re-plan it, and never assume they ran.
@@ -215,9 +216,8 @@ Accept delegated work only with evidence.
 ## Claude subagents and the Workflow tool
 
 Use a Claude subagent or the Workflow tool only for tasks where Claude is the
-chosen model. Every other task goes through the gateway, so you do not pay a
-Claude wrapper for each delegation. Invoking this skill is the owner's opt-in to
-the Workflow tool for those tasks.
+chosen model; every other task goes through the gateway. Invoking this skill is
+the owner's opt-in to the Workflow tool for those tasks.
 
 ## Money rules
 

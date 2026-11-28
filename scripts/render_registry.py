@@ -410,6 +410,17 @@ def validate(data: dict[str, Any], reach_path: Path = REACH_PATH) -> None:
                     "work roots belong in the work machine overlay, never in the public registry",
                 )
         _validate_instance_server(server, data, reach_path)
+        if opt_in_env(server) and (
+            not re.fullmatch(r"[A-Z][A-Z0-9_]*", str(opt_in_env(server)))
+            or transport != "stdio"
+            or server.get("cloud") is not False
+            or session_only(server)
+            or server.get("credential")
+        ):
+            raise RegistryError(
+                f"opt-in mcp server {name} must name an upper-case opt_in_env and be stdio, with cloud: false, "
+                "no credential and not session-only",
+            )
         if session_only(server) and (
             transport != "http" or server.get("surfaces") != ["workstation"] or server.get("cloud") is not False
         ):
@@ -760,7 +771,15 @@ def _validate_workspace_tools(data: dict[str, Any], known_surfaces: set[str]) ->
 
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
+    """Whether the entry is on the surface; an opt-in server is on no generated surface, only on Claude and Codex."""
+    if surface == "workstation" and opt_in_env(item):
+        return False
     return surface in (item.get("surfaces") or [])
+
+
+def opt_in_env(server: dict[str, Any]) -> str | None:
+    """The variable that turns an opt-in MCP server on for a setup run, or None for a server that is always on."""
+    return server.get("opt_in_env") or None
 
 
 def on_cloud(item: dict[str, Any]) -> bool:
@@ -2042,6 +2061,11 @@ def declared_servers(data: dict[str, Any], surface: str) -> list[str]:
         retired = set(retired_servers(data))
         names = [str(s["name"]) for s in _entries(data, "mcp_servers")
                  if on_surface(s, "workstation") and s["name"] not in retired and not session_only(s)]
+        if surface in ("claude", "codex"):
+            # Declared always, so converge never prunes it; whether it is registered is the opt-in's business.
+            names += [
+                str(s["name"]) for s in _entries(data, "mcp_servers") if opt_in_env(s) and s["name"] not in retired
+            ]
     if data.get("coding_agents"):
         names.append("hindsight")
     return names
@@ -5551,7 +5575,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     # functioning run -- that guard exists as a defensive early-out, not a
     # gate that should decide codex's fate.)
     for server in _entries(data, "mcp_servers"):
-        if not on_surface(server, "workstation"):
+        opted_in = bool(opt_in_env(server)) and "workstation" in (server.get("surfaces") or [])
+        if not (on_surface(server, "workstation") or opted_in):
             continue
         name = server["name"]
         credential = server.get("credential")
@@ -5680,6 +5705,23 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f"{indent}oauth_status {name}")
         if guard_open:
             b("    fi")
+        gate = opt_in_env(server)
+        if gate:
+            # Off unless the person asks for it: the server is registered only on a run that sets the variable,
+            # and a run without it takes the registration away again.
+            block = [
+                f'    if [ "${{{gate}:-0}}" = 1 ]; then',
+                *[f"  {line}" if line else line for line in block],
+                "    else",
+                "      if command -v claude >/dev/null 2>&1; then",
+                f"        run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true",
+                "      fi",
+                "      if command -v codex >/dev/null 2>&1; then",
+                f"        run codex mcp remove {name} >/dev/null 2>&1 || true",
+                "      fi",
+                f'      log "{name}: off (run setup with {gate}=1 to register it)"',
+                "    fi",
+            ]
         out.extend(_cloud_guard(block, server, "    "))
     w("")
     # --- local Hermes: merge the workstation-flavoured mcp_servers block ---

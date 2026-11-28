@@ -1456,3 +1456,44 @@ def test_a_secret_minted_by_anything_but_litellm_is_refused() -> None:
 def test_a_shadowing_copy_warning_names_the_command_that_removes_it() -> None:
     script = render_registry.render_setup_script(_registry())
     assert 'remove it with:  rm \\"${copy}\\""' in script
+
+
+def test_run_state_is_an_opt_in_server_for_claude_and_codex_only() -> None:
+    data = _registry()
+    server = next(s for s in data["mcp_servers"] if s["name"] == "run-state")
+    assert (server["command"], server["args"], server["transport"]) == ("model-gateway", ["mcp"], "stdio")
+    assert server["opt_in_env"] == "AGENT_KIT_RUN_STATE_MCP" and server["cloud"] is False
+    script = render_registry.render_setup_script(data)
+    # Registered only on a run that sets the variable, and taken away again by one that does not.
+    assert 'if [ "${AGENT_KIT_RUN_STATE_MCP:-0}" = 1 ]; then' in script
+    assert "claude mcp add --scope user run-state -- model-gateway mcp" in script
+    assert "codex mcp add run-state -- model-gateway mcp" in script
+    assert script.index("claude mcp remove --scope user run-state") > script.index('AGENT_KIT_RUN_STATE_MCP:-0')
+    assert "--declared claude=" in script and "run-state" in next(
+        line for line in script.splitlines() if "--declared claude=" in line
+    )
+    assert "run-state" not in next(line for line in script.splitlines() if "--declared opencode=" in line)
+    for generated in (
+        "registry/generated/vibe/mcp-servers.toml",
+        "registry/generated/opencode/opencode.json",
+        "registry/generated/antigravity/mcp_config.json",
+        "registry/generated/hermes/mcp-servers.local.yaml",
+    ):
+        assert "run-state" not in (KIT_ROOT / generated).read_text(), generated
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"opt_in_env": "lower"},
+        {"transport": "http", "url_workstation": "https://x"},
+        {"cloud": True},
+        {"credential": "X"},
+    ],
+)
+def test_an_opt_in_server_must_be_a_local_stdio_server_without_a_credential(change: dict[str, object]) -> None:
+    data = _registry()
+    server = next(s for s in data["mcp_servers"] if s["name"] == "run-state")
+    server.update(change)
+    with pytest.raises(render_registry.RegistryError, match="opt-in mcp server run-state"):
+        render_registry.validate(data)

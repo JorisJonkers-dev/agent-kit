@@ -105,6 +105,7 @@ Declared in `registry/estate-tooling.yaml` (`mcp_servers:`, and `hindsight` via
 | github | `registry/estate-tooling.yaml` (`mcp_servers:`) | GitHub issues, branches and pull requests; delete and label tools excluded. | MCP server | direct, gold-band-personal | |
 | grimoire | `registry/estate-tooling.yaml` (`mcp_servers:`) | Grimoire D&D 5e table companion, account-scoped token. | MCP server | direct, gold-band-personal | |
 | outline | `registry/estate-tooling.yaml` (`mcp_servers:`) | Outline wiki at notes.jorisjonkers.dev, as a separate Outline user. | MCP server | direct, gold-band-personal | |
+| run-state | `registry/estate-tooling.yaml` (`mcp_servers:`) | Opt-in, read-only state of the model gateway's runs (ps, status, logs, tail) for Claude Code and Codex on the workstation. | stays outside | direct | Stays outside; local to the workstation. |
 | vuetify | `registry/estate-tooling.yaml` (`mcp_servers:`) | Vuetify component API; disabled on every surface today. | stays outside | direct | Stays outside. |
 | playwright | `registry/estate-tooling.yaml` (`mcp_servers:`) | Headless Chromium browser automation via playwright-mcp. | MCP server | direct, gold-band-personal | |
 | drawio | `registry/estate-tooling.yaml` (`mcp_servers:`) | Native .drawio diagram authoring and export via drawio-mcp. | MCP server | direct, gold-band-personal | |

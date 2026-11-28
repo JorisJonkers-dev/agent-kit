@@ -1543,8 +1543,8 @@ converge_mcp() {
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   out=$(agent_kit_merge_current converge mcp \
     "${args[@]}" \
-    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
-    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
+    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,run-state,hindsight \
+    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,run-state,hindsight \
     --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared opencode=memory-api,n8n,n8n-mcp,kubernetes,code-nav,grimoire,outline,playwright,drawio,overleaf \
@@ -4203,6 +4203,43 @@ for install in installs:
         else
           fail "code-nav registration failed (codex)"
         fi
+      fi
+    fi
+
+    # Read-only state of the model gateway's runs (ps, status, logs,
+    # tail), from the same run index as the command line.
+    if [ "${CLOUD}" = 1 ]; then
+      log "run-state: not set up in cloud mode"
+    else
+      if [ "${AGENT_KIT_RUN_STATE_MCP:-0}" = 1 ]; then
+        if ! command -v model-gateway >/dev/null 2>&1; then
+          command -v model-gateway >/dev/null 2>&1 \
+            || warn "run-state: model-gateway is not on PATH; skipping"
+        fi
+        if command -v claude >/dev/null 2>&1; then
+          run claude_each_profile claude mcp remove --scope user run-state >/dev/null 2>&1 || true
+          if run_redacted "claude mcp add run-state" claude_each_profile claude mcp add --scope user run-state -- model-gateway mcp; then
+            ok "run-state registered (claude)"
+          else
+            fail "run-state registration failed (claude)"
+          fi
+        fi
+        if command -v codex >/dev/null 2>&1; then
+          run codex mcp remove run-state >/dev/null 2>&1 || true
+          if run_redacted "codex mcp add run-state" codex mcp add run-state -- model-gateway mcp; then
+            ok "run-state registered (codex)"
+          else
+            fail "run-state registration failed (codex)"
+          fi
+        fi
+      else
+        if command -v claude >/dev/null 2>&1; then
+          run claude_each_profile claude mcp remove --scope user run-state >/dev/null 2>&1 || true
+        fi
+        if command -v codex >/dev/null 2>&1; then
+          run codex mcp remove run-state >/dev/null 2>&1 || true
+        fi
+        log "run-state: off (run setup with AGENT_KIT_RUN_STATE_MCP=1 to register it)"
       fi
     fi
 
