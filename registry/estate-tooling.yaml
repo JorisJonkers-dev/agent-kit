@@ -2097,6 +2097,20 @@ vibe_delegate_agents:
     surfaces: [workstation]
 
 # -------------------------------------------------------------------
+# Claude Code agents this kit ships, copied from `path` into
+# ${CLAUDE_HOME}/agents/<name>.md. Each file is replaced, so a hand edit is
+# undone; `surfaces: []` retires an agent and setup removes its file. Other
+# agents in that directory are the owner's and are left alone.
+#
+# gateway-watch triages one stalled or failed gateway run from `status` and
+# `tail` and answers in at most ten lines (docs: watching-a-batch.md).
+# -------------------------------------------------------------------
+claude_agents:
+  - name: gateway-watch
+    path: registry/claude-agents/gateway-watch.md
+    surfaces: [workstation]
+
+# -------------------------------------------------------------------
 # MCP layering rule (spec #392, user story 60). Declare each MCP server in
 # exactly one layer per agent. The same-name overlap test records that a name
 # declared in both the user layer and the project layer is not listed twice but

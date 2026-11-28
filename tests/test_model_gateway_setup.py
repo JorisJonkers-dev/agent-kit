@@ -493,7 +493,7 @@ def test_the_model_gateway_skill_is_declared_for_claude_codex_and_the_other_agen
 
 def test_setup_installs_the_whole_skill_into_every_agent_home(macos_run: Run) -> None:
     want = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file())
-    assert want == ["SKILL.md", "defaults.json", "defaults.schema.json"]
+    assert {"SKILL.md", "defaults.json", "defaults.schema.json", "watching-a-batch.md"} <= set(want)
     for home in HOMES:
         dest = macos_run.home / home / "skills" / "model-gateway"
         got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
@@ -513,7 +513,7 @@ def test_a_second_run_replaces_an_older_copy_of_the_folder(tmp_path: Path) -> No
     run = setup_run(tmp_path, "Darwin", prepare_home=older_copy)
     dest = run.home / ".claude" / "skills" / "model-gateway"
     got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
-    assert got == ["SKILL.md", "defaults.json", "defaults.schema.json"]
+    assert got == sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*") if p.is_file())
     assert (dest / "defaults.json").read_bytes() == DEFAULTS.read_bytes()
     assert f"ok    model-gateway -> {dest}" in run.stdout
 
@@ -642,7 +642,9 @@ def test_setup_installs_the_delegate_agents_into_the_shared_vibe_home(macos_run:
 
 
 def _skill_text() -> str:
-    return (SKILL / "SKILL.md").read_text()
+    """SKILL.md first, then every part file it links, in name order."""
+    parts = sorted(p for p in SKILL.glob("*.md") if p.name != "SKILL.md")
+    return "\n".join(p.read_text() for p in [SKILL / "SKILL.md", *parts])
 
 
 def _front() -> dict:

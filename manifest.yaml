@@ -292,11 +292,47 @@ build_tracker:
 # defaults.schema.json by scripts/validate_manifest.py.
 model_gateway:
   files:
+    - path: skills/workstation/model-gateway/batch.md
+      sha256: 85b90f30e1d8ad91899b6a507db14af5e44f38a974d795c9b49f99ef7d732e62
+      mode: "0644"
+    - path: skills/workstation/model-gateway/catalog-and-usage.md
+      sha256: d758df780f25b290e4c83e841b595b43f9f6e50f23579846d148f00191ec862f
+      mode: "0644"
     - path: skills/workstation/model-gateway/defaults.json
       sha256: 106457c5d3e78b040992a12029a0dec5fd4df8c87968eeccb929aea5ee945507
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
       sha256: dbdb28beb23562a61df3dcaa4efa610b5ba06bf99a500c090de08f455f668eb4
+      mode: "0644"
+    - path: skills/workstation/model-gateway/events-and-status.md
+      sha256: 9fb11357ae1bf4b32d12d65295b6d8cf52d46e78f8f8acb0d61c38f79e2ea4e5
+      mode: "0644"
+    - path: skills/workstation/model-gateway/failures.md
+      sha256: d6bdd5fd3ad4eccd44a8264ee6a0ed97cd8634a81e1abb76d6db896d8b79009e
+      mode: "0644"
+    - path: skills/workstation/model-gateway/grants.md
+      sha256: 57336bf58b342919fe9c81ee77898001375c1cabf07fe3c2f1e7f4a9772e7d2c
+      mode: "0644"
+    - path: skills/workstation/model-gateway/models.md
+      sha256: c7eb7fc27b6e8ca586dc3cd33ff8af549c9b005ab0455dced2979c173e4c59f0
+      mode: "0644"
+    - path: skills/workstation/model-gateway/policy.md
+      sha256: 1d575336d44fb45b4577228a28627d06d3d39ae0961b0ddfe407f63953291a72
+      mode: "0644"
+    - path: skills/workstation/model-gateway/profiles-and-tiers.md
+      sha256: 26792225a7fdc3f1e5d4a1e1c1aa1c66a114705405ea9524279891264335d31d
+      mode: "0644"
+    - path: skills/workstation/model-gateway/run.md
+      sha256: b4771fbddd17a9d201f4cb4f097dede7d915aef74ea5c8dfa0c05180ab5d89ce
+      mode: "0644"
+    - path: skills/workstation/model-gateway/sandbox.md
+      sha256: 65531372eed6822e00532a312fddd6a27b106fc7b842668399c65e7332989252
+      mode: "0644"
+    - path: skills/workstation/model-gateway/watching-a-batch.md
+      sha256: 38205b76f071e6351c915e953f1a09a45d4752b210914027e816b6f54acece63
+      mode: "0644"
+    - path: skills/workstation/model-gateway/writing-runs.md
+      sha256: 99bbb03214995e677ebd4a089daae5b0c9367a134e3054beece7fd67c8c41a61
       mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
