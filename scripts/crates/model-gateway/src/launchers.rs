@@ -333,7 +333,7 @@ fn vibe_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, _promp
         args.extend(strings(&["--model", &input.model]));
     }
     let default_agent = if input.mode == Some(RunMode::Write) { WRITE_AGENT } else { READ_ONLY_AGENT };
-    args.extend(strings(&["--agent", agent.unwrap_or(default_agent), "--trust", "--workdir", &paths.work_dir, "--output", "json"]));
+    args.extend(strings(&["--agent", agent.unwrap_or(default_agent), "--trust", "--workdir", &paths.work_dir, "--output", "streaming"]));
     for tool in extras.map(|extras| extras.tools.as_slice()).unwrap_or_default() {
         args.extend(strings(&["--enabled-tools", tool]));
     }
@@ -418,13 +418,13 @@ fn agy_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt:
             args
         }
         _ if input.mode == Some(RunMode::Write) => {
-            strings(&["--print", prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "accept-edits", "--print-timeout", &print_timeout, "--settings", AGY_MCP_DENIED])
+            strings(&["--print", prompt, "--model", &input.model, "--output-format", "stream-json", "--effort", effort_of(&input.model), "--mode", "accept-edits", "--print-timeout", &print_timeout, "--settings", AGY_MCP_DENIED])
         }
         _ => {
             // Headless plan mode denies a tool that needs permission and then ends the turn with an empty answer,
             // which a high-effort model reaches by reaching for memory or a shell first; the note keeps it answering.
             let prompt = format!("{AGY_PLAN_NOTE}\n\n{prompt}");
-            strings(&["--print", &prompt, "--model", &input.model, "--output-format", "json", "--effort", effort_of(&input.model), "--mode", "plan", "--print-timeout", &print_timeout, "--settings", AGY_PLAN_SETTINGS])
+            strings(&["--print", &prompt, "--model", &input.model, "--output-format", "stream-json", "--effort", effort_of(&input.model), "--mode", "plan", "--print-timeout", &print_timeout, "--settings", AGY_PLAN_SETTINGS])
         }
     };
     let mut env = caller_env(extras);
@@ -461,7 +461,8 @@ fn claude_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prom
         "--model",
         &input.model,
         "--output-format",
-        "json",
+        "stream-json",
+        "--verbose",
         "--permission-mode",
         if write { "acceptEdits" } else { "plan" },
         "--allowedTools",
@@ -561,16 +562,18 @@ pub(crate) fn report_dir(paths: &LaunchPaths) -> &str {
 /// persona; a run on another provider is in safe mode. It
 /// carries the mark that stops it delegating on. It has no time limit of its own, so the outer timer is the
 /// limit.
-fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
+fn hermes_command(binary: &str, input: &LaunchRequest, paths: &LaunchPaths, _prompt: &str, extras: Option<&LaunchExtras>) -> ProcessCommand {
     // The node launcher writes `String(input.provider)`, so a run that names none passes the word `undefined`.
     let provider = input.provider.as_deref().unwrap_or("undefined");
-    let mut args = strings(&["-z", prompt, "--usage-file", &hermes_report(paths), "-m", &input.model, "--provider", provider]);
+    // The prompt is not an argument: the gateway drives `hermes acp` over its stdin and sends it as `session/prompt`.
+    let mut args = strings(&["-m", &input.model, "--provider", provider]);
     // Hermes has no read-only file toolset, so a read-only run has the web tools alone (no file, terminal, code
     // execution, memory or delegation), and a writing run the file tools besides, with no terminal.
     args.extend(strings(&["-t", if input.mode == Some(RunMode::Write) { HERMES_WRITE_TOOLSETS } else { HERMES_READ_TOOLSETS }]));
     // In its own home Hermes skips the rules and memory it would inject; a provider the owner's home must give (its
     // sign-in is there) runs in safe mode, which loads no config, plugin, memory or MCP server.
     args.push(if hermes_key(provider).is_some() { "--ignore-rules" } else { "--safe-mode" }.to_string());
+    args.push("acp".to_string());
     // A LiteLLM route's key is never exported: the wrapper reads it from the secret store into Hermes' own
     // environment, under the name its provider's `key_env` reads, so it is in no argument and no file.
     let (command, args, env) = keyed(hermes_key(provider), HERMES_KEYED, "hermes-keyed", (input, paths, binary), args, extras);
@@ -593,17 +596,13 @@ fn hermes_read(stdout: &str, usage: Option<&Value>) -> ClientOutput {
     hermes_output(stdout, usage)
 }
 
-fn hermes_report(paths: &LaunchPaths) -> String {
-    join(&[report_dir(paths), "usage.json"])
-}
-
 static HERMES: ClientLauncher = ClientLauncher {
     extras: &["env"],
     sandboxed_extras: &[],
     protected_env: &HERMES_PROTECTED_ENV,
     command: hermes_command,
     read: hermes_read,
-    report_path: Some(hermes_report),
+    report_path: None,
 };
 
 /// Codex, `exec --json`: non-interactive, the wrapped prompt on stdin, the

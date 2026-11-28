@@ -1,0 +1,10 @@
+{"type":"message","data":{"role":"assistant","kind":"thinking","text":"Looking for the first heading of AGENTS.md"}}
+{"type":"tool.started","data":{"gen_ai.tool.call.id":"item_1","gen_ai.tool.name":"shell","input":"{\"id\":\"item_1\",\"type\":\"command_execution\",\"command\":\"bash -lc 'head -n 1 AGENTS.md'\",\"aggregated_output\":\"\",\"exit_code\":null,\"status\":\"in_progress\"}"}}
+{"type":"tool.finished","data":{"gen_ai.tool.call.id":"item_1","gen_ai.tool.name":"shell","status":"ok","output":"# Agents\n"}}
+{"type":"tool.started","data":{"gen_ai.tool.call.id":"item_2","gen_ai.tool.name":"shell","input":"{\"id\":\"item_2\",\"type\":\"command_execution\",\"command\":\"bash -lc 'cat missing.md'\",\"aggregated_output\":\"\",\"exit_code\":null,\"status\":\"in_progress\"}"}}
+{"type":"tool.finished","data":{"gen_ai.tool.call.id":"item_2","gen_ai.tool.name":"shell","status":"error","output":"cat: missing.md: No such file or directory\n"}}
+{"type":"plan","data":{"entries":[{"text":"read the file","status":"completed"},{"text":"answer","status":"pending"}]}}
+{"type":"diagnostic","data":{"level":"error","source":"harness","text":"a recoverable error"}}
+{"type":"message","data":{"role":"assistant","kind":"text","text":"The first heading is Agents."}}
+{"type":"usage","data":{"gen_ai.usage.input_tokens":24763,"gen_ai.usage.output_tokens":122,"cached_input_tokens":24448,"cost_usd":null}}
+{"type":"diagnostic","data":{"level":"error","source":"harness","text":"stream disconnected before completion"}}

@@ -7,8 +7,8 @@ use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Mutex, PoisonError};
-use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::process::{ChildStdin, Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Looks for programs along PATH and runs them in the environment it was given.
@@ -130,16 +130,25 @@ impl SystemProcess {
         watch.spawned(pid);
         let stdout = child.stdout.take().expect("piped stdout");
         let stderr = child.stderr.take().expect("piped stderr");
-        let mut stdin = child.stdin.take().expect("piped stdin");
+        let stdin = Arc::new(Mutex::new(child.stdin.take()));
         // The input is written beside the wait and the pipe closed after it, whether or not the
-        // command read it all: a command that exits early must not fail the write.
-        let input = command.stdin.clone().unwrap_or_default();
+        // command read it all: a command that exits early must not fail the write. A command the watch drives
+        // (ACP) is sent its opening instead, and its pipe stays open for the watch's replies to its output.
+        let interactive = watch.interactive();
+        let input = if interactive { watch.opening() } else { command.stdin.clone().unwrap_or_default() };
+        let writer = Arc::clone(&stdin);
         std::thread::spawn(move || {
-            let _ = stdin.write_all(input.as_bytes());
+            let mut pipe = writer.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(open) = pipe.as_mut() {
+                let _ = open.write_all(input.as_bytes());
+            }
+            if !interactive {
+                *pipe = None;
+            }
         });
         std::thread::scope(|scope| {
-            let out = scope.spawn(|| pump(stdout, Stream::Stdout, watch));
-            let err = scope.spawn(|| pump(stderr, Stream::Stderr, watch));
+            let out = scope.spawn(|| pump(stdout, Stream::Stdout, watch, interactive.then_some(&*stdin)));
+            let err = scope.spawn(|| pump(stderr, Stream::Stderr, watch, None));
             let waited = wait_for(&mut child, (command.timeout_ms, kill_grace_ms), watch, stop);
             // What the command left running in its group would hold the pipes open, and outlive the run.
             if signal_group(pid, 0) {
@@ -203,8 +212,9 @@ fn signal_group(pid: u32, signal: i32) -> bool {
     unsafe { kill(-(pid as i32), signal) == 0 }
 }
 
-/// Reads one stream to its end, handing each chunk to `watch` as it comes; the whole stream as text.
-fn pump(mut source: impl Read, stream: Stream, watch: &dyn LaunchWatch) -> String {
+/// Reads one stream to its end, handing each chunk to `watch` as it comes; the whole stream as text. A stream
+/// given the client's stdin writes what the watch replies to each chunk, and closes the pipe when it says so.
+fn pump(mut source: impl Read, stream: Stream, watch: &dyn LaunchWatch, stdin: Option<&Mutex<Option<ChildStdin>>>) -> String {
     let mut all = Vec::new();
     let mut buffer = [0u8; 8192];
     loop {
@@ -213,6 +223,16 @@ fn pump(mut source: impl Read, stream: Stream, watch: &dyn LaunchWatch) -> Strin
             Ok(read) => {
                 watch.output(stream, &buffer[..read]);
                 all.extend_from_slice(&buffer[..read]);
+                if let Some(stdin) = stdin {
+                    let reply = watch.reply(&buffer[..read]);
+                    let mut pipe = stdin.lock().unwrap_or_else(PoisonError::into_inner);
+                    if let Some(open) = pipe.as_mut() {
+                        let _ = open.write_all(reply.text.as_bytes());
+                    }
+                    if reply.close {
+                        *pipe = None;
+                    }
+                }
             }
         }
     }

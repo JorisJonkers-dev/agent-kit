@@ -1,0 +1,4 @@
+{"type":"tool.started","data":{"gen_ai.tool.call.id":"step-2","gen_ai.tool.name":"read_file","input":"{\"EndLine\":5,\"Path\":\"/home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md\",\"StartLine\":1}"}}
+{"type":"tool.finished","data":{"gen_ai.tool.call.id":"step-2","gen_ai.tool.name":"read_file","status":"ok","output":"131 lines, 35971 bytes"}}
+{"type":"message","data":{"role":"assistant","kind":"text","text":"# Agents\n"}}
+{"type":"usage","data":{"gen_ai.usage.input_tokens":22927,"gen_ai.usage.output_tokens":54,"cached_input_tokens":18628,"cost_usd":null}}

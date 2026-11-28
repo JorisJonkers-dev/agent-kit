@@ -94,12 +94,19 @@ fn nothing() -> ClientOutput {
 /// Vibe: the journal on stdout holds the answer, and the export it wrote holds the tokens, the dollars and any error.
 pub fn vibe_output(stdout: &str, exported: Option<&Value>) -> ClientOutput {
     ClientOutput {
-        answer: final_answer_of(stdout),
+        answer: final_answer_of(stdout).or_else(|| streamed_answer(stdout)),
         charged: charged_of(exported),
         error: exported.and_then(structured_error),
         failure: None,
         tokens: run_tokens(exported),
     }
+}
+
+/// The answer of Vibe's `--output streaming`: the journal's entries one per line, the answer the last assistant
+/// message's text.
+fn streamed_answer(stdout: &str) -> Option<String> {
+    let entries: Vec<Value> = stdout.split('\n').filter_map(parse_json).collect();
+    final_answer_of(&json::compact(&Value::Arr(entries)))
 }
 
 /// Antigravity: one object with the `response` and a `usage` of token counts,
@@ -154,17 +161,18 @@ fn agy_failure(result: &Object) -> Option<String> {
     }
 }
 
-/// Claude Code, `--output-format json`: one `result` object (or a list of
-/// events that ends in one) with the answer in `result`, the dollars in
+/// Claude Code, `--output-format stream-json`: one event per line, the last a
+/// `result` object (`json` printed that object alone, or a list of events that ends in one) with the answer in `result`, the dollars in
 /// `total_cost_usd` and the tokens in `usage`. Anthropic counts cached prompt
 /// apart from `input_tokens`, so the input here is the sum, which is what a
 /// Vibe run's input counts.
 pub fn claude_output(stdout: &str) -> ClientOutput {
+    let is_result = |event: &Value| event.as_object().and_then(|event| event.get("type")).and_then(Value::as_str) == Some("result");
     let result = match parse_json(stdout) {
-        Some(Value::Arr(events)) => events
-            .into_iter()
-            .rfind(|event| event.as_object().and_then(|event| event.get("type")).and_then(Value::as_str) == Some("result")),
-        parsed => parsed,
+        Some(Value::Arr(events)) => events.into_iter().rfind(is_result),
+        Some(parsed) => Some(parsed),
+        // `--output-format stream-json`: one event per line, the last of them the result.
+        None => stdout.split('\n').filter_map(parse_json).rfind(is_result),
     };
     let Some(object) = result.as_ref().and_then(Value::as_object) else {
         return nothing();
@@ -193,6 +201,16 @@ pub fn claude_output(stdout: &str) -> ClientOutput {
 /// nonsense counts no tokens and no dollars, and a run it does not call failed
 /// is not failed.
 pub fn hermes_output(stdout: &str, usage: Option<&Value>) -> ClientOutput {
+    // `hermes acp`: JSON-RPC lines, whose answer is the agent's message and whose tokens are the prompt's usage.
+    if let Some(run) = crate::event_adapters::transcript(stdout) {
+        return ClientOutput {
+            answer: run.answer,
+            charged: None,
+            error: run.error.as_ref().map(|text| ClientError { text: text.clone(), status: None }),
+            failure: run.error.map(|_| "client-error".to_string()),
+            tokens: run.tokens,
+        };
+    }
     let report = hermes_usage(usage);
     ClientOutput {
         answer: one_shot_answer(stdout),
