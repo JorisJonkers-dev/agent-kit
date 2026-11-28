@@ -1224,6 +1224,7 @@ def test_litellm_routes_carry_the_owner_caps_and_no_key() -> None:
         "tier-review": ["free", "tier-review", "vibe-tier", "opencode-go-tier"],
         # The dedicated paid key: the paid access group alone, for paid/<model> named by a caller.
         "paid": ["paid"],
+        "auto": ["public-repo", "free", "paid"],
     }
     for route in table["routes"]:
         wildcards = [model for model in route["models"] if "*" in model or "/" in model]
@@ -1256,14 +1257,15 @@ def _can_reach(routes: list[dict], agent: str, groups_of_deployment: set[str]) -
 def test_only_public_keys_reach_the_free_groups_and_never_canonical() -> None:
     """A free/<model> deployment sits in the access group `free` alone; only public keys hold it."""
     routes = _litellm_table()["routes"]
-    assert [r["agent"] for r in routes if _can_reach(routes, r["agent"], {"free"})] == ["free", "tier-review"]
+    # auto/<model> holds a free/<model> copy first, so the auto key is a public key too.
+    assert sorted(r["agent"] for r in routes if _can_reach(routes, r["agent"], {"free"})) == ["auto", "free", "tier-review"]
     assert not _can_reach(routes, "free", {"canonical"})
     for agent in ("vibe", "vibe-study", "opencode-go", "local"):
         assert not _can_reach(routes, agent, {"free"}), agent
         assert _can_reach(routes, agent, {"canonical"}), agent
     secrets = json.loads((KIT_ROOT / "registry" / "generated" / "workstation-secrets.json").read_text())
     teams = [e["litellm"]["team"] for e in secrets if e.get("mint") == "litellm"]
-    assert [t["team_alias"] for t in teams if "free" in t["models"]] == ["free", "tier-review"]
+    assert sorted(t["team_alias"] for t in teams if "free" in t["models"]) == ["auto", "free", "tier-review"]
 
 
 def test_no_key_or_team_holds_a_retired_free_group() -> None:
@@ -1283,7 +1285,7 @@ def test_every_public_only_group_is_held_by_public_keys_only() -> None:
         holds_public = bool(set(route["models"]) & set(render_registry.LITELLM_PUBLIC_GROUPS))
         assert holds_public == (route["data_scope"] == "public"), route["agent"]
     public = sorted(r["agent"] for r in routes if r["data_scope"] == "public")
-    assert public == ["free", "tier-review"]
+    assert public == ["auto", "free", "tier-review"]
 
 
 @pytest.mark.parametrize(

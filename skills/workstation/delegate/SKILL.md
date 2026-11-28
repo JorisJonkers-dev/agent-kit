@@ -9,8 +9,7 @@ disable-model-invocation: true
 You are the **orchestrator**. This skill is how you plan work that other model
 clients carry out through the model gateway: Pi (one client per LiteLLM
 route), Vibe, Antigravity, OpenCode, Hermes, Claude Code and, with the owner's
-grant, Codex. Cheap,
-already-paid-for clients do the work; you spend few tokens planning and checking it.
+grant, Codex. Cheap, already-paid-for clients do the work; you spend few tokens planning and checking it.
 
 **Docker Sandboxes (`sbx`) are required.** Every worker runs in its own sandbox, with no fallback
 (ADR-0019). A machine without a working `sbx` refuses each launch with `sandbox-unavailable` before anything
@@ -24,8 +23,7 @@ repeat them; read that file for anything not shown here.
 
 ## Plan first: `models` and `usage`
 
-The first step of every plan is to read what is available today. Do this before
-rating anything.
+The first step of every plan is to read what is available today, before rating anything.
 
 ```sh
 model-gateway models --json '{"repo": "<repo root>"}'
@@ -75,8 +73,7 @@ rated yet: read more or ask the owner.
 
 Split a task until each piece fits one fresh context window and one tier.
 
-- Separate writing from reviewing: the model that wrote a change does not review
-  it.
+- Separate writing from reviewing: the model that wrote a change does not review it.
 - Make pieces independent, with disjoint files, so they run in parallel.
 - Name each dependency: a piece that needs another's output says so.
 - Claim a ticket with `claim acquire <repo> <key> --issue <n>` before starting it, and release it with
@@ -89,8 +86,7 @@ Split a task until each piece fits one fresh context window and one tier.
 A LiteLLM tier is the unit you plan with: you name the tier and LiteLLM walks its chain, so you never pick the
 model. Read the tier names and chains in `registry/litellm-tiers.json`; the gateway runs one with
 `model-gateway run --tier <tier> --json '{...}'` (a tier is not combined with `client`, `model`, `profile` or
-`harness`; an unknown tier is `unknown-tier`; `batch` takes `client` and `model`, so a tier delegation is a
-`run`).
+`harness`; an unknown tier is `unknown-tier`; `batch` takes `client` and `model`, so a tier delegation is a `run`).
 
 | Work | Tier |
 |---|---|
@@ -122,13 +118,9 @@ falling back.
   in the prompt. `pi-free` runs free models only, each named `free/<model>` (the proxy
   tries every free copy, never a paid one): the first choice for such a task, and the
   gateway refuses a billed model on it.
-- `pi-auto` runs `auto/<model>` (`auto/glm-5.3-flash`, or a family alias such as `auto/glm-flash`):
-  the proxy tries every free copy first and then `paid/<model>`. Name it only when the data is
-  public (a public repository or public inline content, like `pi-free`: never a private or `nedap`
-  one), the task wants an answer even when every free copy is gone, and paid spend is acceptable.
-  It can spend, so it is metered like any other paid route and listed with the cost class
-  `free, then paid`; when a free copy is enough and a refusal may simply fail, keep `pi-free`.
-  Pin it as `pi:auto/<model>`.
+- `pi-auto` runs `auto/<model>` (or a family alias, `auto/glm-flash`): every free copy, then
+  `paid/<model>`. Only for public data, when an answer is needed after the free copies are gone and
+  paid spend is fine; otherwise `pi-free`. Pin it as `pi:auto/<model>`.
 - Within one class, choose by the models' capability notes, excluding any `opencode/...` model (only `litellm-opencode-go/...`) and any free model that is not
   `pi-free`'s `free/<model>`, except OpenCode's `opencode/<id>-free` models (public data
   only; prefer `opencode/deepseek-v4.1-flash-free` and `opencode/hy4-flash-free`, which
@@ -225,8 +217,7 @@ the owner's opt-in to the Workflow tool for those tasks.
 - Free models only as `pi-free`'s `free/<model>`, public data only, never
   through any other client, name or provider (OpenRouter is refused on every
   client) and never a billed model.
-- `auto/<model>` (`pi-auto`) may fall through to paid: public data only, and the run is held to the
-  same caps and budgets as any paid run.
+- `auto/<model>` (`pi-auto`) may spend: public data only, held to the caps of any paid run.
 - OpenCode reaches OpenCode Go through `litellm-opencode-go/...` (budgeted, via the LiteLLM
   proxy), never `opencode/...` (pay-per-token Zen). `opencode-go/<id>` is run as
   `litellm-opencode-go/<id>` (result says `rewritten`); with no LiteLLM copy it is refused,
