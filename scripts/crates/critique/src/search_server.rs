@@ -416,9 +416,7 @@ impl Drop for HttpSearch {
         self.stop.store(true, Ordering::SeqCst);
         // A connection to ourselves wakes the accept loop so it sees the flag.
         let _ = TcpStream::connect(("127.0.0.1", self.port));
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
+        let _ = self.thread.take().map(std::thread::JoinHandle::join);
     }
 }
 
@@ -458,9 +456,7 @@ fn connection(stream: TcpStream, engine: &Engine) {
         };
         let allow = if status.starts_with("405") { "Allow: POST\r\n" } else { "" };
         let head = format!("HTTP/1.1 {status}\r\n{allow}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n", payload.len());
-        if writer.write_all(head.as_bytes()).and_then(|()| writer.write_all(payload.as_bytes())).and_then(|()| writer.flush()).is_err() {
-            return;
-        }
+        if writer.write_all(head.as_bytes()).and_then(|()| writer.write_all(payload.as_bytes())).and_then(|()| writer.flush()).is_err() { break; }
     }
     let _ = writer.shutdown(Shutdown::Both);
 }
@@ -468,30 +464,23 @@ fn connection(stream: TcpStream, engine: &Engine) {
 /// The method and body of the next request, or none when the connection ended or the request cannot be read.
 fn read_request(reader: &mut BufReader<TcpStream>) -> Option<(String, String)> {
     let mut line = String::new();
-    if reader.read_line(&mut line).ok()? == 0 {
-        return None;
-    }
+    reader.read_line(&mut line).ok().filter(|read| *read > 0)?;
     let method = line.split_whitespace().next()?.to_string();
-    let mut length = 0usize;
+    let mut length = Some(0usize);
     loop {
         line.clear();
-        if reader.read_line(&mut line).ok()? == 0 {
-            return None;
-        }
+        reader.read_line(&mut line).ok().filter(|read| *read > 0)?;
         let header = line.trim_end();
         if header.is_empty() {
             break;
         }
         if let Some((name, value)) = header.split_once(':') {
             if name.eq_ignore_ascii_case("content-length") {
-                length = value.trim().parse().ok()?;
+                length = value.trim().parse().ok().filter(|length| *length <= HTTP_BODY_MAX);
             }
         }
     }
-    if length > HTTP_BODY_MAX {
-        return None;
-    }
-    let mut body = vec![0u8; length];
+    let mut body = vec![0u8; length?];
     reader.read_exact(&mut body).ok()?;
     Some((method, String::from_utf8_lossy(&body).into_owned()))
 }

@@ -246,7 +246,8 @@ fn write_home(runtime: &Runtime, config: &PiCriticClient, agent_dir: &str, (rout
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SearchAccess<'a> {
     Program(&'a SearchServerLaunch),
-    Url(String),
+    /// The host's loopback port the runner serves the search on.
+    Http(u16),
 }
 
 impl SearchAccess<'_> {
@@ -254,7 +255,7 @@ impl SearchAccess<'_> {
     pub fn mcp_servers(&self) -> Value {
         match self {
             SearchAccess::Program(server) => mcp_servers(server),
-            SearchAccess::Url(url) => mcp_entry(vec![("url", Value::str(url))]),
+            SearchAccess::Http(port) => mcp_entry(vec![("url", Value::Str(format!("http://{}:{port}/mcp", sbx_launch::HOST_FROM_SANDBOX)))]),
         }
     }
 }
@@ -345,10 +346,7 @@ fn run_in_sandbox(runtime: &Runtime, command: &ProcessCommand, agent_dir: &str, 
     let gateway = ClientRun { process: runtime.gateway.process.as_ref(), files: runtime.gateway.files.as_ref(), clock: runtime.clock.as_ref(), env: &runtime.gateway.env };
     // A critic that searches over HTTP is allowed that one host and port, as the route's proxy is.
     let allow = match server {
-        Some(SearchAccess::Url(url)) => match sbx_launch::host_rules(&url.replacen(sbx_launch::HOST_FROM_SANDBOX, "127.0.0.1", 1)) {
-            Ok(rules) => rules,
-            Err(error) => return Launched::Refused(error.message),
-        },
+        Some(SearchAccess::Http(port)) => vec![format!("{}:{port}", sbx_launch::HOST_FROM_SANDBOX), format!("localhost:{port}")],
         _ => Vec::new(),
     };
     match gateway.launch_planned_allowing(RunClient::Pi, command, agent_dir, &NetworkScope::default(), &allow) {
@@ -419,8 +417,8 @@ pub fn pi_review(runtime: &Runtime, launch: &CriticLaunch<'_>, config: &PiCritic
     let (http, access) = match (program, &launch.toolset) {
         (Some(_), CriticToolset::PiSearch { limits, .. }) if in_sandbox => match serve_http(&launch.packet_dir, limits.clone()) {
             Ok(http) => {
-                let url = format!("http://{}:{}/mcp", sbx_launch::HOST_FROM_SANDBOX, http.port());
-                (Some(http), Some(SearchAccess::Url(url)))
+                let port = http.port();
+                (Some(http), Some(SearchAccess::Http(port)))
             }
             Err(detail) => return Ok(unconfined_report(launch, format!("pi: the packet search server could not start on the host: {detail}"))),
         },

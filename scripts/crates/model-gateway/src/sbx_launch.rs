@@ -304,7 +304,7 @@ fn allowed_hosts(route_text: &str) -> Result<Vec<String>, GatewayError> {
 }
 
 /// The rules for one base URL: the host and port, with a loopback host named both ways.
-pub fn host_rules(url: &str) -> Result<Vec<String>, GatewayError> {
+pub(crate) fn host_rules(url: &str) -> Result<Vec<String>, GatewayError> {
     let (host, port) = split_host(url).ok_or_else(|| GatewayError::new("sandbox-unsupported", "the route's base URL names no host the sbx policy can allow"))?;
     Ok(if host == "localhost" || host == "127.0.0.1" { vec![format!("{HOST_FROM_SANDBOX}:{port}"), format!("localhost:{port}")] } else { vec![format!("{host}:{port}")] })
 }

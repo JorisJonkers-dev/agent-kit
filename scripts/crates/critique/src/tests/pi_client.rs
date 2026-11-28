@@ -415,7 +415,7 @@ fn under_sbx_a_searching_critic_calls_the_search_server_over_http_and_a_machine_
 
 #[test]
 fn a_sandboxed_critics_mcp_json_names_the_hosts_url_and_its_grants_hold_no_server_program() {
-    let url = SearchAccess::Url("http://host.docker.internal:4711/mcp".to_string());
+    let url = SearchAccess::Http(4711);
     let expected = parse(r#"{"mcpServers":{"packet":{"url":"http://host.docker.internal:4711/mcp","exposure":"direct","description":"Search the files of your working directory"}}}"#).unwrap();
     assert_eq!(url.mcp_servers(), expected);
     let (files, runtime) = machine(Some(&home_models(SECRET)), Scripted::default(), &[]);
