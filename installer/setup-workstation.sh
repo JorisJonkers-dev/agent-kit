@@ -1409,6 +1409,21 @@ _vibe_delegate_agents() {
   return 0
 }
 
+# The Claude Code agents this kit ships (`agents/` of a Claude home).
+_claude_agents() {
+  local home="$1" src dest
+  src="${KIT_ROOT}/registry/claude-agents/gateway-watch.md"
+  dest="${home}/agents/gateway-watch.md"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Claude agent gateway-watch -> ${dest}"
+  else
+    fail "Claude agent gateway-watch: ${dest} does not match ${src}"
+  fi
+  return 0
+}
+
 # A shell -c wrapper for the pipe-into-sh installers the upstreams publish.
 run_sh() {
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -9422,6 +9437,9 @@ if [ "${VIBE_HOMES_READY}" = 1 ]; then
   log "Vibe delegate agents"
   _vibe_delegate_agents "${VIBE_HOME}"
 fi
+
+log "Claude agents"
+_claude_agents "${CLAUDE_HOME}"
 
 # -----------------------------------------------------------------
 # 8. Vendored third-party skills.
