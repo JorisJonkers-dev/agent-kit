@@ -247,6 +247,16 @@ exit 2 before anything starts.
 | OpenCode | `provider.litellm-<route>` in `opencode.json` (`options.baseURL`, `options.apiKey = "{env:KEY}"`, models) | `opencode -m litellm-<route>/<model>` |
 | Vibe | `[[providers]]` and `[[models]]` in `~/.config/agent-kit/vibe-litellm/config.toml` | `VIBE_HOME` set to that home, `VIBE_ACTIVE_MODEL=litellm-<route>/<model>` |
 
+Streaming: the proxy sits behind Cloudflare, which cuts a request that is not streamed at about
+120 s with a 524 timeout, so every LiteLLM client must stream (bytes keep the connection alive).
+Checked in each client's own code: Pi (`openai-completions` always sends `stream: true`), OpenCode
+(`@ai-sdk/openai-compatible` through `streamText`), Vibe (the generic backend streams every
+completion), Hermes (`chat_completions` streams unless the provider refuses it; `display.streaming`
+only governs what is shown), Codex (`responses` is a stream) and Claude Code. None has a setting
+that turns it off, so setup writes none; the wires above are what keep it so. The gateway's own
+probes are short by nature (the gate's one-token ping, the key-info read) and are not streamed. A
+run that ends on a 524 says so in its failure reason.
+
 Setup (`setup-workstation.sh`) installs the launcher, then merges the entries into the config of
 each harness that is on `PATH` (not in a cloud session; OpenCode 1 is left alone). It owns every
 entry named `litellm-*`: it replaces those the registry names, removes the ones whose route is

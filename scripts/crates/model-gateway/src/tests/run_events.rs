@@ -437,6 +437,13 @@ fn a_failure_names_what_explains_it_most() {
     assert_eq!((signalled.kind, signalled.reason.as_str()), (FailureKind::Signalled, "the client was ended by SIGKILL; stderr: warming up"));
     assert_eq!(failure_of("exit-124", &ran("", "", 124, false), &killed, None).reason, "the client was ended by SIGKILL");
 
+    // A Cloudflare 524 from the model proxy is named as such, wherever the client reported it.
+    let cut = failure_of("exit-1", &ran("", "Error: 524 A timeout occurred\n", 1, false), &plain, None);
+    assert!(cut.reason.starts_with("Error: 524 A timeout occurred (the model proxy sits behind Cloudflare") && cut.reason.contains("stream: true"), "{}", cut.reason);
+    let reported_cut = failure_of("exit-1", &ran("", "", 1, false), &plain, Some("the model proxy cut the request off after 120 seconds with a 524 timeout"));
+    assert!(reported_cut.reason.contains("every LiteLLM client must stream"), "{}", reported_cut.reason);
+    assert_eq!(failure_of("exit-1", &ran("", "HTTP 5240 ok\n", 1, false), &plain, None).reason, "HTTP 5240 ok");
+
     // The two runs that failed with nothing to say: an error on stdout, exit 1, an empty stderr.
     let stdout = "{\"type\":\"error\",\"error\":{\"message\":\"Cancelled a request for input this run cannot answer: Web Search\"}}\n";
     let reported = failure_of("exit-1", &ran(stdout, "", 1, false), &plain, Some("Cancelled a request for input this run cannot answer: Web Search unknown"));
