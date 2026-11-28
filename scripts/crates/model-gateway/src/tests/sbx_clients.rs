@@ -153,7 +153,7 @@ fn a_hermes_launch_on_a_litellm_route_passes_the_key_by_name_and_reaches_the_pro
     let reach = notes.0.lock().expect("notes").iter().find(|note| note.starts_with("network reach proxy-only")).cloned().expect("the reach is recorded");
     assert!(reach.contains("packages.jorisjonkers.dev:443"), "{reach}");
     let exec = call_with(&calls, "sbx exec ");
-    assert!(exec.contains(" sh -c ") && exec.contains("exec hermes \"$@\" hermes -z ") && exec.contains("--provider litellm-vibe"), "{exec}");
+    assert!(exec.contains(" sh -c ") && exec.contains("exec hermes \"$@\" hermes --usage-file ") && exec.contains("--provider litellm-vibe"), "{exec}");
     assert!(!calls.iter().any(|call| call.starts_with("sbx") && call.contains("proxy-secret")), "{calls:?}");
     let file = env_file(&disk);
     assert!(file.lines().any(|line| line.ends_with("=proxy-secret") && line.starts_with("LITELLM_")), "{file}");

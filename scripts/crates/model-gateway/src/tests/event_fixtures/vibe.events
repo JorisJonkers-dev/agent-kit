@@ -1,0 +1,3 @@
+{"type":"tool.started","data":{"gen_ai.tool.call.id":"CMdlhaN4Y","gen_ai.tool.name":"file_system.read_file","input":"{\"filePath\":\"/home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md\",\"offset\":null,\"limit\":2000}"}}
+{"type":"tool.finished","data":{"gen_ai.tool.call.id":"CMdlhaN4Y","gen_ai.tool.name":"file_system.read_file","status":"ok","output":"131 lines from AGENTS.md"}}
+{"type":"message","data":{"role":"assistant","kind":"text","text":"The first heading in **AGENTS.md** is:\n\n**Build and test**"}}

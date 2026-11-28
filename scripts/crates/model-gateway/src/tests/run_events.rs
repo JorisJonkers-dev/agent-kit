@@ -227,7 +227,8 @@ fn a_log_starts_with_the_envelope_and_otel_names_and_finishes_once() {
     std::fs::create_dir(sandbox.path.join("r1")).expect("run dir");
     let files = SystemFiles { cwd: sandbox.text() };
     let clock = FixedClock(1_795_000_000_000);
-    let events = RunEvents::start(&files, &clock, &format!("{}/r1", sandbox.text()), identity(), &start());
+    // A client with no adapter, so its output is only kept (ADR-0020 covers the clients that have one).
+    let events = RunEvents::start(&files, &clock, &format!("{}/r1", sandbox.text()), RunIdentity { client: "plain".into(), ..identity() }, &start());
     events.spawned(42);
     events.output(Stream::Stdout, b"{\"type\":\"text\"}\n");
     events.output(Stream::Stdout, b"");

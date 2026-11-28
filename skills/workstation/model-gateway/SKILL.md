@@ -713,7 +713,23 @@ same for every client. Each line has `v` (the schema version, `1`), `seq`
 | `fallback` | the free fallback this run is: `fallback` (`from`, `to`, `reason`, `from_run_id`), `available_again_in_s`, `available_at`, `recommendation` |
 | `retry` | this run runs again after the wait the proxy named: the `retry` object above |
 | `routing` | when the gateway saw the proxy's answers: `capture`, `requested`, `litellm_model_id`, `api_base`, `served_model`, `attempted_fallbacks`, `fallback_fired` (LiteLLM's own fallback) and `gateway_fallback` (this run is the free fallback) |
-| `run.finished` | exactly once: `status` (`ok`, `failed`, `lost`), `exit_code`, `signal`, `reason`, `failure`, `stderr_tail`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `cost_usd`, `pid`, `duration_s` |
+| `message` | what the model said or thought, read from the client's own output as it arrives: `role`, `kind` (`text` or `thinking`), `text` (cut at 8,000 characters) |
+| `plan` | a plan or to-do list the client reports: `entries` of `text` and `status` |
+| `tool.started`, `tool.finished` | a tool call: `gen_ai.tool.call.id`, `gen_ai.tool.name`, `input` (started), `status` (`ok` or `error`) and `output` (finished), each cut at 2,000 characters |
+| `usage` | tokens and dollars the client reported: `gen_ai.usage.input_tokens` (the cached prompt included, as in the ledger), `gen_ai.usage.output_tokens`, `cached_input_tokens`, `cost_usd` (`null` when the client prices nothing) |
+| `run.finished` | exactly once: `status` (`ok`, `failed`, `lost`), `exit_code`, `signal`, `reason`, `failure`, `stderr_tail`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `cached_input_tokens`, `cost_usd`, `pid`, `duration_s` |
+
+`message`, `plan`, `tool.*` and `usage` come from the client's stdout, one
+adapter per client (ADR-0020): Claude Code (`--output-format stream-json
+--verbose`), Codex (`exec --json`), OpenCode (`run --format json`), pi (`--mode
+json`), Vibe (`--output streaming`) and Antigravity (`--output-format
+stream-json`) each stream native JSON, and Hermes is driven over ACP (`hermes
+acp`), since it has no streaming JSON of its own. A line an adapter does not
+know, or that is not JSON, becomes a `diagnostic` with `source` `adapter` and
+never fails the run. A client whose stream carries no usage (Vibe, which
+writes it to an export) has one `usage` event written from the run's result
+just before `run.finished`. Codex prices nothing, so its `usage` has no
+`cost_usd`; the priced figure is on `run.finished`.
 
 `tail -f events.jsonl` shows a live run. A gateway killed before it wrote
 `run.finished` leaves the log open; the next run started beside it (same runs

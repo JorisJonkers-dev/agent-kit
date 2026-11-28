@@ -37,6 +37,7 @@ mod quota;
 mod tier_slots;
 mod visibility;
 mod run_events;
+mod event_adapters;
 mod git_view;
 mod sandbox;
 mod sbx_clients;

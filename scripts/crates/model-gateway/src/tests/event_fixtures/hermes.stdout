@@ -1,0 +1,15 @@
+{"jsonrpc":"2.0","id":1,"result":{"agentCapabilities":{"loadSession":true,"promptCapabilities":{"image":true},"sessionCapabilities":{"fork":{},"list":{},"resume":{}}},"agentInfo":{"name":"hermes-agent","version":"0.19.0"},"protocolVersion":1}}
+{"jsonrpc":"2.0","id":2,"result":{"sessionId":"sess-1"}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"size":1048576,"used":52021,"sessionUpdate":"usage_update"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":"The","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":" user explicitly asks me to","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":" use my file reading tool (","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":"read_file) to read AG","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":"ENTS.md and reply with its","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":" first heading in one line.\n\n","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":"Let me read the file","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":".","type":"text"},"sessionUpdate":"agent_thought_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"kind":"read","locations":[{"path":"/home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md"}],"title":"read: /home/user/Projects/JorisJonkers-dev/litellm/AGENTS.md","toolCallId":"tc-ebd13a26fc4f","sessionUpdate":"tool_call"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"content":{"text":"\n\n# Agents","type":"text"},"sessionUpdate":"agent_message_chunk"}}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"f20e5c67-8284-45d5-8f1c-e1a0c7ee0096","update":{"size":1048576,"used":76429,"sessionUpdate":"usage_update"}}}
+{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn","usage":{"cachedReadTokens":74496,"inputTokens":159079,"outputTokens":106,"thoughtTokens":38,"totalTokens":159185}}}
