@@ -128,6 +128,8 @@ fn a_cancel_ends_the_clients_group_and_its_sandbox_and_the_runs_gateway_writes_t
             while rec.sent().is_empty() {
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
+            // A little later, so the cancel looks for the finish at least once before it is there.
+            std::thread::sleep(std::time::Duration::from_millis(40));
             events.finish(parse(r#"{"status":"cancelled","reason":"cancelled"}"#).expect("JSON"));
         });
         cancel_with(&input("r-can"), &machine.runtime, waits()).expect("a cancel")
