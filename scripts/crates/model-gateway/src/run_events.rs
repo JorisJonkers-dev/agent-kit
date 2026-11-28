@@ -278,25 +278,29 @@ impl<'a> RunEvents<'a> {
         let stop = (Mutex::new(false), Condvar::new());
         let tick_ms = self.stall.map_or(self.heartbeat_ms, |(policy, _)| policy.check_ms.min(self.heartbeat_ms));
         std::thread::scope(|scope| {
-            scope.spawn(|| {
-                let mut done = stop.0.lock().unwrap_or_else(PoisonError::into_inner);
-                let mut last_beat = Instant::now();
-                while !*done {
-                    done = stop.1.wait_timeout(done, Duration::from_millis(tick_ms)).unwrap_or_else(PoisonError::into_inner).0;
-                    if *done {
-                        break;
-                    }
-                    if last_beat.elapsed() >= Duration::from_millis(self.heartbeat_ms) {
-                        last_beat = Instant::now();
-                        self.heartbeat();
-                    }
-                    self.watch_silence();
-                }
-            });
+            scope.spawn(|| self.keep_beating(&stop, tick_ms));
             // Stopped on the way out, a panic in `work` included: the scope waits for the heartbeat thread.
             let _stop = Stopper(&stop);
             work()
         })
+    }
+
+    /// The heartbeat thread's loop: a heartbeat every `heartbeat_ms` and a look at the silence every `tick_ms`, until
+    /// `stop` is raised. It is not generic, so `beating` of every result type runs this one copy.
+    fn keep_beating(&self, stop: &(Mutex<bool>, Condvar), tick_ms: u64) {
+        let mut done = stop.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut last_beat = Instant::now();
+        while !*done {
+            done = stop.1.wait_timeout(done, Duration::from_millis(tick_ms)).unwrap_or_else(PoisonError::into_inner).0;
+            if *done {
+                break;
+            }
+            if last_beat.elapsed() >= Duration::from_millis(self.heartbeat_ms) {
+                last_beat = Instant::now();
+                self.heartbeat();
+            }
+            self.watch_silence();
+        }
     }
 
     /// The stall policy's look at the client: a `stall` event once it has been silent for the threshold, a
