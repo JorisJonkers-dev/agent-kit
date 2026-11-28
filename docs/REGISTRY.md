@@ -43,6 +43,15 @@ was never rendered. Both are one test.
 nowhere. That is what the `knowledge` MCP entry is now, and a test asserts it
 does not creep back into a generated artifact.
 
+## Opt-in MCP servers (`opt_in_env`)
+
+An `mcp_servers:` entry with `opt_in_env: VAR` is registered with Claude Code and Codex only on a setup run
+that has `VAR=1` in its environment, and a run without it removes the registration again. It is declared for
+both agents, so converge never prunes it, and it is on no generated file (Vibe, OpenCode, Antigravity, local
+Hermes). The renderer accepts it only on a local stdio server with `cloud: false`, no credential and no
+`session_only`. `run-state` is one: `AGENT_KIT_RUN_STATE_MCP=1 installer/setup-workstation.sh` registers
+`model-gateway mcp`, a read-only view of the gateway's run index.
+
 ## code-nav and its roots
 
 `code-nav` is a read-only MCP server (it writes nothing, opens no socket), so

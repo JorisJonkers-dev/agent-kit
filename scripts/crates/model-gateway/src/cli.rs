@@ -35,6 +35,8 @@ pub const USAGE: &str = r#"usage: model-gateway models [--json '{"repo": "/path/
        model-gateway tail [-f] [--types TYPE,TYPE] [--run RUN] [--workflow NAME] [-n LINES] [--since SECONDS]
                           [--exit-when-done] [--json]
        model-gateway cancel RUN [--json]
+       model-gateway mcp
+       model-gateway export [--endpoint URL] [--file PATH] [--run RUN] [--workflow NAME]
        model-gateway gc [--days N] [--dry-run] [--json]
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
@@ -234,6 +236,13 @@ cancel and a finish are always printed at once. --types keeps only those event t
 watches a batch for what needs a person), --run and --workflow only those runs; -f ends when --run's run
 finishes, with --exit-when-done when every followed run has, else never. Event types: run.started,
 process.started, sandbox.started, diagnostic, heartbeat (every 15 s), stall, cancel, run.finished.
+
+mcp serves ps, status, logs and tail as a read-only MCP server on stdin and stdout, from the same run index
+and logs; setup registers it only when asked (AGENT_KIT_RUN_STATE_MCP=1). export sends the event logs as
+OpenTelemetry traces (OTLP over HTTP, JSON) to --endpoint, OTEL_EXPORTER_OTLP_TRACES_ENDPOINT or
+OTEL_EXPORTER_OTLP_ENDPOINT (with OTEL_EXPORTER_OTLP_HEADERS as headers), and appends the same request as one
+line to --file; the gen_ai.* attributes go out as the log holds them, message and tool text never does. It does
+nothing until one of them is named.
 
 A run whose client writes nothing for "settings.stall.threshold_s" seconds (180 by default; a machine file may
 set it) gets a stall event, and one still silent at three times that is cancelled, exactly as by cancel.

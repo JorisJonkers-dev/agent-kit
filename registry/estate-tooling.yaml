@@ -2400,6 +2400,24 @@ mcp_servers:
       instances.gold-band.mcp_servers.code-nav and never in this file;
       setup appends them to the Claude and Codex registrations there.
 
+  - name: run-state
+    transport: stdio
+    purpose: Read-only state of the model gateway's runs (ps, status, logs, tail), from the same run index as the command line.
+    command: model-gateway
+    args: ["mcp"]
+    timeout: 60
+    # Opt-in: registered with Claude Code and Codex only on a setup run that sets AGENT_KIT_RUN_STATE_MCP=1, and
+    # taken away again by a run that does not. Never on Vibe, OpenCode, Antigravity or local Hermes, and never
+    # in a cloud session; the command line (`model-gateway ps`) is the default way to ask.
+    opt_in_env: AGENT_KIT_RUN_STATE_MCP
+    surfaces: [workstation]
+    cloud: false
+    trust: local
+    requires_binary: model-gateway
+    note: >-
+      Writes nothing and opens no socket: it lists and reads the run index and event logs. Off by default so
+      that no tool definition costs tokens until a person wants agents to ask about runs themselves.
+
   - name: github
     instances: [gold-band-personal]
     reach: [write, full]
